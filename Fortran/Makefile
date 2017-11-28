@@ -1,5 +1,5 @@
 FC=gfortran-mp-7
-FCFLAGS= -O3 -march=native -Wa,-q  #-static # -fno-underscoring
+FCFLAGS= -O3 -march=native -Wa,-q -fno-underscoring
 
 # DO NOT add -fopenmp flag
 
