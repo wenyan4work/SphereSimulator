@@ -1,0 +1,2 @@
+rm ./*.vtk
+rm ./*.xyz
