@@ -17,7 +17,7 @@
 #include <vector>
 
 extern "C" {
-void stfmm3dparttarg(int *ier, int *iprec, int *nsrc, double src[], int *ifsingle, double sigma_sl[], int *ifdouble,
+void stfmm3dparttarg_(int *ier, int *iprec, int *nsrc, double src[], int *ifsingle, double sigma_sl[], int *ifdouble,
                      double sigma_dl[], double sigma_dv[], int *ifpot, double pot[], double pre[], int *ifgrad,
                      double grad[], int *ntrg, double trg[], int *ifpottrg, double pottrg[], double pretrg[],
                      int *ifgradtrg, double gradtrg[]);
@@ -39,7 +39,7 @@ void calcSTFMM(std::vector<double> &src_coord, std::vector<double> &srcSL, std::
     int ifpottrg = 1;
     int ifgradtrg = 1;
 
-    stfmm3dparttarg(&ier, &iprec, &nsrc, src_coord.data(), &ifsingle, srcSL.data(), &ifdouble, srcDL.data(),
+    stfmm3dparttarg_(&ier, &iprec, &nsrc, src_coord.data(), &ifsingle, srcSL.data(), &ifdouble, srcDL.data(),
                     srcDV.data(), &ifpot, srcPot.data(), srcPre.data(), &ifgrad, srcPotGrad.data(), &ntrg,
                     trg_coord.data(), &ifpottrg, trgPot.data(), trgPre.data(), &ifgradtrg, trgPotGrad.data());
 
