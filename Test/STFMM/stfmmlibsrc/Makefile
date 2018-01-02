@@ -1,7 +1,9 @@
 HOST=linux
 
+include $(PVFMM_DIR)/MakeVariables
+
 FC=mpifc  
-FCFLAGS= -ipo
+FCFLAGS= $(CXXFLAGS_PVFMM) 
 
 # Files
 SRC :=   $(wildcard *.f)

@@ -35,7 +35,7 @@ SIZE =	size
 # Files
 
 SRC =   main.cpp fmm.cpp
-INC =   fmm.h cmdparser.hpp CustomKernel.hpp
+INC =   fmm.h cmdparser.hpp StokesCustomKernel.hpp
          
 # Definitions
 
@@ -51,7 +51,7 @@ $(EXE):	$(OBJ) $(FOBJ)
 	$(SIZE) $(EXE)
 
 # Compilation rules
-.cpp.o:
+.o:
 	$(CXX) $(CXXFLAGS) $(INCLUDE_DIRS) -c $*.cpp -o $*.o
 
 # Individual dependencies

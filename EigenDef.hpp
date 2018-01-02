@@ -24,32 +24,54 @@
  *
  * */
 
-typedef Eigen::Vector3d Evec3;
-typedef Eigen::Matrix3d Emat3;
-typedef std::vector<Evec3, Eigen::aligned_allocator<Evec3> > Evec3vec;
+// unaligned fixed size vectors
+using Evec2 = Eigen::Matrix<double, 2, 1, Eigen::DontAlign>;
+using Evec3 = Eigen::Matrix<double, 3, 1, Eigen::DontAlign>;
+using Evec4 = Eigen::Matrix<double, 4, 1, Eigen::DontAlign>;
+using Evec6 = Eigen::Matrix<double, 6, 1, Eigen::DontAlign>;
 
-typedef Eigen::VectorXd Evec;
-typedef Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> Emat; // choose row major
-typedef Eigen::SparseMatrix<double> ESpmat; // default to column major
+// unaligned fixed size matrices
+using Emat2 = Eigen::Matrix<double, 2, 2, Eigen::DontAlign>;
+using Emat3 = Eigen::Matrix<double, 3, 3, Eigen::DontAlign>;
+using Emat4 = Eigen::Matrix<double, 4, 4, Eigen::DontAlign>;
+using Emat6 = Eigen::Matrix<double, 6, 6, Eigen::DontAlign>;
 
-typedef Eigen::Quaternion<double> Equat;
+// unaligned quaternion
+using Equatn = Eigen::Quaternion<double, Eigen::DontAlign>;
 
-inline Equat quatRot(const Evec3& from, const Evec3& to) {
-    Equat q;
-    Evec3 fromnormd = from.normalized();
-    Evec3 tonormd = to.normalized();
-    if (tonormd.dot(fromnormd) > (1 - 1e-9)) {
+// aligned fixed size vectors
+using EAvec2 = Eigen::Vector2d;
+using EAvec3 = Eigen::Vector3d;
+using EAvec4 = Eigen::Vector4d;
+using EAvec6 = Eigen::Matrix<double, 6, 1>;
+
+// aligned fixed size matrices
+using EAmat2 = Eigen::Matrix2d;
+using EAmat3 = Eigen::Matrix3d;
+using EAmat4 = Eigen::Matrix4d;
+using EAmat6 = Eigen::Matrix<double, 6, 6>;
+
+// aligned quaternion
+using EAquatn = Eigen::Quaternion<double>;
+
+using Evec = Eigen::VectorXd;
+using Espmat = Eigen::SparseMatrix<double>;                         // default to column major
+using Emat = Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic>; // default to column major
+
+inline void quatRot(const Evec3 &from, const Evec3 &to, Equatn &q) {
+    EAvec3 fromnormd = from.normalized();
+    EAvec3 tonormd = to.normalized();
+    constexpr double eps = 1e-9;
+    if (tonormd.dot(fromnormd) > (1 - eps)) {
         // almost parallel, no rotation
         q = Eigen::AngleAxis<double>(0, Evec3(1, 0, 0));
-    } else if (tonormd.dot(fromnormd) < -(1 - 1e-9)) {
+    } else if (tonormd.dot(fromnormd) < -(1 - eps)) {
         // almost anti-parallel, rotation known
-        q = Eigen::AngleAxis<double>((double) 3.1415926535897932384623433, Evec3(0, 0, 1));
+        q = Eigen::AngleAxis<double>((double)3.1415926535897932384623433, Evec3(0, 0, 1));
     } else {
         q = Eigen::AngleAxis<double>(acos(fromnormd.dot(tonormd)), (fromnormd.cross(tonormd)).normalized());
         // must use normalized axis
     }
-
-    return q;
 }
 
 #endif /* EIGENDEF_HPP_ */

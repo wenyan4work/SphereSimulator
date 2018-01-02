@@ -18,9 +18,9 @@
 
 extern "C" {
 void stfmm3dparttarg_(int *ier, int *iprec, int *nsrc, double src[], int *ifsingle, double sigma_sl[], int *ifdouble,
-                     double sigma_dl[], double sigma_dv[], int *ifpot, double pot[], double pre[], int *ifgrad,
-                     double grad[], int *ntrg, double trg[], int *ifpottrg, double pottrg[], double pretrg[],
-                     int *ifgradtrg, double gradtrg[]);
+                      double sigma_dl[], double sigma_dv[], int *ifpot, double pot[], double pre[], int *ifgrad,
+                      double grad[], int *ntrg, double trg[], int *ifpottrg, double pottrg[], double pretrg[],
+                      int *ifgradtrg, double gradtrg[]);
 }
 
 void calcSTFMM(std::vector<double> &src_coord, std::vector<double> &srcSL, std::vector<double> &srcDL,
@@ -40,8 +40,8 @@ void calcSTFMM(std::vector<double> &src_coord, std::vector<double> &srcSL, std::
     int ifgradtrg = 1;
 
     stfmm3dparttarg_(&ier, &iprec, &nsrc, src_coord.data(), &ifsingle, srcSL.data(), &ifdouble, srcDL.data(),
-                    srcDV.data(), &ifpot, srcPot.data(), srcPre.data(), &ifgrad, srcPotGrad.data(), &ntrg,
-                    trg_coord.data(), &ifpottrg, trgPot.data(), trgPre.data(), &ifgradtrg, trgPotGrad.data());
+                     srcDV.data(), &ifpot, srcPot.data(), srcPre.data(), &ifgrad, srcPotGrad.data(), &ntrg,
+                     trg_coord.data(), &ifpottrg, trgPot.data(), trgPre.data(), &ifgradtrg, trgPotGrad.data());
 
     for (auto &v : trgPre) {
         std::cout << "trgPre" << v << std::endl;
@@ -207,7 +207,6 @@ int main(int argc, char **argv) {
     std::vector<double> srcDV(n_src * 3); // double layer orientation. no need to normalize
     for (auto &v : srcSL) {
         v = d(gen);
-        v = 0;
         std::cout << "srcSL" << v << std::endl;
     }
     for (auto &v : srcDL) {

@@ -217,17 +217,18 @@ void pvfmmGGrad(const double *src_coord, const int nsrc, const double *trg_coord
     return;
 }
 
-void pvfmmDouble(const double *src_coord, const int nsrc, const double *trg_coord, const int ntrg, double *srcDL,
+void pvfmmDouble(const double *src_coord, const size_t nsrc, const double *trg_coord, const size_t ntrg, double *srcDL,
                  double *srcDV, double *trgPot, const int mult_order) {
+    printf("pvfmm double\n");
 
     std::vector<double> srcCoord(3 * nsrc);
     std::vector<double> trgCoord(3 * ntrg);
 #pragma omp parallel for schedule(dynamic, 2048)
-    for (int i = 0; i < 3 * nsrc; i++) {
+    for (size_t i = 0; i < 3 * nsrc; i++) {
         srcCoord[i] = src_coord[i];
     }
 #pragma omp parallel for schedule(dynamic, 2048)
-    for (int i = 0; i < 3 * ntrg; i++) {
+    for (size_t i = 0; i < 3 * ntrg; i++) {
         trgCoord[i] = trg_coord[i];
     }
     double scaleFactor;
@@ -236,22 +237,28 @@ void pvfmmDouble(const double *src_coord, const int nsrc, const double *trg_coor
     static pvfmm::PtFMM *matrixPtr = nullptr;
     pvfmm::PtFMM_Tree *treePtr = nullptr;
     pvfmm::PtFMM_Data treeData;
+    printf("pvfmm double 1\n");
 
     const int max_pts = 1000;
     const int init_depth = 15;
 
     const pvfmm::Kernel<double> &kernel = pvfmm::StokesCustomKernel<double>::Double();
     MPI_Comm comm = MPI_COMM_WORLD;
+
+    //    pvfmm::mem::MemoryManager mem_mgr(10000000);
+
     if (matrixPtr == nullptr) {
         matrixPtr = new pvfmm::PtFMM;
         matrixPtr->Initialize(mult_order, comm, &kernel);
     }
+    printf("pvfmm double 2\n");
 
     // tree
     treePtr = new pvfmm::PtFMM_Tree(comm);
     treeData.dim = 3;
     treeData.max_depth = 15;
     treeData.max_pts = max_pts;
+    printf("pvfmm double 3\n");
 
     treeData.src_coord = srcCoord;
     treeData.trg_coord = trgCoord;
@@ -261,14 +268,17 @@ void pvfmmDouble(const double *src_coord, const int nsrc, const double *trg_coor
     bool adap = true;
     // treePtrG
     treePtr->Initialize(&treeData);
+    printf("pvfmm double 4\n");
     treePtr->InitFMM_Tree(adap, pvfmm::FreeSpace);
+    printf("pvfmm double 5\n");
     treePtr->SetupFMM(matrixPtr);
+    printf("pvfmm double 6\n");
 
     std::vector<double> srcValue(nsrc * 9);
-    std::vector<double> trgValue(ntrg * 3, 0);
+    std::vector<double> trgValue(ntrg * 3);
 
 #pragma omp parallel for schedule(dynamic, 2048)
-    for (int i = 0; i < nsrc; i++) {
+    for (size_t i = 0; i < nsrc; i++) {
         // each 3x3 block of srcValue is row major, different from the output
         // calculates Tijk vk fj
         srcValue[9 * i + 0] = srcDL[3 * i + 0] * srcDV[3 * i + 0];
@@ -281,12 +291,13 @@ void pvfmmDouble(const double *src_coord, const int nsrc, const double *trg_coor
         srcValue[9 * i + 7] = srcDL[3 * i + 2] * srcDV[3 * i + 1];
         srcValue[9 * i + 8] = srcDL[3 * i + 2] * srcDV[3 * i + 2];
     }
+    printf("FMM setup\n");
 
     std::vector<double> surfValue;
     PtFMM_Evaluate(treePtr, trgValue, ntrg, &srcValue, &surfValue);
     const double factor = -4 * PI314 * scaleFactor * scaleFactor;
 #pragma omp parallel for schedule(dynamic, 2048)
-    for (int i = 0; i < 3 * ntrg; i++) {
+    for (size_t i = 0; i < 3 * ntrg; i++) {
         trgPot[i] += trgValue[i] * factor;
     }
 
@@ -555,11 +566,11 @@ void stfmm3dparttarg_pvfmm(int *ier, int *iprec, int *nsrc, double *src_coord, i
 
         if (*ifpottrg == 1) {
             pvfmmDouble(src_coord, *nsrc, trg_coord, *ntrg, srcDL, srcDV, trgPot, mult_order);
-            pvfmmPressureDouble(src_coord, *nsrc, trg_coord, *ntrg, srcDL, srcDV, trgPre, mult_order);
+            //            pvfmmPressureDouble(src_coord, *nsrc, trg_coord, *ntrg, srcDL, srcDV, trgPre, mult_order);
         }
-        if (*ifgradtrg == 1) {
-            pvfmmDoubleGrad(src_coord, *nsrc, trg_coord, *ntrg, srcDL, srcDV, trgPotGrad, mult_order);
-        }
+        //            if (*ifgradtrg == 1) {
+        //                pvfmmDoubleGrad(src_coord, *nsrc, trg_coord, *ntrg, srcDL, srcDV, trgPotGrad, mult_order);
+        //            }
     } else {
         printf("Other double layer kernels not implemented\n");
         exit(1);
@@ -590,12 +601,12 @@ void stfmm3dpartself_pvfmm(int *ier, int *iprec, int *nsrc, double *src_coord, i
         // add kernel for double layer 1
         if (*ifpot == 1) {
             pvfmmDouble(src_coord, *nsrc, src_coord, *nsrc, srcDL, srcDV, srcPot, mult_order);
-            pvfmmPressureDouble(src_coord, *nsrc, src_coord, *nsrc, srcDL, srcDV, srcPre, mult_order);
+            //            pvfmmPressureDouble(src_coord, *nsrc, src_coord, *nsrc, srcDL, srcDV, srcPre, mult_order);
         }
 
-        if (*ifgrad == 1) {
-            pvfmmDoubleGrad(src_coord, *nsrc, src_coord, *nsrc, srcDL, srcDV, srcPotGrad, mult_order);
-        }
+        //            if (*ifgrad == 1) {
+        //                pvfmmDoubleGrad(src_coord, *nsrc, src_coord, *nsrc, srcDL, srcDV, srcPotGrad, mult_order);
+        //            }
 
     } else {
         printf("Other double layer kernels not implemented\n");
