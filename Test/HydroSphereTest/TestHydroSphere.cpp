@@ -5,7 +5,7 @@
  *      Author: wyan
  */
 
-#include "../../HydroSphere.h"
+#include "../../LayerSphereSystem.hpp"
 #include "mpi.h"
 
 #include <climits>

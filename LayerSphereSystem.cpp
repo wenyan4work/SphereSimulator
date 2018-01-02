@@ -1,4 +1,3 @@
-
 // std
 #include <algorithm>
 #include <cmath>
@@ -6,15 +5,13 @@
 #include <iomanip>
 #include <string>
 #include <utility>
-// #include <iostream>
-
-// namespace HydroSphere
-#include "HydroSphere.h"
-#include "HydroSphereType.hpp"
 
 // helper routines
 #include "Preconditioner.hpp"
 #include "ZDD.hpp"
+
+// namespace HydroSphere
+#include "LayerSphereSystem.hpp"
 
 // for debug. NDEBUG defined in pvfmm.hpp
 #undef NDEBUG
@@ -43,7 +40,7 @@ class HydroSphereOperator : public TOP {
 
   public:
     // Constructor
-    explicit HydroSphereOperator(HydroSphereSystem *systemPtr_) : systemPtr{systemPtr_} {}
+    explicit HydroSphereOperator(HydroSphereSystem *systemPtr_) : systemPtr{ systemPtr_ } {}
 
     // Destructor
     ~HydroSphereOperator() = default;
@@ -90,8 +87,8 @@ class MobilityOperator : public TOP {
   public:
     // Constructor
     MobilityOperator(HydroSphereSystem *systemPtr_, const double Tscale_, const double Lscale_, const double Escale_)
-        : systemPtr{systemPtr_}, Tscale{Tscale_}, Lscale{Lscale_}, Escale{Escale_}, Fscale{Escale_ / Lscale_},
-          Torscale{Escale_} {
+        : systemPtr{ systemPtr_ }, Tscale{ Tscale_ }, Lscale{ Lscale_ }, Escale{ Escale_ }, Fscale{ Escale_ / Lscale_ },
+          Torscale{ Escale_ } {
         systemPtr->getReadyForSolve(HydroSphereSystem::SolverType::IMPLICIT);
     };
 

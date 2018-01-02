@@ -34,7 +34,7 @@ class SPHExp {
     inline int COEFFINDEX(int i, int n, int m) {
         // i=0 for LAPSL and LAPDL
         // i=0,1,2 for STKSL and STKDL
-        return i * n * (n + 1) + n * n + m + n;
+        return i * (n + 1) * (n + 1) + n * n + m + n;
     }
 
     // constructor
@@ -42,11 +42,11 @@ class SPHExp {
            const Equatn orientation_ = Equatn::Identity());
 
     // copy constructor
-    SPHExp(const SPHExp &) = delete;
-    SPHExp(SPHExp &&) = delete;
+    SPHExp(const SPHExp &);
+    SPHExp(SPHExp &&);
 
     // copy assignment
-    SPHExp &operator=(const SPHExp &) = delete;
+    SPHExp &operator=(SPHExp &) = delete;
     SPHExp &operator=(SPHExp &&) = delete;
 
     // destructor
@@ -80,7 +80,7 @@ class SPHExp {
 
     // debug routines
     void dumpVTK(const std::string &);
-    void dumpSpectralValues(const std::string &);
+    void dumpSpectralValues(const std::string &filename = std::string("")); // default to empty string
 };
 
 #endif // SPHEXP_HPP

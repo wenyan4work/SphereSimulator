@@ -1,12 +1,26 @@
 #ifndef SPHERE_HPP
 #define SPHERE_HPP
 
-#include "SPHExp.hpp"
 #include <unordered_map>
+#include <vector>
+
+#include "SPHExp.hpp"
+
+#define INVALID -1
+
+class NeighborSphere {
+  public:
+    int gid;
+    double radius;
+    double radiusCollision;
+    Evec3 pos;
+    Evec3 posRelative;
+    Equatn orientation;
+};
 
 class Sphere {
   public:
-    int gid;
+    int gid = INVALID;
     double radius;
     double radiusCollision;
     Evec3 pos;
@@ -14,39 +28,27 @@ class Sphere {
     Evec3 omega;
     Equatn orientation;
 
-    std::unordered_map<std::string, SPHExp *> sphPotential;
+    std::vector<NeighborSphere> sphNeighbor;
+    std::unordered_map<std::string, SPHExp *> sphLayer;
 
-    Sphere() noexcept;
+    Sphere() = default;
+    Sphere(int, double, double) noexcept;
     ~Sphere() noexcept;
 
     Sphere(const Sphere &) noexcept;
-    Sphere(const Sphere &&) noexcept;
+    Sphere(Sphere &&) noexcept;
 
     Sphere &operator=(Sphere) noexcept;
 
+    void addLayer(const std::string &, SPHExp::KIND, int order = 4, const Equatn orientation = Equatn::Identity());
+
+    void dumpSphere() const;
+    void dumpLayer(const std::string &) const;
+
+    void pack(char *const ptr);
+    void unpack(const char *const ptr);
+
     friend void swap(Sphere &, Sphere &);
-
-  private:
 };
-
-void swap(Sphere &sphA, Sphere &sphB) {
-    using std::swap;
-    swap(sphA.gid, sphB.gid);
-    swap(sphA.radius, sphB.radius);
-    swap(sphA.radiusCollision, sphB.radiusCollision);
-
-    sphA.pos.swap(sphB.pos);
-    sphA.vel.swap(sphB.vel);
-    sphA.omega.swap(sphB.omega);
-
-    Equatn otemp = sphB.orientation;
-    sphB.orientation = sphA.orientation;
-    sphA.orientation = otemp;
-
-    // swap the unordered map
-    sphA.sphPotential.swap(sphB.sphPotential);
-
-    return;
-}
 
 #endif // SPHERE_HPP

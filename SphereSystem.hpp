@@ -7,7 +7,7 @@
 #include "FDPS_Header/particle_simulator.hpp"
 #include "TRngPool.hpp"
 #include "config.h"
-#include "HydroSphere.h"
+#include "LayerSphereSystem.hpp"
 
 #include <algorithm>
 #include <deque>
@@ -17,9 +17,7 @@
 #define COLBUF 0.3 // possible collision within (1+0.3)*(radiusI+radiusJ)
 
 // check whether an integer is even or odd
-inline bool isOdd(const int x) {
-    return x % 2 != 0;
-}
+inline bool isOdd(const int x) { return x % 2 != 0; }
 
 inline double normVec3(const PS::F64vec3 &vec3) {
     double norm2 = vec3 * vec3;
@@ -42,7 +40,7 @@ inline void zeroVec3(PS::F64vec3 &vec3) {
 
 // output file header
 class FileHeader {
-public:
+  public:
     int nSphere;
     PS::F64 time;
 
@@ -56,7 +54,7 @@ public:
 
 // type for near pairwise force. not useful in collision detection
 class forceNearEP {
-public:
+  public:
     PS::F64vec3 forceNear;
     PS::F64vec3 torqueNear;
     PS::F64vec3 sepmin;
@@ -70,7 +68,7 @@ public:
 
 /*FullParticle class for FDPS*/
 class SphereFP {
-public:
+  public:
     PS::S32 gid, localIndex, globalIndex;
     // PS::S32 rank;
     PS::F64vec3 pos; // Tubule center or protein center
@@ -101,9 +99,7 @@ public:
 
     PS::S32 overlap;
 
-    PS::F64vec getPos() const {
-        return this->pos;
-    }
+    PS::F64vec getPos() const { return this->pos; }
 
     void copyFromForce(const forceNearEP &force) {
         this->forceNear = force.forceNear;
@@ -122,7 +118,7 @@ public:
 };
 
 class SphereNearForceEP {
-public:
+  public:
     PS::S32 gid, localIndex, globalIndex;
 
     // PS::S32 rank; // on which rank
@@ -131,17 +127,11 @@ public:
     PS::F64 radius;
     PS::F64 RSearch;
 
-    PS::F64vec getPos() const {
-        return this->pos;
-    }
+    PS::F64vec getPos() const { return this->pos; }
 
-    void setPos(const PS::F64vec3 &pos) {
-        this->pos = pos;
-    }
+    void setPos(const PS::F64vec3 &pos) { this->pos = pos; }
 
-    PS::F64 getRSearch() const {
-        return this->RSearch;
-    }
+    PS::F64 getRSearch() const { return this->RSearch; }
 
     void copyFromFP(const SphereFP &fp) {
         gid = fp.gid;
@@ -154,7 +144,7 @@ public:
 };
 
 struct ColBlock {
-public:
+  public:
     int gidI, gidJ;
     // int localIndexI, localIndexJ;
     int globalIndexI, globalIndexJ;
@@ -163,8 +153,7 @@ public:
     double phi0;   // constraint value
     double lambda; // force magnitude
 
-    ColBlock() :
-            gidI(0), gidJ(0), globalIndexI(0), globalIndexJ(0), phi0(0), lambda(0) {
+    ColBlock() : gidI(0), gidJ(0), globalIndexI(0), globalIndexJ(0), phi0(0), lambda(0) {
         // default constructor
         zeroVec3(gvecI);
         zeroVec3(gvecJ);
@@ -173,8 +162,8 @@ public:
     }
 
     ColBlock(int gidI_, int gidJ_, int globalIndexI_, int globalIndexJ_, const PS::F64vec3 &gvecI_,
-            const PS::F64vec3 &gvecJ_, const PS::F64vec3 &posI_, const PS::F64vec3 &posJ_, double phi0_) :
-            gidI(gidI_), gidJ(gidJ_), globalIndexI(globalIndexI_), globalIndexJ(globalIndexJ_), phi0(phi0_), lambda(0) {
+             const PS::F64vec3 &gvecJ_, const PS::F64vec3 &posI_, const PS::F64vec3 &posJ_, double phi0_)
+        : gidI(gidI_), gidJ(gidJ_), globalIndexI(globalIndexI_), globalIndexJ(globalIndexJ_), phi0(phi0_), lambda(0) {
         // constructor
         gvecI = gvecI_;
         gvecJ = gvecJ_;
@@ -184,8 +173,8 @@ public:
 };
 
 class CalcNearForce {
-public:
-    using colBlockThread_t = std::vector<std::deque<ColBlock>>;
+  public:
+    using colBlockThread_t = std::vector<std::deque<ColBlock> >;
     std::shared_ptr<colBlockThread_t> colBlockThread_ptr;
 
     // constructor
@@ -201,13 +190,12 @@ public:
     }
 
     // copy constructor
-    CalcNearForce(const CalcNearForce &obj) :
-            colBlockThread_ptr(obj.colBlockThread_ptr) {
+    CalcNearForce(const CalcNearForce &obj) : colBlockThread_ptr(obj.colBlockThread_ptr) {
         // copy the shared ptr
     }
 
-    void operator()(const SphereNearForceEP * const ep_i, const PS::S32 Nip, const SphereNearForceEP * const ep_j,
-            const PS::S32 Njp, forceNearEP * const force) {
+    void operator()(const SphereNearForceEP *const ep_i, const PS::S32 Nip, const SphereNearForceEP *const ep_j,
+                    const PS::S32 Njp, forceNearEP *const force) {
 
 #ifdef PARTICLE_SIMULATOR_THREAD_PARALLEL
         const int myThreadId = omp_get_thread_num();
@@ -242,7 +230,8 @@ public:
                     const PS::F64vec3 gvecI = rIJ * (-1.0 / rIJNorm);
                     const PS::F64vec3 gvecJ = -gvecI;
                     (*colBlockThread_ptr)[myThreadId].emplace_back(sphereI.gid, sphereJ.gid, sphereI.globalIndex,
-                            sphereJ.globalIndex, gvecI, gvecJ, sphereI.pos, sphereJ.pos, sep);
+                                                                   sphereJ.globalIndex, gvecI, gvecJ, sphereI.pos,
+                                                                   sphereJ.pos, sep);
                 }
             }
             force[i].forceNear = forceNearI;
@@ -257,17 +246,13 @@ class SphericalBoundary {
     double radius;
     PS::F64vec3 center;
 
-public:
-    using colBlockThread_t = std::vector<std::deque<ColBlock>>;
+  public:
+    using colBlockThread_t = std::vector<std::deque<ColBlock> >;
     std::shared_ptr<colBlockThread_t> colBlockThread_ptr;
     // constructor
-    SphericalBoundary() {
-        initialize(0, PS::F64vec3(0, 0, 0));
-    }
+    SphericalBoundary() { initialize(0, PS::F64vec3(0, 0, 0)); }
 
-    SphericalBoundary(double radius_, const PS::F64vec3 &center_) {
-        initialize(radius_, center_);
-    }
+    SphericalBoundary(double radius_, const PS::F64vec3 &center_) { initialize(radius_, center_); }
 
     void initialize(double radius_, const PS::F64vec3 &center_) {
         radius = radius_;
@@ -305,8 +290,8 @@ public:
         const double sep = radius - (rnorm + sphere.radius);
         if (sep < sphere.radius * COLBUF) {
             auto gvec = -rvec * (1 / rnorm);
-            (*colBlockThread_ptr)[threadId].emplace_back(sphere.gid, -1, sphere.globalIndex, -1, gvec, -gvec,
-                    sphere.pos, center, sep);
+            (*colBlockThread_ptr)[threadId]
+                .emplace_back(sphere.gid, -1, sphere.globalIndex, -1, gvec, -gvec, sphere.pos, center, sep);
             ;
         }
         return;
@@ -315,7 +300,7 @@ public:
 
 class SphereSystem {
 
-public:
+  public:
     const Config runConfig;
     int myRank;
     int nProcs;
@@ -365,8 +350,8 @@ public:
     ~SphereSystem() = default;
 
     // delete copy constructor
-    SphereSystem(const SphereSystem&) = delete;
-    SphereSystem& operator=(const SphereSystem&) = delete;
+    SphereSystem(const SphereSystem &) = delete;
+    SphereSystem &operator=(const SphereSystem &) = delete;
 };
 
 //#pragma GCC pop_options

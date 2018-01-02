@@ -1,37 +1,41 @@
 /*
- * HydroRigid.h
+ * LayerSphereSyetem.h
  *
- *  Created on: Aug 8, 2017
+ *  Created on: Jan 2, 2018
  *      Author: wyan
  */
 
 #ifndef HYDROSPHERE_H_
 #define HYDROSPHERE_H_
 
-#include "EigenDef.hpp"
-#include "FMMWrapper.h"
-#include "HydroSphereType.hpp"
-#include "TpetraUtil.hpp"
-#include "ZDD.hpp"
+#include <vector>
 #include "mpi.h"
 
-#include <vector>
+#include "EigenDef.hpp"
+#include "FMMWrapper.h"
+#include "TpetraUtil.hpp"
+#include "ZDD.hpp"
+#include "Sphere.hpp"
 
-namespace HydroSphere {
+namespace LayerSphere {
 
 // non dimensionalized
-class HydroSphereSystem {
+class LayerSphereSystem {
   public:
-    enum SolverType { EXPLICIT, IMPLICIT };
-    enum PrecType { RELAXATION, ILUT, KINV };
+    enum SolverType {
+        EXPLICIT,
+        IMPLICIT
+    };
+    enum PrecType {
+        RELAXATION,
+        ILUT,
+        KINV
+    };
 
   private:
     // physics domain information
     Evec3 boxLow;
     Evec3 boxHigh;
-
-    // state
-    bool fdistValid; // whether the force density is valid.
 
     // solver information
     double iteres;
@@ -39,10 +43,9 @@ class HydroSphereSystem {
     int precChoice; // choice of preconditioner
 
     // internal sphere data structure
-    std::deque<RigidSphere> sphere;
+    std::deque<Sphere> sphere;
     std::vector<SpherePacked> sendBuff;
     std::vector<SpherePacked> recvBuff;
-    std::vector<ChebNodal> chebIntegrator;
 
     // FMM data structure
     std::vector<double> src_coord;
@@ -52,7 +55,7 @@ class HydroSphereSystem {
     FMM_Wrapper myFMM;
 
     // Trilinos data structure
-    const Teuchos::RCP<const Teuchos::Comm<int>> commRcp;
+    const Teuchos::RCP<const TCOMM> commRcp;
     ZDD<int> sphereGidFindDD;
 
     // MAP
