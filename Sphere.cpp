@@ -22,13 +22,15 @@ void swap(Sphere &sphA, Sphere &sphB) {
     return;
 }
 
-Sphere::Sphere(const int &gid_, const double &radius_, const double &radiusCollision_) noexcept
-    : gid(gid_), radius(radius_), radiusCollision(radiusCollision_) {
-    pos.setZero();
-    vel.setZero();
-    omega.setZero();
-    orientation.setIdentity();
-    sphNeighbor.reserve(50);
+void SphereIO::dumpSphere() const {
+    printf("gid %8d, r %8f, rCol %8f, pos %8f, %8f, %8f\n", gid, radius, radiusCollision, pos[0], pos[1], pos[2]);
+    printf("vel %8f, %8f, %8f; omega %8f, %8f, %8f\n", vel[0], vel[1], vel[2], omega[0], omega[1], omega[2]);
+    printf("orient %8f, %8f, %8f, %8f\n", orientation.w(), orientation.x(), orientation.y(), orientation.z());
+    return;
+}
+
+Sphere::Sphere(const SphereIO &sphere): Sphere::Sphere(sphere.gid, sphere.radius, sphere.radiusCollision, sphere.pos, sphere.orientation) {
+    return;
 }
 
 Sphere::Sphere(const int &gid_, const double &radius_, const double &radiusCollision_, const Evec3 &pos_,
@@ -36,7 +38,8 @@ Sphere::Sphere(const int &gid_, const double &radius_, const double &radiusColli
     : gid(gid_), radius(radius_), radiusCollision(radiusCollision_), pos(pos_), orientation(orientation_) {
     vel.setZero();
     omega.setZero();
-    sphNeighbor.reserve(50);
+    sphNeighbor.reserve(10);
+    return;
 }
 
 Sphere::~Sphere() noexcept {
@@ -97,9 +100,16 @@ void Sphere::dumpSphere() const {
     printf("orient %8f, %8f, %8f, %8f\n", orientation.w(), orientation.x(), orientation.y(), orientation.z());
 }
 
-void Sphere::dumpLayer(const std::string &name) const {
-    sphLayer.find(name)->second->dumpSpectralValues();
+void Sphere::dumpNeighbor() const {
+    for (auto &nb : sphNeighbor) {
+        printf("gid %8d, r %8f, rCol %8f, pos %8f, %8f, %8f\n", nb.gid, nb.radius, nb.radiusCollision, nb.pos[0],
+               nb.pos[1], nb.pos[2]);
+        printf("Orientation: %8f, %8f, %8f, %8f; posRelative %8f, %8f, %8f\n", nb.orientation.w(), nb.orientation.x(),
+               nb.orientation.y(), nb.orientation.z(), nb.posRelative[0], nb.posRelative[1], nb.posRelative[2]);
+    }
 }
+
+void Sphere::dumpLayer(const std::string &name) const { sphLayer.find(name)->second->dumpSpectralValues(); }
 
 void Sphere::pack(Buffer &buffer) {
     // head

@@ -1,98 +1,109 @@
 #ifndef BUFFER_HPP
 #define BUFFER_HPP
 
-#include <vector>
 #include <cstdio>
 #include <iostream>
+#include <vector>
 
 #include "msgpack.hpp"
 
 // pack data to byte array in MsgPack format
 
-class Buffer{
-    private:
-    mutable size_t readPos=0;
+class Buffer {
+  private:
+    mutable size_t readPos = 0;
     std::vector<char> content;
 
-    public:
+  public:
+    // constructor
+    Buffer() noexcept = default;
 
-    size_t getReadPos()noexcept{
-        return readPos;
+    // copy control
+    Buffer(const Buffer &other) {
+        readPos = other.readPos;
+        content = other.content;
     }
 
-    void setReadPos(const size_t & pos)noexcept{
-        readPos=pos;
+    Buffer(Buffer &&other) {
+        readPos = other.readPos;
+        content = other.content;
     }
 
-    void dump()noexcept{
-        for(auto & v:content){
-            printf("%c",v);
+    Buffer &operator=(const Buffer &other) {
+        readPos = other.readPos;
+        content = other.content;
+    }
+    Buffer &operator=(Buffer &&other) {
+        readPos = other.readPos;
+        content.swap(other.content);
+    }
+
+    // destructor
+    ~Buffer() = default;
+
+    // swap
+    void swap(Buffer &other) {
+        std::swap(readPos, other.readPos);
+        content.swap(other.content);
+    }
+
+    size_t getReadPos() noexcept { return readPos; }
+
+    void setReadPos(const size_t &pos) noexcept { readPos = pos; }
+
+    void dump() noexcept {
+        for (auto &v : content) {
+            printf("%c", v);
         }
-        printf("\nreadPos %d\n",readPos);
+        printf("\nreadPos %d\n", readPos);
     }
 
-    void reserve(size_t length){
-        content.reserve(length);
-    }
+    void reserve(size_t length) { content.reserve(length); }
 
-    void clear(){
-        content.clear();
-    }
+    void clear() { content.clear(); }
 
-    char* getPtr(){
-        // can be used to read/write the 
+    char *getPtr() {
+        // can be used to read/write the
         return content.data();
     }
 
-    size_t getSize(){
-        return content.size();
-    }
+    size_t getSize() { return content.size(); }
 
     // interface to mimic stringstream
-    void write(const char* ptr,size_t length){
-        for(int i=0;i<length;i++){
-            content.push_back(*(ptr+i));
+    void write(const char *ptr, size_t length) {
+        for (int i = 0; i < length; i++) {
+            content.push_back(*(ptr + i));
         }
     }
 
-    // enum DATATYPE{ 
-    //     // MsgPack intrinsic types
-    //     INT32=0xc,
-    //     FLOAT64=0xcb,
-    //     BIN32=0xc6,
-    //     // MsgPack extension types
-    //     CUSTOM1=0x01
-    // };
-
-    // pack data routines. 
-    template<class T>
-    inline void pack(const T & data){
-        msgpack::pack(*this,data);
+    // pack data routines.
+    template <class T>
+    inline void pack(const T &data) {
+        msgpack::pack(*this, data);
     }
 
     // helper of deserialization
-    inline void unpackDebugPrint(const msgpack::object & obj) const{
-        #ifndef DNDEBUG
+    inline void unpackDebugPrint(const msgpack::object &obj) const {
+#ifndef DNDEBUG
         // print the deserialized object.
         std::cout << obj << std::endl;
-        if(readPos>content.size()){
+        if (readPos > content.size()) {
             printf("Error: read position past the end of content.\n");
             exit(1);
         }
-        #endif
+#endif
     }
 
     // unpack data routines
-    template<class T>
-    inline void unpack(T & output) const{
-        size_t offset=readPos; 
-        msgpack::object_handle oh =
-            msgpack::unpack(content.data(),content.size(), offset);
+    template <class T>
+    inline void unpack(T &output) const {
+        size_t offset = readPos;
+        msgpack::object_handle oh = msgpack::unpack(content.data(), content.size(), offset);
         msgpack::object obj = oh.get();
         obj.convert(output);
         // shift position
-        readPos=offset;
-        unpackDebugPrint(obj); 
+        readPos = offset;
+        unpackDebugPrint(obj);
     }
 };
 

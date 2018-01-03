@@ -1,13 +1,14 @@
+#ifndef SPHERESYSTEM_H_
+#define SPHERESYSTEM_H_
+
 //#pragma GCC push_options
 //// for debug
 //#pragma GCC optimize ("O0")
-#ifndef SPHERESYSTEM_H_
-#define SPHERESYSTEM_H_
 
 #include "FDPS_Header/particle_simulator.hpp"
 #include "TRngPool.hpp"
 #include "config.h"
-#include "LayerSphereSystem.hpp"
+#include "SPHSphereSystem.hpp"
 
 #include <algorithm>
 #include <deque>

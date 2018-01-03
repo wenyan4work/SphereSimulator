@@ -5,7 +5,7 @@
 #include "SphereSystem.hpp"
 
 #include "CPSolver.hpp"
-#include "GeoUtil.hpp"
+// #include "GeoUtil.hpp"
 #include "TpetraUtil.hpp"
 #include "ZDD.hpp"
 
