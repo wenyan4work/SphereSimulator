@@ -11,6 +11,10 @@
 #include "TpetraUtil.hpp"
 #include "ZDD.hpp"
 
+#define SPHEREBYTESIZEMAX 48000
+// default to 48KB per sphere.
+// affect the buffer size for mpi send/recv 
+
 class SPHSphereSystem {
     // system class provide common operations to all operators
 

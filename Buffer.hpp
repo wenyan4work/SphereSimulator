@@ -18,6 +18,14 @@ class Buffer {
     // constructor
     Buffer() noexcept = default;
 
+    // construct a Buffer object with external buf.
+    // buf is empty after this constructor
+    explicit Buffer(std::vector<char> &buf) {
+        readPos = 0;
+        content.swap(buf);
+        buf.clear();
+    }
+
     // copy control
     Buffer(const Buffer &other) {
         readPos = other.readPos;
@@ -58,6 +66,7 @@ class Buffer {
         printf("\nreadPos %d\n", readPos);
     }
 
+    // buffer should not resize itself, because after resize the data in content are not valid msgpack obj data
     void reserve(size_t length) { content.reserve(length); }
 
     void clear() { content.clear(); }

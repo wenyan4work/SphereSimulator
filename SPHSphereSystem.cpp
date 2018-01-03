@@ -140,6 +140,10 @@ void SPHSphereSystem::sortSphere() {
 }
 
 void SPHSphereSystem::exchangeSphere() {
+    bool debug = false;
+#ifndef DEDEBUG
+    debug = true;
+#endif
     // move spheres according to the location of sphereIO
     // step 1, decide the mpi send target for each sphere
     commRcp->barrier();
@@ -150,12 +154,20 @@ void SPHSphereSystem::exchangeSphere() {
     }
 
     // step 2, pack, send, recv
-    std::vector<int> nsend(nProcs, 0);
-    std::vector<int> nsend_disp(nProcs + 1, 0);
-    std::vector<int> nrecv(nProcs, 0);
-    std::vector<int> nrecv_disp(nProcs + 1, 0);
-
+    // number of spheres
+    std::vector<int> nSphSend(nProcs, 0);
+    std::vector<int> nSphSendDisp(nProcs + 1, 0);
+    std::vector<int> nSphRecv(nProcs, 0);
+    std::vector<int> nSphRecvDisp(nProcs + 1, 0);
+    // number of bytes
+    std::vector<int> nByteSend(nProcs, 0);
+    std::vector<int> nByteSendDisp(nProcs + 1, 0);
+    std::vector<int> nByteRecv(nProcs, 0);
+    std::vector<int> nByteRecvDisp(nProcs + 1, 0);
+    // send buffer for each rank
     std::vector<Buffer> sendBuffer(nProcs);
+    // each rank has its own send buffer.
+    // most would be empty later (no sphere to be sent)
 
     MPI_Request *req_send = new MPI_Request[nProcs];
     MPI_Request *req_recv = new MPI_Request[nProcs];
@@ -165,84 +177,99 @@ void SPHSphereSystem::exchangeSphere() {
     for (int ip = 0; ip < nSphere; ip++) {
         int sendRank = sendDest[ip];
         if (sendRank != myRank) {
-            nsend[sendRank]++;
+            nSphSend[sendRank]++;
         }
     }
-    nsend_disp[0] = 0;
-    for (int i = 0; i < nProcs; i++) {
-        nsend_disp[i + 1] += nsend_disp[i] + nsend[i];
-    }
+    nSphSendDisp[0] = 0;
+    std::partial_sum(nSphSend.cbegin(), nSphSend.cend(), nSphSendDisp.begin() + 1);
 
-    // send buffer
-    sendBuff.reserve(nsend_disp[nProcs] * 1e4); // reserve 10KB for each sphere to be sent
-    printf("rank %d, send buffer size %d\n", myRank, sendBuff.getSize());
-    // *** align send particles on ptcl_send_ *************
-    for (int i = 0; i < nProcs; i++) {
-        nsend[i] = 0;
-    }
+    // fill send buffer
     // loop over all particles, leave only those stay in this rank.
     nSphere = sphere.size();
     assert(sphere.size() == sendDest.size());
-
-    int iloc = 0; 
+    int iloc = 0;
     for (int ip = 0; ip < nSphere; ip++) {
         const int sendRank = sendDest[ip];
         if (sendRank == myRank) {
-            // ip should be reserved on this rank. 
+            // ip should be reserved on this rank.
             // swap ip to the position of iloc, then iloc self increment
             swap(sphere[iloc], sphere[ip]);
             iloc++;
         } else {
-            // ip should be sent to 
-            int jloc = nsend[sendRank] + nsend_disp[sendRank];
+            // ip should be sent to
+            // int jloc = nsend[sendRank] + nsend_disp[sendRank];
             // std::cout << "rank" << myRank << "srank" << srank << "jloc" << jloc << std::endl;
             // sendBuff[jloc] = particles[ip];
-            sphere[ip].pack(sendBuff);
-            nsend[sendRank]++;
+            sphere[ip].pack(sendBuffer[sendRank]);
         }
     }
 
-    sphere.resize(iloc);
-    MPI_Barrier(MPI_COMM_WORLD);
-    // receive the number of receive particles
-    MPI_Alltoall(nsend.data(), 1, MPI_INT, nrecv.data(), 1, MPI_INT, MPI_COMM_WORLD);
-    nrecv_disp[0] = 0;
+    sphere.resize(iloc); // discard all spheres to be sent
+    // find size in Byte
     for (int i = 0; i < nProcs; i++) {
-        nrecv_disp[i + 1] = nrecv_disp[i] + nrecv[i];
+        nByteSend[i] = sendBuffer[i].getSize();
+    }
+    nByteSendDisp[0] = 0;
+    std::partial_sum(nByteSend.cbegin(), nByteSend.cend(), nByteSendDisp.begin() + 1);
+
+    // output for debug
+    if (debug == true) {
+        for (int i = 0; i < nProcs; i++) {
+            printf("send rank %d, send spheres %d, bytes %d\n", myRank, nSphSend[i], nByteSend[i]);
+            printf("send rank %d, disp spheres %d, bytes %d\n", myRank, nSphSendDisp[i], nByteSendDisp[i]);
+        }
+        printf("send rank %d, disp spheres %d, bytes %d\n", myRank, nSphSendDisp[nProcs], nByteSendDisp[nProcs]);
+    }
+
+    commRcp->barrier();
+
+    // receive the number of recv spheres
+    MPI_Alltoall(nSphSend.data(), 1, MPI_INT, nSphRecv.data(), 1, MPI_INT, MPI_COMM_WORLD);
+    nSphRecvDisp[0] = 0;
+    std::partial_sum(nSphRecv.cbegin(), nSphRecv.cend(), nSphRecvDisp.begin() + 1);
+    // receive the number of total bytes
+    MPI_Alltoall(nByteSend.data(), 1, MPI_INT, nByteRecv.data(), 1, MPI_INT, MPI_COMM_WORLD);
+    nByteRecvDisp[0] = 0;
+    std::partial_sum(nByteRecv.cbegin(), nByteRecv.cend(), nByteRecvDisp.begin() + 1);
+
+    // output for debug
+    if (debug == true) {
+        for (int i = 0; i < nProcs; i++) {
+            printf("recv rank %d, recv spheres %d, bytes %d\n", myRank, nSphRecv[i], nByteRecv[i]);
+            printf("recv rank %d, disp spheres %d, bytes %d\n", myRank, nSphRecvDisp[i], nByteRecvDisp[i]);
+        }
+        printf("recv rank %d, disp spheres %d, bytes %d\n", myRank, nSphRecvDisp[nProcs], nByteRecvDisp[nProcs]);
     }
 
     // prepare recv buffer
-    recvBuff.resize(nrecv_disp[nProcs]);
+    std::vector<char> recvBufferRaw(nByteRecvDisp[nProcs], 0);
 
-    // actual send & recv
+    // actual send & recv, in asynchronized mode
     int n_proc_send = 0;
     int n_proc_recv = 0;
+
     for (int ib = 1; ib < nProcs; ib++) {
-        int idsend = (ib + myRank) % nProcs;
-        if (nsend[idsend] > 0) {
-            int adrsend = nsend_disp[idsend];
-            int tagsend = (myRank < idsend) ? myRank : idsend;
-            // req_send[n_proc_send++] = MPI::COMM_WORLD.Isend(ptcl_send_.getPointer(adrsend), nsend[idsend],
-            // GetDataType<Tptcl>(), idsend, tagsend);
+        int sendRank = (ib + myRank) % nProcs;
+        if (sendBuffer[sendRank].getSize() > 0) {
+            int tagsend = (myRank < sendRank) ? myRank : sendRank;
             // send as char type
-            int status = MPI_Isend(&(sendBuff[adrsend]), nsend[idsend], GetDataType<SpherePacked>(), idsend, tagsend,
-                                   MPI_COMM_WORLD, &(req_send[n_proc_send]));
+            int status = MPI_Isend(sendBuffer[sendRank].getPtr(), sendBuffer[sendRank].getSize(), MPI_CHAR, sendRank,
+                                   tagsend, MPI_COMM_WORLD, &(req_send[n_proc_send]));
             if (status != 0) {
-                std::cout << "send error" << std::endl;
+                printf("send error %d status from rank %d to rank %\n", status, myRank, sendRank);
                 exit(1);
             }
             n_proc_send++;
         }
-        int idrecv = (nProcs + myRank - ib) % nProcs;
-        if (nrecv[idrecv] > 0) {
-            int adrrecv = nrecv_disp[idrecv];
-            int tagrecv = (myRank < idrecv) ? myRank : idrecv;
-            // req_recv[n_proc_recv++] = MPI::COMM_WORLD.Irecv(ptcl_recv_.getPointer(adrrecv), nrecv[idrecv],
-            // GetDataType<Tptcl>(), idrecv, tagrecv);
-            int status = MPI_Irecv(&(recvBuff[adrrecv]), nrecv[idrecv], GetDataType<SpherePacked>(), idrecv, tagrecv,
+        int recvRank = (nProcs + myRank - ib) % nProcs;
+        if (nByteRecv[recvRank] > 0) {
+            int adrrecv = nByteRecvDisp[recvRank];
+            int tagrecv = (myRank < recvRank) ? myRank : recvRank;
+            // recv as char type
+            int status = MPI_Irecv(&(recvBufferRaw[adrrecv]), nByteRecv[recvRank], MPI_CHAR, recvRank, tagrecv,
                                    MPI_COMM_WORLD, &(req_recv[n_proc_recv]));
             if (status != 0) {
-                std::cout << "recv error" << std::endl;
+                printf("recv error %d status for rank %d from rank %\n", status, myRank, recvRank);
                 exit(1);
             }
             n_proc_recv++;
@@ -253,27 +280,29 @@ void SPHSphereSystem::exchangeSphere() {
 
     // step 3, unpack
     // put particles in recvBuffer to the
-    // particles.insert(particles.end(), recvBuffer.begin(), recvBuffer.end());
-    for (int i = 0; i < recvBuff.size(); i++) {
+    Buffer recvBuffer(recvBufferRaw);
+    while (recvBuffer.getReadPos() < recvBuffer.getSize()) {
         sphere.emplace_back();
-        unpackRigidSphere(recvBuff[i], sphere.back());
+        sphere.back.unpack(recvBuffer);
     }
-    assert(sphere.size() == sphereIO.size());
-
-    // for (const auto &par : sendBuffer) {
-    // std::cout << par.gid << std::endl;
-    // }
+    if (sphere.size() != sphereIO.size()) {
+        printf("recv size error\n");
+    }
+    if (debug) {
+        dumpSphere();
+        dumpSphereIO();
+    }
 
     // step 4, shift the order to make sure sphere and sphereIO has the same order of gid
     sortSphere();
     assert(sphere.size() == sphereIO.size());
     for (int i = 0; i < sphere.size(); i++) {
-        assert(sphere[i].sphereDataIO.gid == sphereIO[i].gid);
+        if (sphere[i].gid != sphereIO[i].gid) {
+            printf("error in pos %d\n", i);
+        }
     }
 
     // clean to save memory
-    sendBuff.clear();
-    recvBuff.clear();
     sphereGidFindDD.clearAll();
     delete[] req_send;
     delete[] req_recv;
