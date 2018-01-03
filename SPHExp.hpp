@@ -26,9 +26,9 @@ class SPHExp {
     const int order;        // the order of expansion p
     const int dimension;    // the dimension , =1 for LAPSL, LAPDL, =3 for STKSL and STKDL
     const std::string name; // the name of this quantity
+    Equatn orientation;                // the orientation represented by an Eigen::quaternion
 
     std::vector<double> spectralCoeff; // coefficients. d* p*(p+1) elements
-    Equatn orientation;                // the orientation represented by an Eigen::quaternion
 
     // index
     inline int COEFFINDEX(int i, int n, int m) {

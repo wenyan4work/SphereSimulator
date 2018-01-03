@@ -5,6 +5,7 @@
 #include <vector>
 
 #include "SPHExp.hpp"
+#include "Buffer.hpp"
 
 #define INVALID -1
 
@@ -45,8 +46,8 @@ class Sphere {
     void dumpSphere() const;
     void dumpLayer(const std::string &) const;
 
-    void pack(char *const ptr);
-    void unpack(const char *const ptr);
+    void pack(Buffer & buffer);
+    void unpack(const Buffer & buffer);
 
     friend void swap(Sphere &, Sphere &);
 };

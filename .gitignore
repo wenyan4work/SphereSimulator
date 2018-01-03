@@ -18,3 +18,4 @@ collisionXF/
 *.d
 .ipynb_checkpoints/
 *.ipynb
+Test/FMM/randomPoints
