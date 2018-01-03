@@ -63,16 +63,8 @@ class Buffer{
 
     // pack data routines. 
     template<class T>
-    inline void pack(T & output){
+    inline void pack(const T & data){
         msgpack::pack(*this,data);
-        size_t offset=readPos; 
-        msgpack::object_handle oh =
-            msgpack::unpack(content.data(),content.size(), offset);
-        msgpack::object obj = oh.get();
-        obj.convert(output);
-        // shift position
-        readPos=offset;
-        unpackDebugPrint(obj); 
     }
 
     // helper of deserialization
@@ -80,8 +72,8 @@ class Buffer{
         #ifndef DNDEBUG
         // print the deserialized object.
         std::cout << obj << std::endl;
-        if(readPos>=content.size()){
-            printf("Error: read position past the end of content.");
+        if(readPos>content.size()){
+            printf("Error: read position past the end of content.\n");
             exit(1);
         }
         #endif
