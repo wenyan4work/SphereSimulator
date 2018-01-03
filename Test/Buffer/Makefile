@@ -1,6 +1,10 @@
 include ../../MakefileInc.mk
 
-SRC =   testBuffer.cpp
+INCLUDE_DIRS = $(Trilinos_INCLUDE_DIRS) $(Trilinos_TPL_INCLUDE_DIRS) $(USERINCLUDE)
+LIBRARY_DIRS = $(Trilinos_LIBRARY_DIRS) $(Trilinos_TPL_LIBRARY_DIRS) 
+LIBRARIES = $(Trilinos_LIBRARIES) $(Trilinos_TPL_LIBRARIES) $(USERLIB)
+
+SRC =   testBuffer.cpp ../../Sphere.cpp ../../SPHExp.cpp
 INC =   ../../Buffer.hpp
          
 # Definitions
@@ -14,11 +18,9 @@ $(EXE):	$(OBJ)
 	$(LINK) $(OBJ) -o $(EXE) $(LINKFLAGS) $(SYSLIB) $(LIBRARY_DIRS) $(LIBRARIES)
 
 # Compilation rules
-.o:
+%.o: %.cpp
 	$(CXX) $(CXXFLAGS) $(INCLUDE_DIRS) -c $*.cpp -o $*.o
 
-# Individual dependencies
-$(OBJ): $(INC)
 
 all: $(EXE)
 

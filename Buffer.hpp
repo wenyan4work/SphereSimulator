@@ -1,3 +1,6 @@
+#ifndef BUFFER_HPP
+#define BUFFER_HPP
+
 #include <vector>
 #include <cstdio>
 #include <iostream>
@@ -8,7 +11,7 @@
 
 class Buffer{
     private:
-    size_t readPos=0;
+    mutable size_t readPos=0;
     std::vector<char> content;
 
     public:
@@ -68,7 +71,7 @@ class Buffer{
     }
 
     // helper of deserialization
-    inline void unpackDebugPrint(const msgpack::object & obj){
+    inline void unpackDebugPrint(const msgpack::object & obj) const{
         #ifndef DNDEBUG
         // print the deserialized object.
         std::cout << obj << std::endl;
@@ -81,7 +84,7 @@ class Buffer{
 
     // unpack data routines
     template<class T>
-    inline void unpack(T & output){
+    inline void unpack(T & output) const{
         size_t offset=readPos; 
         msgpack::object_handle oh =
             msgpack::unpack(content.data(),content.size(), offset);
@@ -91,5 +94,6 @@ class Buffer{
         readPos=offset;
         unpackDebugPrint(obj); 
     }
-
 };
+
+#endif

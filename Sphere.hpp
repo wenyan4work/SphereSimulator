@@ -33,7 +33,8 @@ class Sphere {
     std::unordered_map<std::string, SPHExp *> sphLayer;
 
     Sphere() = default;
-    Sphere(int, double, double) noexcept;
+    Sphere(const int & gid_, const double& radius_, const double& radiusCollision_) noexcept ;
+    Sphere(const int & gid_, const double& radius_, const double& radiusCollision_, const Evec3 & pos_, const Equatn & orientation_ ) noexcept ;
     ~Sphere() noexcept;
 
     Sphere(const Sphere &) noexcept;

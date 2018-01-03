@@ -1,10 +1,3 @@
-/*
- * LayerSphereSyetem.h
- *
- *  Created on: Jan 2, 2018
- *      Author: wyan
- */
-
 #ifndef HYDROSPHERE_H_
 #define HYDROSPHERE_H_
 
@@ -16,11 +9,12 @@
 #include "TpetraUtil.hpp"
 #include "ZDD.hpp"
 #include "Sphere.hpp"
+#include "Buffer.hpp"
 
-namespace LayerSphere {
+namespace SPHSphere {
 
 // non dimensionalized
-class LayerSphereSystem {
+class SPHSphereSystem {
   public:
     enum SolverType {
         EXPLICIT,
@@ -44,8 +38,8 @@ class LayerSphereSystem {
 
     // internal sphere data structure
     std::deque<Sphere> sphere;
-    std::vector<SpherePacked> sendBuff;
-    std::vector<SpherePacked> recvBuff;
+    Buffer sendBuff;
+    Buffer recvBuff;
 
     // FMM data structure
     std::vector<double> src_coord;
@@ -59,33 +53,20 @@ class LayerSphereSystem {
     ZDD<int> sphereGidFindDD;
 
     // MAP
-    Teuchos::RCP<const TMAP> fdistMapRcp;     // contiguous fdist map across all nodes
-    Teuchos::RCP<const TMAP> fdistFullMapRcp; // fully repeated fdist map across all nodes.
+    Teuchos::RCP<const TMAP> dofMapRcp;     // contiguous dof map across all nodes
+    Teuchos::RCP<const TMAP> dofFullMapRcp; // fully repeated dof map across all nodes.
     Teuchos::RCP<const TMAP> mobilityMapRcp;  // a contiguous map for 6 entry per sphere
-
-    Teuchos::RCP<TCMAT> approxImpSolverMatrixRcp; // the self+neighbor approximation to the full dense matrix
-    Teuchos::RCP<TCMAT> flowRegMatrixRcp;         // regularize matrix with flow
-    Teuchos::RCP<TV> fdistRcp;                    // force distribution
-    Teuchos::RCP<TV> fdistTempSpaceRcp;           // force distribution, temp space durin calculation
-    Teuchos::RCP<TV> bRcp;                        // the right side of implicit
+    Teuchos::RCP<const TMAP> sphereMapRcp;  // a contiguous map for 6 entry per sphere
 
     // MobilityMatrix
     // Teuchos::RCP<TCMAT> mobilityMatrixRcp;
 
-    // known velocity and omega due to background flow, 6 unknowns per sphere
-    Teuchos::RCP<TV> mobilityVelocityBackgroundFlowRcp;
-
-    Teuchos::RCP<TOP> mobilityOperatorRcp;
 
     void exchangeSphere(); // move the old data according to the input sphere data.
 
     void locateSphere();
 
     void sortSphere(); // sort sphere according to sphereIO, must exchange before calling this.
-
-    void packRigidSphere(const RigidSphere &, SpherePacked &);
-
-    void unpackRigidSphere(const SpherePacked &, RigidSphere &);
 
     void syncSphereIn(); // copy sphereIO data to sphere, before solution
 
@@ -131,8 +112,6 @@ class LayerSphereSystem {
 
     void reSampleEvecXYZ(Evec &, const int, const ChebNodal *);
 
-    ChebNodal *getChebIntegrator(const double &, const double &);
-
   public:
     const int myRank;
     const int nProcs;
@@ -144,12 +123,12 @@ class LayerSphereSystem {
     std::deque<pointFlow> pointFlowList;
 
     // max N, periodic type, fmm parameter, iterative solver parameter
-    HydroSphereSystem(const int, const FMM_Wrapper::PAXIS, const int, const double, const Evec3 &, const Evec3 &,
+    SPHSphereSystem(const int, const FMM_Wrapper::PAXIS, const int, const double, const Evec3 &, const Evec3 &,
                       const double, const double);
 
-    ~HydroSphereSystem() = default;
+    ~SPHSphereSystem() = default;
 
-    void addSphere(const RigidSphereIO &);
+    void addSphere(const SphereIO &);
 
     void getReadyForSolve(SolverType); // must be called before calling the solve() functions
 

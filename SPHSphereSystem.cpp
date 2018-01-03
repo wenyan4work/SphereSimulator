@@ -11,13 +11,13 @@
 #include "ZDD.hpp"
 
 // namespace HydroSphere
-#include "LayerSphereSystem.hpp"
+#include "SPHSphereSystem.hpp"
 
 // for debug. NDEBUG defined in pvfmm.hpp
 #undef NDEBUG
 #include <cassert>
 
-namespace HydroSphere {
+namespace SPHSphere {
 
 template <class T>
 inline MPI_Datatype GetDataType() {
