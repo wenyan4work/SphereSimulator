@@ -59,7 +59,7 @@ void SPHSphereSystem::getReadyForOperator() {
 
     exchangeSphere(); // locateSphere() called in this
     updateNeighborSphere();
-    updateMap();
+    // updateMap();
 
     return;
 }
@@ -249,6 +249,9 @@ void SPHSphereSystem::exchangeSphere() {
     int n_proc_recv = 0;
 
     for (int ib = 1; ib < nProcs; ib++) {
+        // every rank send to myRank+1, recv from myRank-1
+        // tag is set to the smaller of the send&recv ranks
+
         int sendRank = (ib + myRank) % nProcs;
         if (sendBuffer[sendRank].getSize() > 0) {
             int tagsend = (myRank < sendRank) ? myRank : sendRank;
@@ -317,7 +320,7 @@ void SPHSphereSystem::updateNeighborSphere() {
     std::vector<int> nbBufferIndex(sphereNumber + 1); // last = total nb number
     nbBufferIndex[0] = 0;
     for (int i = 1; i < sphereNumber + 1; i++) {
-        nbBufferIndex[i] = nbBufferIndex[i - 1] + sphere[i - 1].sphereDataIO.nbInfos.size();
+        nbBufferIndex[i] = nbBufferIndex[i - 1] + sphereIO[i - 1].sphNeighborIO.size();
         // sphere.nbBlocks is not initialized here yet
     }
 
