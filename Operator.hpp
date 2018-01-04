@@ -1,31 +1,42 @@
-#include "TpetraUtil.hpp"
+#ifndef SPHOPERATOR_HPP
+#define SPHOPERATOR_HPP
+
 #include "SPHSphereSystem.hpp"
+#include "TpetraUtil.hpp"
 
-class HydroSphereOperator : public TOP {
+using Teuchos::RCP;
+using Teuchos::rcp;
 
+class SPHSphereOperator : public TOP {
+    // 
   private:
-    // This is an implementation detail; users don't need to see it.
-    HydroSphereSystem *systemPtr;
+    SPHSphereSystem *systemPtr;
+    RCP<const TMAP> dofMapRcp;
 
   public:
     // Constructor
-    explicit HydroSphereOperator(HydroSphereSystem *systemPtr_) : systemPtr{ systemPtr_ } {}
-
-    // Destructor
-    ~HydroSphereOperator() = default;
-
-    // forbid copy
-    HydroSphereOperator(const HydroSphereOperator &) = delete;
-    HydroSphereOperator &operator=(const HydroSphereOperator) = delete;
-
-    Teuchos::RCP<const TMAP> getDomainMap() const {
-        // Get the domain Map of this Operator subclass.
-        return systemPtr->getFdistMap();
+    explicit SPHSphereOperator(SPHSphereSystem *systemPtr_) : systemPtr{systemPtr_} {
+        // tasks: 
+        // 1 setup the operator
+        // 2 setup the right side
+        // 3 setup the iterative solver
+        // 4 (optional) setup the preconditioner for the operator
+        
     }
 
-    Teuchos::RCP<const TMAP> getRangeMap() const {
-        // Get the range Map of this Operator subclass.
-        return systemPtr->getFdistMap();
+    // Destructor
+    ~SPHSphereOperator() = default;
+
+    // forbid copy
+    SPHSphereOperator(const SPHSphereOperator &) = delete;
+    SPHSphereOperator &operator=(const SPHSphereOperator &) = delete;
+
+    RCP<const TMAP> getDomainMap() const {
+        return dofMapRcp;
+    }
+
+    RCP<const TMAP> getRangeMap() const {
+        return dofMapRcp;
     }
 
     bool hasTransposeApply() const { return false; }
@@ -37,45 +48,38 @@ class HydroSphereOperator : public TOP {
                scalar_type beta = Teuchos::ScalarTraits<scalar_type>::zero()) const {
         // Y := beta*Y + alpha*Op(A)*X
         assert(mode == Teuchos::NO_TRANS);
-        systemPtr->applyImpSolverMatrixFdist(X, Y, alpha, beta);
-        std::cout << "Operator applied" << std::endl;
+
+        printf("Operator Applied\n");
     }
 };
 
-class MobilityOperator : public TOP {
-
+class LinearCombinationOperator : public TOP {
   private:
-    // This is an implementation detail; users don't need to see it.
-    HydroSphereSystem *systemPtr;
-    const double Tscale;   // time scale
-    const double Lscale;   // length scale
-    const double Escale;   // Energy scale
-    const double Fscale;   // force scale
-    const double Torscale; // torque scale
+    // op1 and op2 must have the same domain and range map
+    const RCP<const TOP> op1Rcp;
+    const RCP<const TOP> op2Rcp;
+    const double alpha, beta, gamma;
 
   public:
     // Constructor
-    MobilityOperator(HydroSphereSystem *systemPtr_, const double Tscale_, const double Lscale_, const double Escale_)
-        : systemPtr{ systemPtr_ }, Tscale{ Tscale_ }, Lscale{ Lscale_ }, Escale{ Escale_ }, Fscale{ Escale_ / Lscale_ },
-          Torscale{ Escale_ } {
-        systemPtr->getReadyForSolve(HydroSphereSystem::SolverType::IMPLICIT);
-    };
+    // combine alpha*op1 + beta*op2 + gamma*identity
+    LinearCombinationOperator(const RCP<const TOP> &op1Rcp_, const RCP<const TOP> &op2Rcp_, double alpha_, double beta_,
+                              double gamma_)
+        : op1Rcp(op1Rcp_), op2Rcp(op2Rcp_), alpha(alpha_), beta(beta_), gamma(gamma_) {
+        assert(op1Rcp->getDomainMap() == op2Rcp->getDomainMap());
+        assert(op1Rcp->getRangeMap() == op2Rcp->getRangeMap());
+    }
 
     // Destructor
-    ~MobilityOperator() = default;
+    ~LinearCombinationOperator() = default;
 
     // forbid copy
-    MobilityOperator(const MobilityOperator &) = delete;
-    MobilityOperator &operator=(const MobilityOperator) = delete;
+    LinearCombinationOperator(const LinearCombinationOperator &) = delete;
+    LinearCombinationOperator &operator=(const LinearCombinationOperator &) = delete;
 
-    Teuchos::RCP<const TMAP> getDomainMap() const {
-        // Get the domain Map of this Operator subclass.
-        return systemPtr->getMobilityMap();
-    }
-    Teuchos::RCP<const TMAP> getRangeMap() const {
-        // Get the range Map of this Operator subclass.
-        return systemPtr->getMobilityMap();
-    }
+    Teuchos::RCP<const TMAP> getDomainMap() const { return op1Rcp->getDomainMap(); }
+
+    Teuchos::RCP<const TMAP> getRangeMap() const { return op1Rcp->getRangeMap(); }
 
     bool hasTransposeApply() const { return false; }
 
@@ -86,50 +90,13 @@ class MobilityOperator : public TOP {
                scalar_type beta = Teuchos::ScalarTraits<scalar_type>::zero()) const {
         // Y := beta*Y + alpha*Op(A)*X
         assert(mode == Teuchos::NO_TRANS);
-        assert(X.getNumVectors() == Y.getNumVectors());
-        assert(X.getMap()->isSameAs(*(Y.getMap())));
+        const int nCol = X.getNumVectors();
+        assert(nCol == Y.getNumVectors());
 
-        auto x_2d = X.getLocalView<Kokkos::HostSpace>();
-        auto y_2d = Y.getLocalView<Kokkos::HostSpace>();
-        Y.modify<Kokkos::HostSpace>();
-        auto &sphereIO = systemPtr->sphereIO;
+        // TODO: using Kokkos interface
 
-        const double FscaleInv = 1 / Fscale;
-        const double TorscaleInv = 1 / Torscale;
-
-        for (int c = 0; c < x_2d.dimension_1(); c++) {
-            const int sphereNumber = sphereIO.size();
-// step 1, copy x to sphereIO with unit scaling
-#pragma omp parallel for
-            for (int i = 0; i < sphereNumber; i++) {
-                sphereIO[i].force[0] = x_2d(6 * i, c) * FscaleInv;
-                sphereIO[i].force[1] = x_2d(6 * i + 1, c) * FscaleInv;
-                sphereIO[i].force[2] = x_2d(6 * i + 2, c) * FscaleInv;
-                sphereIO[i].torque[0] = x_2d(6 * i + 3, c) * TorscaleInv;
-                sphereIO[i].torque[1] = x_2d(6 * i + 4, c) * TorscaleInv;
-                sphereIO[i].torque[2] = x_2d(6 * i + 5, c) * TorscaleInv;
-            }
-
-            // step 2, solve implicitly
-            // Done: split the solveFullImplicit() into prepare() and solve(),
-            // put prepare() into the constructor
-            systemPtr->solveFullImplicit();
-
-            // step 3, copy sphereIO to y
-            const double Uscale = Lscale / Tscale;
-            const double Omegascale = 1 / Tscale;
-#pragma omp parallel for
-            for (int i = 0; i < sphereNumber; i++) {
-                const Evec3 omega = sphereIO[i].direction.cross(sphereIO[i].tdot);
-                y_2d(6 * i, c) = beta * y_2d(6 * i, c) + alpha * sphereIO[i].xdot[0] * Uscale;
-                y_2d(6 * i + 1, c) = beta * y_2d(6 * i + 1, c) + alpha * sphereIO[i].xdot[1] * Uscale;
-                y_2d(6 * i + 2, c) = beta * y_2d(6 * i + 2, c) + alpha * sphereIO[i].xdot[2] * Uscale;
-                y_2d(6 * i + 3, c) = beta * y_2d(6 * i + 3, c) + alpha * omega[0] * Omegascale;
-                y_2d(6 * i + 4, c) = beta * y_2d(6 * i + 4, c) + alpha * omega[1] * Omegascale;
-                y_2d(6 * i + 5, c) = beta * y_2d(6 * i + 5, c) + alpha * omega[2] * Omegascale;
-            }
-        }
-
-        std::cout << "Operator applied" << std::endl;
+        printf("Operator Applied\n");
     }
 };
+
+#endif
