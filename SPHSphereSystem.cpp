@@ -314,7 +314,7 @@ void SPHSphereSystem::exchangeSphere() {
 }
 
 void SPHSphereSystem::updateNeighborSphere() {
-    // pre: valid sphereDataIO.nbInfos, valid fdistIndex, valid fdistMapRcp
+    // pre: valid sphereIO.nbInfos. sphere has been exchanged and sorted according to sphereIO
     // post: valid sphere.nbBlocks
     const int sphereNumber = sphere.size();
     std::vector<int> nbBufferIndex(sphereNumber + 1); // last = total nb number
@@ -323,25 +323,27 @@ void SPHSphereSystem::updateNeighborSphere() {
         nbBufferIndex[i] = nbBufferIndex[i - 1] + sphereIO[i - 1].sphNeighborIO.size();
         // sphere.nbBlocks is not initialized here yet
     }
-
     const int nbNumber = nbBufferIndex.back();
+
+    // allocate
 #pragma omp parallel for
     for (int i = 0; i < sphereNumber; i++) {
-        assert(sphere[i].fdistIndexLocal != INVALIDINDEX);
-        sphere[i].nbBlocks.clear();
-        for (int j = 0; j < sphere[i].sphereDataIO.nbInfos.size(); j++) {
-            assert(sphere[i].sphereDataIO.nbInfos[j].gid != INVALIDINDEX);
-            sphere[i].nbBlocks.emplace_back(sphere[i].sphereDataIO.nbInfos[j]);
+        sphere[i].sphNeighbor.clear();
+        for (int j = 0; j < sphereIO[i].sphNeighborIO.size(); j++) {
+            assert(sphere[i].sphNeighbor[j].gid != INVALID);
+            sphere[i].sphNeighbor.emplace_back();
+            sphere[i].sphNeighbor.back().gid = sphereIO[i].sphNeighborIO[j].gid;
+            sphere[i].sphNeighbor.back().posRelative = sphereIO[i].sphNeighborIO[j].posRelative;
         }
     }
 
     // step 1 update neighbor information according to nbinfo
     struct NbInfoFind {
-        int chebN;
         int gid;
-        int fdistIndexGlobal;
-        double alpha;
-        double direction[3];
+        double radius;
+        double radiusCollision;
+        double pos[3];
+        double orientation[4];
     };
 
     ZDD<NbInfoFind> nbFindDD(std::max(50 * sphereNumber, nbNumber));
@@ -351,16 +353,15 @@ void SPHSphereSystem::updateNeighborSphere() {
 
 #pragma omp parallel for schedule(dynamic, 256)
     for (int i = 0; i < sphereNumber; i++) {
-        nbFindDD.localID[i] = sphere[i].sphereDataIO.gid;
+        nbFindDD.localID[i] = sphere[i].gid;
 
-        nbFindDD.localData[i].alpha = sphere[i].sphereDataIO.alpha;
-        nbFindDD.localData[i].chebN = sphere[i].myIntegrator->chebN;
-        nbFindDD.localData[i].gid = sphere[i].sphereDataIO.gid;
-        nbFindDD.localData[i].fdistIndexGlobal = fdistMapRcp->getGlobalElement(sphere[i].fdistIndexLocal);
-        // index of assert(nbFindDD.nbLocalData[i].fdistGlobalIndex != Teuchos::OrdinalTraits<int>::invalid());
-        nbFindDD.localData[i].direction[0] = sphere[i].sphereDataIO.direction(0);
-        nbFindDD.localData[i].direction[1] = sphere[i].sphereDataIO.direction(1);
-        nbFindDD.localData[i].direction[2] = sphere[i].sphereDataIO.direction(2);
+        nbFindDD.localData[i].gid = sphere[i].gid;
+        nbFindDD.localData[i].radius = sphere[i].radius;
+        nbFindDD.localData[i].radiusCollision = sphere[i].radiusCollision;
+        nbFindDD.localData[i].orientation[0] = sphere[i].orientation.w();
+        nbFindDD.localData[i].orientation[1] = sphere[i].orientation.x();
+        nbFindDD.localData[i].orientation[2] = sphere[i].orientation.y();
+        nbFindDD.localData[i].orientation[3] = sphere[i].orientation.z();
     }
 
     nbFindDD.buildIndex();
@@ -374,9 +375,9 @@ void SPHSphereSystem::updateNeighborSphere() {
 #pragma omp parallel for
     for (int i = 0; i < sphereNumber; i++) { // no openmp
         const int indexBase = nbBufferIndex[i];
-        for (int nb = 0; nb < sphere[i].nbBlocks.size(); nb++) {
+        for (int nb = 0; nb < sphere[i].sphNeighbor.size(); nb++) {
             // step 1 set a list of nb to get
-            nbFindDD.findID[indexBase + nb] = sphere[i].nbBlocks[nb].nbInfo.gid;
+            nbFindDD.findID[indexBase + nb] = sphere[i].sphNeighbor[nb].gid;
         }
     }
     assert(nbFindDD.findID.size() == nbNumber);
@@ -388,30 +389,28 @@ void SPHSphereSystem::updateNeighborSphere() {
     for (int i = 0; i < sphereNumber; i++) {
         // step 3 from buffer to nbBlocks
         const int indexBase = nbBufferIndex[i];
-        for (int nb = 0; nb < sphere[i].nbBlocks.size(); nb++) {
+        for (int nb = 0; nb < sphere[i].sphNeighbor.size(); nb++) {
             const int nbbufferIndex = indexBase + nb;
-            sphere[i].nbBlocks[nb].alpha = nbFindDD.findData[nbbufferIndex].alpha;
-            sphere[i].nbBlocks[nb].fdistIndexGlobal = nbFindDD.findData[nbbufferIndex].fdistIndexGlobal;
-            sphere[i].nbBlocks[nb].direction[0] = nbFindDD.findData[nbbufferIndex].direction[0];
-            sphere[i].nbBlocks[nb].direction[1] = nbFindDD.findData[nbbufferIndex].direction[1];
-            sphere[i].nbBlocks[nb].direction[2] = nbFindDD.findData[nbbufferIndex].direction[2];
-            const int chebIndex = (nbFindDD.findData[nbbufferIndex].chebN - this->chebIntegrator[0].chebN) /
-                                  (this->chebIntegrator[1].chebN - this->chebIntegrator[0].chebN);
-            assert(chebIndex >= 0 && chebIndex < chebIntegrator.size());
-            sphere[i].nbBlocks[nb].chebIntegrator = &(this->chebIntegrator[chebIndex]);
-            assert(sphere[i].nbBlocks[nb].chebIntegrator->chebN == nbFindDD.findData[nbbufferIndex].chebN);
+            sphere[i].sphNeighbor[nb].gid = nbFindDD.findData[nbbufferIndex].gid;
+            assert(sphere[i].sphNeighbor[nb].gid == sphereIO[i].sphNeighborIO[nb].gid);
+
+            sphere[i].sphNeighbor[nb].radius = nbFindDD.findData[nbbufferIndex].radius;
+            sphere[i].sphNeighbor[nb].radiusCollision = nbFindDD.findData[nbbufferIndex].radiusCollision;
+            sphere[i].sphNeighbor[nb].orientation.w() = nbFindDD.findData[nbbufferIndex].orientation[0];
+            sphere[i].sphNeighbor[nb].orientation.x() = nbFindDD.findData[nbbufferIndex].orientation[1];
+            sphere[i].sphNeighbor[nb].orientation.y() = nbFindDD.findData[nbbufferIndex].orientation[2];
+            sphere[i].sphNeighbor[nb].orientation.z() = nbFindDD.findData[nbbufferIndex].orientation[3];
+
 #ifdef ZDDDEBUG
-            std::cout << sphere[i].nbBlocks[nb].nbInfo.gid << std::endl;
-            std::cout << sphere[i].nbBlocks[nb].nbInfo.pos << std::endl;
-            std::cout << sphere[i].nbBlocks[nb].direction << std::endl;
-            std::cout << sphere[i].nbBlocks[nb].chebIntegrator->chebN << std::endl;
-            std::cout << sphere[i].nbBlocks[nb].fdistIndexGlobal << std::endl;
+            std::cout << sphere[i].sphNeighbor[nb].gid << std::endl;
+            std::cout << sphere[i].sphNeighbor[nb].pos << std::endl;
+            std::cout << sphere[i].sphNeighbor[nb].orientation << std::endl;
 #endif
         }
     }
     commRcp->barrier();
     std::cout << "finished nb ZDD lookup" << std::endl;
-    std::cout << "nbBlocks updated" << std::endl;
+    std::cout << "sphNeighbors updated" << std::endl;
 }
 
 void SPHSphereSystem::dumpSphere() const {
