@@ -21,7 +21,6 @@ class SPHSphereOperator : public TOP {
         // 2 setup the right side
         // 3 setup the iterative solver
         // 4 (optional) setup the preconditioner for the operator
-        
     }
 
     // Destructor

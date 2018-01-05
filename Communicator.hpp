@@ -10,7 +10,7 @@
 template <class ContainerIn, class ContainerOut, class Object>
 class Communicator {
     // construct with a given communication pattern, and then reuse the pattern
-    // input to constructor: a const pointer to a const container of objects. a list of destination ranks.
+    // input to constructor: a const pointer to a const container of objects.
     // input to constructor: a const pointer to a container to hold the received objects
 
     // objects should define pack() and unpack() to convert between raw char arrays and objects
@@ -25,8 +25,7 @@ class Communicator {
 
   public:
     // constructor
-    Communicator(const ContainerIn *const inPtr_, ContainerOut *const outPtr_,
-                 const std::vector<std::vector<int>> &sendRanks_) noexcept
+    Communicator(const ContainerIn *const inPtr_, ContainerOut *const outPtr_) noexcept
         : inPtr(inPtr_), outPtr(outPtr_), sendRanks(sendRanks_) {
         // allocate buffers, MPI objects, etc
     }
@@ -45,11 +44,29 @@ class Communicator {
         return;
     }
 
-    void resetTarget(const std::vector<std::vector<int>> &sendRanks_) { sendRanks = sendRanks_; }
+    void setSendTarget(const std::vector<std::vector<int>> &sendRanks_) {
+        // allow one object to be sent to multiple ranks
+        sendRanks = sendRanks_;
+    }
+
+    void setRecvGid(const std::vector<int> &recvGid_) {
+        // allow one gid appears multiple times in the list
+        recvGid = recvGid_;
+    }
+
+    const std::vector<std::vector<int>> &getSendTarget() { return sendTarget; }
+
+    const std::vector<int> &getRecvGid() { return recvGid; };
 
   private:
-    // buffer
-    std::deque<Buffer> sendBuffer;
+    int myRank;
+    int nProcs;
+
+    // buffer, most would be empty if only neighbors are sent 
+    std::deque<Buffer> sendBuffer; // an independent buffer for each target rank
+    std::deque<Buffer> recvBuffer; // an independent buffer for each source rank
+    
+    // data
     std::vector<int> nObjSend;
     std::vector<int> nObjSendDisp;
     std::vector<int> nObjRecv;
@@ -63,7 +80,11 @@ class Communicator {
     // pointer
     const ContainerIn *const inPtr;
     ContainerOut *const outPtr;
-    std::vector<std::vector<int>> sendRanks;
+    std::vector<std::vector<int>> sendTarget;
+    std::vector<int> recvGid;
+
+    // functions
+    void
 };
 
 #endif
