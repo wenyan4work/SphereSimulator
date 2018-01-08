@@ -28,11 +28,11 @@ class NBNode {
     int dim = 3;        // Dimension of the tree, should be always 3
     const int maxDepth; // max tree depth
     int status;
-    bool ghost;     // ghost node owned by other process
-    int depth;      // Depth of the node (root -> 0)
-    int path2node;  // Identity among siblings
-    NBNode *parent; // Pointer to parent node
-    NBNode **child; // Pointer child nodes, maximum 8 pointers
+    bool ghost;       // ghost node owned by other process
+    int depth;        // Depth of the node (root -> 0)
+    int path2node;    // Identity among siblings
+    NBNode *parent;   // Pointer to parent node
+    NBNode *child[8]; // Pointer child nodes, maximum 8 pointers
 
     size_t maxPts;    // max number of points in all its descendent
     long long weight; // weight for load balancing across mpi ranks
@@ -50,18 +50,21 @@ class NBNode {
     std::vector<double> objT1Coord;        // the coordinate of objs in the first container, used for tree subdivision
     std::vector<size_t> objT1scatter;      // scatter index
 
-    std::vector<ObjT2> *objT2ContainerPtr; // pointer to container of objects of Type 2, = nullptr if T2 is void
-    std::vector<size_t> objT2Index;        // empty if T2 is void
-    std::vector<size_t> objT2scatter;      // scatter index
+    std::vector<ObjT2> *objT2ContainerPtr =
+        nullptr;                      // pointer to container of objects of Type 2, = nullptr if T2 is void
+    std::vector<size_t> objT2Index;   // empty if T2 is void
+    std::vector<size_t> objT2scatter; // scatter index
 
     Buffer packedData; // packed data for transfer over MPI
 
+  public:
     // constructor
     NBNode(int maxDepth_, int maxPts_, std::vector<ObjT1> *objT1ContainerPtr_,
            std::vector<ObjT2> *objT2ContainerPtr_ = nullptr)
         : maxDepth(maxDepth_ < MAX_DEPTH_NB ? maxDepth_ : MAX_DEPTH_NB), maxPts(maxPts_), parent(nullptr),
           child(nullptr), status(1), ghost(false), depth(0), path2node(0), weight(0), coord({0, 0, 0}),
           colleague(nullptr), node_id(0) {
+
         objT1ContainerPtr = objT1ContainerPtr_;
         if (std::is_void<ObjT2>::value == true) {
             objT2ContainerPtr = nullptr;
@@ -74,7 +77,15 @@ class NBNode {
     }
 
     // destructor. TODO: destruct an octant without invalidating its parent's and children's pointers to it
-    ~NBNode();
+    ~NBNode() {
+        // delete all children
+        for (int i = 0; i < 8; i++) {
+            if (child[i] != nullptr) {
+                delete child[i];
+                child[i] = nullptr;
+            }
+        }
+    }
 
     // forbit copy
     NBNode(const NBNode &) = delete;
@@ -83,9 +94,21 @@ class NBNode {
     const NBNode &operator=(NBNode &&) = delete;
 
     // Initialize the node by passing the relevant data.
-    void initialize(NBNode *parent_, int path2node_);
+    void initialize(NBNode *parent_, int path2node_) {
+        // TODO:  check this
+        parent = parent_;
+        depth = (parent == nullptr ? 0 : parent->getDepth() + 1);
+        if (parent != nullptr) {
+            dim = parent->dim;
+            maxDepth = parent->maxDepth;
+            maxPts = parent->maxPts;
+        }
+        setPath2Node(path2node_);
+    }
 
-    void clearData(); // TODO: implement this
+    void clearData() {
+        // TODO:
+    }
 
     // Returns the dimension of the tree.
     int getDim() { return dim; }
@@ -97,7 +120,14 @@ class NBNode {
     bool isLeaf() { return (child == nullptr); }
 
     // Returns the child corresponding to the input parameter.
-    NBNode *getChild(int id);
+    NBNode *getChild(int id) {
+        assert(id < (1 << dim));
+        if (child == nullptr) {
+            return nullptr;
+        } else {
+            return child[id];
+        }
+    }
 
     // Returns a pointer to the parent node.
     NBNode *getParent() { return parent; };
@@ -107,22 +137,51 @@ class NBNode {
      * siblings (parent's children).
      * this->getParent()->getChild(this->getPath2Node())==this
      */
-    int getPath2Node();
+    int getPath2Node() { return path2node; }
+
+    void setPath2Node(int path2node_) {
+        assert(path2node_ > 0 && path2node_ < static_cast<int>(1U << dim));
+        path2node = path2node_;
+    }
 
     /**
      * Allocate a new object of the same type (as the derived class) and
      * return a pointer to it type cast as (TreeNode*).
      */
-    NBNode *allocNewNode(NBNode *n_ = NULL);
+    NBNode *allocNewNode(NBNode *n_ = nullptr) {
+        NBNode *n =
+            (n_ == nullptr ? new NBNode(this->maxDepth, this->maxPts, this->objT1ContainerPtr, this->objT2ContainerPtr)
+                           : n_);
+        return n;
+    }
 
     /**
      * \brief Evaluates and returns the subdivision condition for this node.
      * 'true' if node requires further subdivision.
      */
-    bool getSubdivCond();
+    bool getSubdivCond() {
+        if (!isLeaf()) {
+            int n = (1UL << dim);
+            for (int i = 0; i < n; i++) {
+                TreeNode *ch = this->Child(i);
+                assert(ch != NULL); // This should never happen
+                if (!ch->IsLeaf())
+                    return true;
+            }
+            if (Depth() >= max_depth)
+                return false;
+            return true;
+        } else {
+            if (this->Depth() >= max_depth)
+                return false;
+            return false;
+        }
+    }
 
     // Create child nodes and Initialize them.
-    void subdivide();
+    void subdivide() {
+        // TODO: alloc new child nodes, pass data and pointers, set depth, coord, and morton id.
+    }
 
     // Truncates the tree i.e. makes this a leaf node.
     void truncate();
@@ -194,27 +253,6 @@ class NBNode {
     inline void setCoord(MortonId &mid);
 
     /**
-     * \brief Allocate a new node and return a pointer to it.
-     */
-    NBNode *allocNewNode(TreeNode *n_ = nullptr);
-
-    /**
-     * \brief Evaluates and returns the subdivision condition for this node.
-     * 'true' if node requires further subdivision.
-     */
-    bool getSubdivCond();
-
-    /**
-     * \brief Create child nodes and Initialize them.
-     */
-    void subdivide();
-
-    /**
-     * \brief Truncates the tree i.e. makes this a leaf node.
-     */
-    void truncate();
-
-    /**
      * \brief Pack this node to be transmitted to another process. The node
      * is responsible for allocating and freeing the memory for the actual data.
      */
@@ -223,14 +261,14 @@ class NBNode {
     /**
      * \brief Initialize the node with data from another process.
      */
-    virtual void Unpack(PackedData data, bool own_data = true);
+    void unpack(PackedData data, bool own_data = true);
 
     /**
      * \brief Read source distribution at points on a grid defined by array of x,
      * y and z coordinates.
      */
-    virtual void ReadVal(std::vector<Real_t> x, std::vector<Real_t> y, std::vector<Real_t> z, Real_t *val,
-                         bool show_ghost = true);
+    void readVal(std::vector<Real_t> x, std::vector<Real_t> y, std::vector<Real_t> z, Real_t *val,
+                 bool show_ghost = true);
 
     /**
      * \brief Append node VTU data to vectors.
