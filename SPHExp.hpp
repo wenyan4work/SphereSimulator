@@ -2,20 +2,21 @@
 #define SPHEXP_HPP
 
 // the class for spherical harmonics expansions
+// should be guaranteed to be thread-safe
+#include <cstdio>
 #include <string>
 #include <vector>
+
 #include "EigenDef.hpp"
 
 class SPHExp {
   public:
-    enum KIND {
-        LAPSL, // laplace single layer, etc
-        LAPDL,
-        STKSL,
-        STKDL
+    enum class KIND : uint {
+        LAP, // Laplace single layer, etc
+        STK  // Stokes
     };
 
-    enum TRGPOS {
+    enum class TRGPOS : uint {
         IN, // target inside, outside, on the sphere
         OUT,
         ON,
@@ -26,12 +27,12 @@ class SPHExp {
     const int order;        // the order of expansion p
     const int dimension;    // the dimension , =1 for LAPSL, LAPDL, =3 for STKSL and STKDL
     const std::string name; // the name of this quantity
-    Equatn orientation;                // the orientation represented by an Eigen::quaternion
+    Equatn orientation;     // the orientation represented by an Eigen::quaternion
 
     std::vector<double> spectralCoeff; // coefficients. d* p*(p+1) elements
 
     // index
-    inline int COEFFINDEX(int i, int n, int m) {
+    inline int COEFFINDEX(int i, int n, int m) const {
         // i=0 for LAPSL and LAPDL
         // i=0,1,2 for STKSL and STKDL
         return i * (n + 1) * (n + 1) + n * n + m + n;
@@ -61,8 +62,9 @@ class SPHExp {
     void setOrientation(const Equatn &);
 
     // grid representation
-    void getGridPoints(std::vector<double> &) const;
-    void getGridValues(std::vector<double> &) const;
+    void getGrid(std::vector<double> &gridPoints, std::vector<double> &gridWeights,
+                 std::vector<double> &gridValues) const;
+
     void calcGridValues(std::vector<double> &, const std::vector<double> &) const;
 
     // Spectral representation
@@ -79,8 +81,8 @@ class SPHExp {
     // NF  routines
 
     // debug routines
-    void dumpVTK(const std::string &);
-    void dumpSpectralValues(const std::string &filename = std::string("")); // default to empty string
+    void dumpVTK(FILE *const filePtr) const;
+    void dumpSpectralValues(const std::string &filename = std::string("")) const; // default to empty string
 };
 
 #endif // SPHEXP_HPP

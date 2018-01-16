@@ -8,7 +8,7 @@
 #ifndef EIGENDEF_HPP_
 #define EIGENDEF_HPP_
 
-#define EIGEN_DONT_PARALLELIZE
+#define EIGEN_DONT_PARALLELIZE  // 1 thread for any eigen stuff
 #include "Eigen/Dense"
 #include "Eigen/Sparse"
 
@@ -54,24 +54,9 @@ using EAmat6 = Eigen::Matrix<double, 6, 6>;
 // aligned quaternion
 using EAquatn = Eigen::Quaternion<double>;
 
+// dynamic size types
 using Evec = Eigen::VectorXd;
 using Espmat = Eigen::SparseMatrix<double>;                         // default to column major
 using Emat = Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic>; // default to column major
-
-inline void quatRot(const Evec3 &from, const Evec3 &to, Equatn &q) {
-    EAvec3 fromnormd = from.normalized();
-    EAvec3 tonormd = to.normalized();
-    constexpr double eps = 1e-9;
-    if (tonormd.dot(fromnormd) > (1 - eps)) {
-        // almost parallel, no rotation
-        q = Eigen::AngleAxis<double>(0, Evec3(1, 0, 0));
-    } else if (tonormd.dot(fromnormd) < -(1 - eps)) {
-        // almost anti-parallel, rotation known
-        q = Eigen::AngleAxis<double>((double)3.1415926535897932384623433, Evec3(0, 0, 1));
-    } else {
-        q = Eigen::AngleAxis<double>(acos(fromnormd.dot(tonormd)), (fromnormd.cross(tonormd)).normalized());
-        // must use normalized axis
-    }
-}
 
 #endif /* EIGENDEF_HPP_ */
