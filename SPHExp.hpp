@@ -3,6 +3,7 @@
 
 // the class for spherical harmonics expansions
 // should be guaranteed to be thread-safe
+#include <cstdint>
 #include <cstdio>
 #include <string>
 #include <vector>
@@ -83,6 +84,10 @@ class SPHExp {
     // debug routines
     void dumpVTK(FILE *const filePtr) const;
     void dumpSpectralValues(const std::string &filename = std::string("")) const; // default to empty string
+
+  private:
+    void getGridCellConnect(std::vector<int32_t> &gridCellConnect, std::vector<int32_t> &offset,
+                            std::vector<uint8_t> &type) const;
 };
 
 #endif // SPHEXP_HPP
