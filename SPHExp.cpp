@@ -1,5 +1,7 @@
 #include <cassert>
 #include <cstdio>
+#include <fstream>
+#include <iostream>
 
 #include "Base64.hpp"
 #include "Gauss_Legendre_Nodes_and_Weights.hpp"
@@ -70,95 +72,147 @@ void SPHExp::dumpSpectralValues(const std::string &filename) const {
     }
 }
 
-void SPHExp::dumpVTK(FILE *const filePtr) const {
-    assert(filePtr != nullptr);
+void SPHExp::dumpVTK(std::ofstream &file) const {
+    // this must be called in single thread
+    // change to using cpp to avoid copy from string to c_str()
+
+    assert(file.is_open());
+    assert(file.good());
 
     std::vector<double> gridPoints;
     std::vector<double> gridWeights;
     std::vector<double> gridValues;
     getGrid(gridPoints, gridWeights, gridValues);
+    // for debug
+    printf("%d,%d,%d\n", gridPoints.size(), gridWeights.size(), gridValues.size());
+    for (const auto &v : gridPoints) {
+        std::cout << v << " ";
+    }
+    std::cout << std::endl;
+    for (const auto &v : gridWeights) {
+        std::cout << v << " ";
+    }
+    std::cout << std::endl;
+
+    std::string contentB64; // data converted to base64 format
+    contentB64.reserve(10 * order * order * (kind == KIND::LAP ? 1 : 3));
+    contentB64.clear();
+
+    std::vector<char> temp{'a', 'b', 'c', 'd', 'e', 'f'};
+    B64Converter::getBase64FromVector(temp, contentB64);
+    for (const auto &v : contentB64) {
+        std::cout << v << " ";
+    }
+    std::cout << std::endl;
 
     std::vector<int32_t> connect;
     std::vector<int32_t> offset;
     std::vector<uint8_t> type;
     getGridCellConnect(connect, offset, type);
 
-    std::string contentB64; // data converted to base64 format
-    contentB64.reserve(10 * order * order * (kind == KIND::LAP ? 1 : 3));
+    // for debug
+    for (const auto &v : connect) {
+        std::cout << v << " ";
+    }
+    std::cout << std::endl;
+    for (const auto &v : offset) {
+        std::cout << v << " ";
+    }
+    std::cout << std::endl;
+    for (const auto &v : type) {
+        int temp = v;
+        std::cout << temp << " ";
+    }
+    std::cout << std::endl;
+
     // write a vtk unstructured grid section
     // assume filePtr in 'append' mode
 
     const int p = order;
-    fprintf(filePtr, "<Piece NumberOfPoints=\"%d\" NumberOfCells=\"%d\">\n", 2 * p * p, 2 * p * (p + 1));
+    file << "<Piece NumberOfPoints=\"" << 2 * p * p + 4 * p + 4 << "\" NumberOfCells=\"" << (2 * p + 2) * (p + 2)
+         << "\">\n";
 
     // point data
-    fprintf(filePtr, "<PointData %s=\"%s\">\n", (kind == KIND::LAP ? "Scalars" : "Vectors"), this->name.c_str());
-    getBase64FromVector(gridValues, contentB64);
-    fprintf(filePtr, "<DataArray Name=\"%s\">\n", this->name.c_str());
-    fprintf(filePtr, "%s", contentB64);
-    fprintf(filePtr, "</DataArray>\n");
-    fprintf(filePtr, "</PointData>\n");
+    file << "<PointData Scalars=\"scalars\">\n";
+    contentB64.clear();
+    B64Converter::getBase64FromVector(gridValues, contentB64);
+    file << "<DataArray Name=\"" << this->name << "\" type=\"Float64\" NumberOfComponents=\""
+         << ((kind == KIND::LAP) ? 1 : 3) << "\" format=\"binary\">\n";
+    file << contentB64 << "\n";
+    file << "</DataArray>\n";
+
+    contentB64.clear();
+    B64Converter::getBase64FromVector(gridWeights, contentB64);
+    file << "<DataArray Name=\""
+         << "weights"
+         << "\" type=\"Float64\" "
+         << " format=\"binary\">\n";
+    file << contentB64 << "\n";
+    file << "</DataArray>\n";
+    file << "</PointData>\n";
+
     // cell data (empty)
 
     // point location
-    fprintf(filePtr, "<Points>\n");
-    fprintf(filePtr, "<DataArray NumberOfComponents=\"3\">\n");
+    file << "<Points>\n";
+    file << "<DataArray NumberOfComponents=\"3\" type=\"Float64\" format=\"binary\">\n";
     contentB64.clear();
-    getBase64FromVector(gridPoints, contentB64);
-    fprintf(filePtr, "%s", contentB64);
-    fprintf(filePtr, "</DataArray>\n");
-    fprintf(filePtr, "</Points>\n");
+    B64Converter::getBase64FromVector(gridPoints, contentB64);
+    file << contentB64 << "\n";
+    file << "</DataArray>\n";
+    file << "</Points>\n";
 
     // cell definition
-    fprintf(filePtr, "<Cells>");
-    fprintf(filePtr, "<DataArray type=\"Int32\" Name=\"connectivity\">\n");
+    file << "<Cells>\n";
+    file << "<DataArray type=\"Int32\" Name=\"connectivity\" format=\"binary\">\n";
     contentB64.clear();
-    getBase64FromVector(connect, contentB64);
-    fprintf(filePtr, "%s\n", contentB64.c_str());
-    fprintf(filePtr, "</DataArray>\n");
-    fprintf(filePtr, "<DataArray type=\"Int32\" Name=\"offsets\">\n");
+    B64Converter::getBase64FromVector(connect, contentB64);
+    file << contentB64 << "\n";
+    file << "</DataArray>\n";
+    file << "<DataArray type=\"Int32\" Name=\"offsets\" format=\"binary\">\n";
     contentB64.clear();
-    getBase64FromVector(offset, contentB64);
-    fprintf(filePtr, "%s\n", contentB64.c_str());
-    fprintf(filePtr, "</DataArray>\n");
-    fprintf(filePtr, "<DataArray type=\"UInt8\" Name=\"types\">\n");
+    B64Converter::getBase64FromVector(offset, contentB64);
+    file << contentB64 << "\n";
+    file << "</DataArray>\n";
+    file << "<DataArray type=\"UInt8\" Name=\"types\" format=\"binary\">\n";
     contentB64.clear();
-    getBase64FromVector(type, contentB64);
-    fprintf(filePtr, "%s\n", contentB64.c_str());
-    fprintf(filePtr, "</DataArray>\n");
-
-    fprintf(filePtr, "</Cells>");
+    B64Converter::getBase64FromVector(type, contentB64);
+    file << contentB64 << "\n";
+    file << "</DataArray>\n";
+    file << "</Cells>\n";
 
     // end
-    fprintf(filePtr, "</Piece>\n");
+    file << "</Piece>" << std::endl; // flush
 }
 
 void SPHExp::getGrid(std::vector<double> &gridPoints, std::vector<double> &gridWeights,
                      std::vector<double> &gridValues) const {
     /*
         point order: 0 at northpole, then 2p+2 points per circle. the last at south pole
+        the north and south pole are not included in the nodesGL of Gauss-Legendre nodes.
+        add those two points with weight = 0 manually.
+        total point = (p+1)(2p+2) + north/south pole = 2p^2+4p+4
     */
     const int p = order;
-    gridPoints.resize(2 * p * p * 3);
-    gridWeights.resize(2 * p * p * ((kind == KIND::LAP) ? 1 : 3));
-    gridValues.resize(2 * p * p);
+    gridPoints.resize((2 * p * p + 4 * p + 4) * 3);
+    gridValues.resize((2 * p * p + 4 * p + 4) * (kind == KIND::LAP ? 1 : 3));
+    gridWeights.resize(2 * p * p + 4 * p + 4);
 
     std::vector<double> nodesGL; // cos thetaj = tj
     std::vector<double> weightsGL;
 
-    Gauss_Legendre_Nodes_and_Weights(p + 1, nodesGL, weightsGL);
+    Gauss_Legendre_Nodes_and_Weights(p + 1, nodesGL, weightsGL); // p+1 points, excluding the two poles
 
     // calculate grid coordinate without rotation
-    // in total 1 + (2p+2)*(p-1) +1 = 2p^2 points
     // north pole
     int index = 0;
     gridPoints[3 * index] = 0;
     gridPoints[3 * index + 1] = 0;
     gridPoints[3 * index + 2] = 1;
-    gridWeights[index] = weightsGL[0];
+    gridWeights[index] = 0;
     index++;
     // between north and south pole
-    for (int j = 1; j < p; j++) {
+    for (int j = 0; j < p + 1; j++) {
 #pragma omp simd
         for (int k = 0; k <= 2 * p + 1; k++) {
             // sin thetaj cos phik, sin thetaj sin phik, cos thetak
@@ -176,16 +230,18 @@ void SPHExp::getGrid(std::vector<double> &gridPoints, std::vector<double> &gridW
     gridPoints[3 * index] = 0;
     gridPoints[3 * index + 1] = 0;
     gridPoints[3 * index + 2] = -1;
-    gridWeights[index] = weightsGL[p];
-    assert(index == 2 * p * p - 1);
+    gridWeights[index] = 0;
+    index++;
+    assert(index == 2 * p * p + 4 * p + 4);
 
     // fill value with zero
+    // TODO: convert spectral values to grid values
     // TODO: also rotate the values if vector-valued (Stokes)
     std::fill(gridValues.begin(), gridValues.end(), 0);
 
     // rotation with quaternion for each point
     const EAmat3 rotation = orientation.toRotationMatrix(); // an aligned temporary rotation matrix for all points
-    for (int i = 0; i < 2 * p * p; i++) {
+    for (int i = 0; i < 2 * p * p + 2; i++) {
         EAvec3 pointVec(gridPoints[3 * i], gridPoints[3 * i + 1], gridPoints[3 * i + 2]); // aligned temporary object
         Eigen::Map<Eigen::Vector3d>(gridPoints.data() + 3 * i) = rotation * pointVec;
     }
@@ -195,62 +251,66 @@ void SPHExp::getGrid(std::vector<double> &gridPoints, std::vector<double> &gridW
 
 void SPHExp::getGridCellConnect(std::vector<int32_t> &gridCellConnect, std::vector<int32_t> &offset,
                                 std::vector<uint8_t> &type) const {
+    // offset gives the END position of each cell
+
     const int p = order;
+    // for p=0 two points on equator. Define 4 3-node cells
+
     // cells with north pole, 3 point for each cell
-    int index = 1; // the index to the node point, starting from 1 point after the north pole
-    offset.push_back(0);
+    int index = 0; // the index to the node point, starting from 1 point after the north pole
     for (int k = 0; k < 2 * p + 1; k++) {
         // 3 points, 0,k,k+1
+        index++;
         gridCellConnect.push_back(0);
         gridCellConnect.push_back(index);
         gridCellConnect.push_back(index + 1);
         type.push_back(uint8_t(5)); // 5= VTK_TRIANGLE
-        offset.push_back(offset.back() + 3);
-        index++;
+        offset.push_back(gridCellConnect.size());
     }
+    index++;
     gridCellConnect.push_back(0);
-    gridCellConnect.push_back(2 * p + 1);
+    gridCellConnect.push_back(2 * p + 2);
     gridCellConnect.push_back(1);
     type.push_back(uint8_t(5)); // 5= VTK_TRIANGLE
-    offset.push_back(offset.back() + 3);
-    index++;
+    offset.push_back(gridCellConnect.size());
 
     // 4 cells for each cell in the center
-    for (int j = 1; j < p - 1; j++) {
+    for (int j = 1; j < p + 1; j++) {
         for (int k = 0; k < 2 * p + 1; k++) {
             // 4 points, index, index+1, index-(2p+2), index+1 - (2p+2)
+            index++;
             gridCellConnect.push_back(index);
             gridCellConnect.push_back(index + 1);
             gridCellConnect.push_back(index - (2 * p + 2));
             gridCellConnect.push_back(index + 1 - (2 * p + 2));
             type.push_back(uint8_t(9)); // 9 = VTK_QUAD
-            offset.push_back(offset.back() + 4);
-            index++;
+            offset.push_back(gridCellConnect.size());
         }
         // last one, connect to the first one in this circle
+        index++;
         gridCellConnect.push_back(index);
         gridCellConnect.push_back(index - (2 * p + 1));
         gridCellConnect.push_back(index - (2 * p + 2));
         gridCellConnect.push_back(index - (2 * p + 1) - (2 * p + 2));
         type.push_back(uint8_t(9)); // 9 = VTK_QUAD
-        offset.push_back(offset.back() + 4);
-        index++;
+        offset.push_back(gridCellConnect.size());
     }
 
     // cells with south pole, 3 points for each cell
+    gridCellConnect.push_back(2 * p * p + 4 * p + 3);               // index for south pole
+    gridCellConnect.push_back(2 * p * p + 4 * p + 2);               // 1 before south pole
+    gridCellConnect.push_back(2 * p * p + 4 * p + 2 - (2 * p + 1)); // 1 around the circle
+    type.push_back(uint8_t(5));                                     // 5= VTK_TRIANGLE
+    offset.push_back(gridCellConnect.size());
     for (int k = 0; k < 2 * p + 1; k++) {
-        // 3 points, 0,k,k+1
-        gridCellConnect.push_back(2 * p * p - 1);
+        // 3 points, k,k+1, southpole
+        index--;
+        gridCellConnect.push_back(2 * p * p + 4 * p + 3); // index for south pole
         gridCellConnect.push_back(index);
         gridCellConnect.push_back(index + 1);
         type.push_back(uint8_t(5)); // 5= VTK_TRIANGLE
-        offset.push_back(offset.back() + 3);
-        index++;
+        offset.push_back(gridCellConnect.size());
     }
-    gridCellConnect.push_back(2 * p * p - 1);               // south pole
-    gridCellConnect.push_back(2 * p * p - 2);               // 1 before south pole
-    gridCellConnect.push_back(2 * p * p - 2 - (2 * p + 1)); // 1 around the circle
-    type.push_back(uint8_t(5));                             // 5= VTK_TRIANGLE
 
     return;
 }

@@ -5,6 +5,7 @@
 // should be guaranteed to be thread-safe
 #include <cstdint>
 #include <cstdio>
+#include <iostream>
 #include <string>
 #include <vector>
 
@@ -82,7 +83,7 @@ class SPHExp {
     // NF  routines
 
     // debug routines
-    void dumpVTK(FILE *const filePtr) const;
+    void dumpVTK(std::ofstream &file) const;
     void dumpSpectralValues(const std::string &filename = std::string("")) const; // default to empty string
 
   private:
