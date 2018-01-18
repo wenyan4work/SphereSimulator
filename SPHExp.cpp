@@ -212,17 +212,18 @@ void SPHExp::getGrid(std::vector<double> &gridPoints, std::vector<double> &gridW
     gridWeights[index] = 0;
     index++;
     // between north and south pole
+    // from north pole (1) to south pole (-1), picking the points from nodesGL in reversed order
     for (int j = 0; j < p + 1; j++) {
 #pragma omp simd
         for (int k = 0; k <= 2 * p + 1; k++) {
             // sin thetaj cos phik, sin thetaj sin phik, cos thetak
-            const double costhetaj = nodesGL[j];
+            const double costhetaj = nodesGL[p - j];
             const double phik = 2 * pi * k / (2 * p + 2);
             double sinthetaj = sqrt(1 - costhetaj * costhetaj);
             gridPoints[3 * index] = sinthetaj * cos(phik);
             gridPoints[3 * index + 1] = sinthetaj * sin(phik);
             gridPoints[3 * index + 2] = costhetaj;
-            gridWeights[index] = weightsGL[j];
+            gridWeights[index] = weightsGL[p - j];
             index++;
         }
     }
@@ -281,8 +282,8 @@ void SPHExp::getGridCellConnect(std::vector<int32_t> &gridCellConnect, std::vect
             index++;
             gridCellConnect.push_back(index);
             gridCellConnect.push_back(index + 1);
-            gridCellConnect.push_back(index - (2 * p + 2));
             gridCellConnect.push_back(index + 1 - (2 * p + 2));
+            gridCellConnect.push_back(index - (2 * p + 2));
             type.push_back(uint8_t(9)); // 9 = VTK_QUAD
             offset.push_back(gridCellConnect.size());
         }
@@ -290,8 +291,8 @@ void SPHExp::getGridCellConnect(std::vector<int32_t> &gridCellConnect, std::vect
         index++;
         gridCellConnect.push_back(index);
         gridCellConnect.push_back(index - (2 * p + 1));
-        gridCellConnect.push_back(index - (2 * p + 2));
         gridCellConnect.push_back(index - (2 * p + 1) - (2 * p + 2));
+        gridCellConnect.push_back(index - (2 * p + 2));
         type.push_back(uint8_t(9)); // 9 = VTK_QUAD
         offset.push_back(gridCellConnect.size());
     }
@@ -306,8 +307,8 @@ void SPHExp::getGridCellConnect(std::vector<int32_t> &gridCellConnect, std::vect
         // 3 points, k,k+1, southpole
         index--;
         gridCellConnect.push_back(2 * p * p + 4 * p + 3); // index for south pole
-        gridCellConnect.push_back(index);
         gridCellConnect.push_back(index + 1);
+        gridCellConnect.push_back(index);
         type.push_back(uint8_t(5)); // 5= VTK_TRIANGLE
         offset.push_back(gridCellConnect.size());
     }

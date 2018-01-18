@@ -7,7 +7,7 @@
 
 int main() {
 
-    SPHExp sph(SPHExp::KIND::LAP, "test", 1);
+    SPHExp sph(SPHExp::KIND::LAP, "test", 12);
     sph.spectralCoeff[0] = 1;
     sph.spectralCoeff[1] = 2;
 
