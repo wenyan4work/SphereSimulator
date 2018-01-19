@@ -72,7 +72,9 @@ void SPHExp::dumpSpectralValues(const std::string &filename) const {
     }
 }
 
-void SPHExp::dumpVTK(std::ofstream &file) const {
+int SPHExp::dumpVTK(std::ofstream &file, const std::array<double, 3> &coordBase) const {
+    // indexBase is the index of the first grid point
+
     // this must be called in single thread
     // change to using cpp to avoid copy from string to c_str()
 
@@ -83,6 +85,15 @@ void SPHExp::dumpVTK(std::ofstream &file) const {
     std::vector<double> gridWeights;
     std::vector<double> gridValues;
     getGrid(gridPoints, gridWeights, gridValues);
+    const int nPts = gridWeights.size();
+    assert(gridPoints.size() == nPts * 3);
+
+    for (int i = 0; i < nPts; i++) {
+        gridPoints[3 * i] += coordBase[0];
+        gridPoints[3 * i + 1] += coordBase[1];
+        gridPoints[3 * i + 2] += coordBase[2];
+    }
+
     // for debug
     printf("%d,%d,%d\n", gridPoints.size(), gridWeights.size(), gridValues.size());
     for (const auto &v : gridPoints) {
@@ -110,6 +121,10 @@ void SPHExp::dumpVTK(std::ofstream &file) const {
     std::vector<uint8_t> type;
     getGridCellConnect(connect, offset, type);
 
+    // for (auto &v : connect) {
+    //     v += indexBase;
+    // }
+
     // for debug
     for (const auto &v : connect) {
         std::cout << v << " ";
@@ -126,7 +141,7 @@ void SPHExp::dumpVTK(std::ofstream &file) const {
     std::cout << std::endl;
 
     // write a vtk unstructured grid section
-    // assume filePtr in 'append' mode
+    // assume file in 'append' mode
 
     const int p = order;
     file << "<Piece NumberOfPoints=\"" << 2 * p * p + 4 * p + 4 << "\" NumberOfCells=\"" << (2 * p + 2) * (p + 2)
@@ -183,6 +198,8 @@ void SPHExp::dumpVTK(std::ofstream &file) const {
 
     // end
     file << "</Piece>" << std::endl; // flush
+
+    return nPts;
 }
 
 void SPHExp::getGrid(std::vector<double> &gridPoints, std::vector<double> &gridWeights,
