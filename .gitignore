@@ -13,9 +13,15 @@ ColXF
 collisionXF/
 *.mtx
 *.X.dSYM/
-*.vtk
 *.xyz
 *.d
 .ipynb_checkpoints/
 *.ipynb
 Test/FMM/randomPoints
+
+*.vtu
+*.pvtu
+*.vtk
+*.pvtk
+*.vtp
+*.pvtp
