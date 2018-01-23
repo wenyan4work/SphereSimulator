@@ -9,8 +9,8 @@
 #define EIGENDEF_HPP_
 
 #define EIGEN_DONT_PARALLELIZE  // 1 thread for any eigen stuff
-#include "Eigen/Dense"
-#include "Eigen/Sparse"
+#include <Eigen/Dense>
+#include <Eigen/Sparse>
 
 #include <vector>
 #include <cmath>
