@@ -404,8 +404,7 @@ void laplace_dipolepgrad_poten(T *r_src, int src_cnt, T *v_src, int dof, T *r_tr
 
 template <class T>
 struct LaplaceLayerKernel {
-    inline static const Kernel<T> &SLPGrad();
-    inline static const Kernel<T> &DLPGrad();
+    inline static const Kernel<T> &PGrad();
 
   private:
     static constexpr int NEWTON_ITE = sizeof(T) / 4;
@@ -413,23 +412,23 @@ struct LaplaceLayerKernel {
 };
 
 template <class T>
-inline const Kernel<T> &LaplaceLayerKernel<T>::SLPGrad() {
-    static Kernel<T> potn_ker = BuildKernel<T, laplace_poten<T, NEWTON_ITE>>("laplace", 3, std::pair<int, int>(1, 1));
-    static Kernel<T> pgrad_ker =
-        BuildKernel<T, laplace_pgrad<T, NEWTON_ITE>>("laplace_pgrad", 3, std::pair<int, int>(1, 4), &potn_ker,
-                                                     &potn_ker, NULL, &potn_ker, &potn_ker, NULL, &potn_ker, NULL);
-    return pgrad_ker;
-}
+inline const Kernel<T> &LaplaceLayerKernel<T>::PGrad() {
+    // S2U - single-layer density — to — potential kernel (1 x 1)
+    // D2U - double-layer density — to — potential kernel (1+3 x 1)
+    // S2UdU - single-layer density — to — potential & gradient (1 x 1)
+    // D2UdU - double-layer density — to — potential & gradient (1+3 x 1)
 
-template <class T>
-inline const Kernel<T> &LaplaceLayerKernel<T>::DLPGrad() {
-    static Kernel<T> dl_ker =
-        BuildKernel<T, laplace_dipolepotential_poten<T, NEWTON_ITE>>("laplace_dipole", 3, std::pair<int, int>(3, 1));
-    // static Kernel<T> sl_ker = BuildKernel<T, laplace_poten<T, NEWTON_ITE>>("laplace", 3, std::pair<int, int>(1, 1));
-    static Kernel<T> pgrad_ker = BuildKernel<T, laplace_dipolepgrad_poten<T, NEWTON_ITE>>(
-        "laplace_dipole_pgrad", 3, std::pair<int, int>(3, 4), &dl_ker, &dl_ker, NULL, &dl_ker, &dl_ker, NULL, &dl_ker,
-        NULL);
-    return pgrad_ker;
+    static Kernel<T> lap_pker =
+        BuildKernel<T, laplace_poten<T, NEWTON_ITE>, laplace_dipolepotential_poten<T, NEWTON_ITE>>(
+            "laplace", 3, std::pair<int, int>(1, 1));
+    lap_pker.surf_dim = 3;
+
+    static Kernel<T> lap_pgker = BuildKernel<T, laplace_pgrad<T, NEWTON_ITE>, laplace_dipolepgrad_poten<T, NEWTON_ITE>>(
+        "laplace_PGrad", 3, std::pair<int, int>(1, 4), &lap_pker, &lap_pker, NULL, &lap_pker, &lap_pker, NULL,
+        &lap_pker, NULL);
+    lap_pgker.surf_dim = 3;
+
+    return lap_pgker;
 }
 
 } // namespace pvfmm

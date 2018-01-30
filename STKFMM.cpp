@@ -13,9 +13,9 @@
 
 #include "../common/Timer.hpp"
 #include "LaplaceLayerKernel.hpp"
+#include "StokesLayerKernel.hpp"
+
 #include "STKFMM.h"
-#include "StokesDoubleLayerKernel.hpp"
-#include "StokesSingleLayerKernel.hpp"
 
 PeriodicType periodicType;
 
@@ -24,9 +24,7 @@ PeriodicType periodicType;
 // return fraction part between [0,1)
 /*
  * This function is only applied in the PERIODIC DIRECTION
- *
  * The user of the library must ensure that all points are located within [0,1)
- *
  * */
 inline double fracwrap(double x) { return x - floor(x); }
 
@@ -40,8 +38,9 @@ void safeDeletePtr(T *ptr) {
 
 void STKFMM::FMMData::setKernel(const pvfmm::Kernel<double> &kernelFunction) {
     matrixPtr->Initialize(multOrder, MPI_COMM_WORLD, &kernelFunction);
-    kdimSrc = kernelFunction.k_s2t->ker_dim[0];
+    kdimSL = kernelFunction.k_s2t->ker_dim[0];
     kdimTrg = kernelFunction.k_s2t->ker_dim[1];
+    kdimDL = kernelFunction.surf_dim;
 }
 
 // constructor
@@ -51,29 +50,20 @@ STKFMM::FMMData::FMMData(KERNEL kernelChoice_, int multOrder_, int maxPts_)
     matrixPtr = new pvfmm::PtFMM();
     // choose a kernel
     switch (kernelChoice) {
-    case KERNEL::SLPVel:
-        setKernel(pvfmm::StokesSingleLayerKernel<double>::PVel());
+    case KERNEL::PVel:
+        setKernel(pvfmm::StokesLayerKernel<double>::PVel());
         break;
-    case KERNEL::SLPVelGrad:
-        setKernel(pvfmm::StokesSingleLayerKernel<double>::PVelGrad());
+    case KERNEL::PVelGrad:
+        setKernel(pvfmm::StokesLayerKernel<double>::PVelGrad());
         break;
-    case KERNEL::SLTraction:
-        setKernel(pvfmm::StokesSingleLayerKernel<double>::Traction());
+    case KERNEL::PVelLaplacian:
+        setKernel(pvfmm::StokesLayerKernel<double>::PVelLaplacian());
         break;
-    case KERNEL::SLPVelLaplacian:
-        setKernel(pvfmm::StokesSingleLayerKernel<double>::PVelLaplacian());
+    case KERNEL::Traction:
+        setKernel(pvfmm::StokesLayerKernel<double>::Traction());
         break;
-    case KERNEL::DLPVel:
-        setKernel(pvfmm::StokesDoubleLayerKernel<double>::PVel());
-        break;
-    case KERNEL::DLPVelGrad:
-        setKernel(pvfmm::StokesDoubleLayerKernel<double>::PVelGrad());
-        break;
-    case KERNEL::LAPSLPGrad:
-        setKernel(pvfmm::LaplaceLayerKernel<double>::SLPGrad());
-        break;
-    case KERNEL::LAPDLPGrad:
-        setKernel(pvfmm::LaplaceLayerKernel<double>::DLPGrad());
+    case KERNEL::LAPPGrad:
+        setKernel(pvfmm::LaplaceLayerKernel<double>::PGrad());
         break;
     }
     treeDataPtr = new pvfmm::PtFMM_Data;
@@ -94,7 +84,8 @@ void STKFMM::FMMData::clear() {
     return;
 }
 
-void STKFMM::FMMData::setupTree(const std::vector<double> &srcCoord, const std::vector<double> &trgCoord) {
+void STKFMM::FMMData::setupTree(const std::vector<double> &srcSLCoord, const std::vector<double> &srcDLCoord,
+                                const std::vector<double> &trgCoord) {
     // trgCoord and srcCoord have been scaled to [0,1)^3
 
     // setup treeData
@@ -102,16 +93,19 @@ void STKFMM::FMMData::setupTree(const std::vector<double> &srcCoord, const std::
     treeDataPtr->max_depth = 15; // must < MAX_DEPTH in pvfmm_common.hpp
     treeDataPtr->max_pts = maxPts;
 
-    treeDataPtr->src_coord = srcCoord;
+    treeDataPtr->src_coord = srcSLCoord;
+    treeDataPtr->surf_coord = srcDLCoord;
     treeDataPtr->trg_coord = trgCoord;
-    treeDataPtr->surf_coord.Resize(0); // no surface
+
     // this is used to setup FMM octree
-    treeDataPtr->pt_coord = srcCoord.size() > trgCoord.size() ? srcCoord : trgCoord;
-    const size_t nSrc = srcCoord.size() / 3;
+    treeDataPtr->pt_coord = srcSLCoord.size() > trgCoord.size() ? srcSLCoord : trgCoord;
+    const size_t nSL = srcSLCoord.size() / 3;
+    const size_t nDL = srcDLCoord.size() / 3;
     const size_t nTrg = trgCoord.size() / 3;
 
-    // space allocate, not necessary
-    treeDataPtr->src_value.Resize(nSrc * kdimSrc);
+    // space allocate
+    treeDataPtr->src_value.Resize(nSL * kdimSL);
+    treeDataPtr->surf_value.Resize(nDL * kdimDL);
     treeDataPtr->trg_value.Resize(nTrg * kdimTrg);
 
     // construct tree
@@ -128,17 +122,22 @@ void STKFMM::FMMData::deleteTree() {
     return;
 }
 
-void STKFMM::FMMData::evaluate(std::vector<double> &trgValue, std::vector<double> &srcValue) {
-    std::vector<double> *surf_valPtr = nullptr;
-    const size_t nTrg = treeDataPtr->trg_coord.Dim() / 3;
+void STKFMM::FMMData::evaluate(std::vector<double> &srcSLValue, std::vector<double> &srcDLValue,
+                               std::vector<double> &trgValue) {
     const size_t nSrc = treeDataPtr->src_coord.Dim() / 3;
+    const size_t nSurf = treeDataPtr->surf_coord.Dim() / 3;
+    const size_t nTrg = treeDataPtr->trg_coord.Dim() / 3;
+
     if (nTrg * kdimTrg != trgValue.size()) {
         printf("trg value size error for kernel %d\n", kernelChoice);
     }
-    if (nSrc * kdimSrc != srcValue.size()) {
-        printf("src value size error for kernel %d\n", kernelChoice);
+    if (nSrc * kdimSL != srcSLValue.size()) {
+        printf("src SL value size error for kernel %d\n", kernelChoice);
     }
-    PtFMM_Evaluate(treePtr, trgValue, nTrg, &srcValue, surf_valPtr);
+    if (nSurf * kdimDL != srcDLValue.size()) {
+        printf("src DL value size error for kernel %d\n", kernelChoice);
+    }
+    PtFMM_Evaluate(treePtr, trgValue, nTrg, &srcSLValue, &srcDLValue);
 }
 
 STKFMM::STKFMM(int multOrder_, int maxPts_, PAXIS pbc_, unsigned int kernelComb_)
@@ -167,37 +166,25 @@ STKFMM::STKFMM(int multOrder_, int maxPts_, PAXIS pbc_, unsigned int kernelComb_
     poolFMM.clear();
 
     // parse the choice of kernels, use bitwise and
-    if (kernelComb & asInteger(KERNEL::SLPVel)) {
-        printf("enable SLPVel %d\n", kernelComb & asInteger(KERNEL::SLPVel));
-        poolFMM[KERNEL::SLPVel] = new FMMData(KERNEL::SLPVel, multOrder, maxPts);
+    if (kernelComb & asInteger(KERNEL::PVel)) {
+        printf("enable PVel %d\n", kernelComb & asInteger(KERNEL::PVel));
+        poolFMM[KERNEL::PVel] = new FMMData(KERNEL::PVel, multOrder, maxPts);
     }
-    if (kernelComb & asInteger(KERNEL::SLPVelGrad)) {
-        printf("enable SLPVelGrad %d\n", kernelComb & asInteger(KERNEL::SLPVelGrad));
-        poolFMM[KERNEL::SLPVelGrad] = new FMMData(KERNEL::SLPVelGrad, multOrder, maxPts);
+    if (kernelComb & asInteger(KERNEL::PVelGrad)) {
+        printf("enable PVelGrad %d\n", kernelComb & asInteger(KERNEL::PVelGrad));
+        poolFMM[KERNEL::PVelGrad] = new FMMData(KERNEL::PVelGrad, multOrder, maxPts);
     }
-    if (kernelComb & asInteger(KERNEL::SLTraction)) {
-        printf("enable SLTraction %d\n", kernelComb & asInteger(KERNEL::SLTraction));
-        poolFMM[KERNEL::SLTraction] = new FMMData(KERNEL::SLTraction, multOrder, maxPts);
+    if (kernelComb & asInteger(KERNEL::PVelLaplacian)) {
+        printf("enable PVelLaplacian %d\n", kernelComb & asInteger(KERNEL::PVelLaplacian));
+        poolFMM[KERNEL::PVelLaplacian] = new FMMData(KERNEL::PVelLaplacian, multOrder, maxPts);
     }
-    if (kernelComb & asInteger(KERNEL::SLPVelLaplacian)) {
-        printf("enable SLPVelLaplacian %d\n", kernelComb & asInteger(KERNEL::SLPVelLaplacian));
-        poolFMM[KERNEL::SLPVelLaplacian] = new FMMData(KERNEL::SLPVelLaplacian, multOrder, maxPts);
+    if (kernelComb & asInteger(KERNEL::Traction)) {
+        printf("enable Traction %d\n", kernelComb & asInteger(KERNEL::Traction));
+        poolFMM[KERNEL::Traction] = new FMMData(KERNEL::Traction, multOrder, maxPts);
     }
-    if (kernelComb & asInteger(KERNEL::DLPVel)) {
-        printf("enable DLPVel %d\n", kernelComb & asInteger(KERNEL::DLPVel));
-        poolFMM[KERNEL::DLPVel] = new FMMData(KERNEL::DLPVel, multOrder, maxPts);
-    }
-    if (kernelComb & asInteger(KERNEL::DLPVelGrad)) {
-        printf("enable DLPVelGrad %d\n", kernelComb & asInteger(KERNEL::DLPVelGrad));
-        poolFMM[KERNEL::DLPVelGrad] = new FMMData(KERNEL::DLPVelGrad, multOrder, maxPts);
-    }
-    if (kernelComb & asInteger(KERNEL::LAPSLPGrad)) {
-        printf("enable LAPSLPGrad %d\n", kernelComb & asInteger(KERNEL::LAPSLPGrad));
-        poolFMM[KERNEL::LAPSLPGrad] = new FMMData(KERNEL::LAPSLPGrad, multOrder, maxPts);
-    }
-    if (kernelComb & asInteger(KERNEL::LAPDLPGrad)) {
-        printf("enable LAPSDLPGrad %d\n", kernelComb & asInteger(KERNEL::LAPDLPGrad));
-        poolFMM[KERNEL::LAPDLPGrad] = new FMMData(KERNEL::LAPDLPGrad, multOrder, maxPts);
+    if (kernelComb & asInteger(KERNEL::LAPPGrad)) {
+        printf("enable LAPPGrad %d\n", kernelComb & asInteger(KERNEL::LAPPGrad));
+        poolFMM[KERNEL::LAPPGrad] = new FMMData(KERNEL::LAPPGrad, multOrder, maxPts);
     }
 
 #ifdef FMMDEBUG
@@ -237,8 +224,8 @@ void STKFMM::setBox(double xlow_, double xhigh_, double ylow_, double yhigh_, do
     scaleFactor = 1 / std::max(zlen, std::max(xlen, ylen));
     // new coordinate = (x+xshift)*scaleFactor, in [0,1)
 
-    std::cout << "box x" << xlen << "box y" << ylen << "box z" << zlen << std::endl;
-    std::cout << "scale factor" << scaleFactor << std::endl;
+    std::cout << "box x " << xlen << " box y " << ylen << " box z " << zlen << std::endl;
+    std::cout << "scale factor " << scaleFactor << std::endl;
 
     // sanity check of box setting, ensure fitting in a cubic box [0,1)^3
     const double eps = pow(10, -12) / scaleFactor;
@@ -317,7 +304,8 @@ void STKFMM::setupCoord(const std::vector<double> &coordIn, std::vector<double> 
     return;
 }
 
-void STKFMM::setPoints(const std::vector<double> &srcCoord_, const std::vector<double> &trgCoord_) {
+void STKFMM::setPoints(const std::vector<double> &srcSLCoord_, const std::vector<double> &srcDLCoord_,
+                       const std::vector<double> &trgCoord_) {
     int np, myrank;
     MPI_Comm comm = MPI_COMM_WORLD;
     MPI_Comm_size(comm, &np);
@@ -332,35 +320,49 @@ void STKFMM::setPoints(const std::vector<double> &srcCoord_, const std::vector<d
     }
 
     // setup point coordinates
-    setupCoord(srcCoord_, srcCoordInternal);
+    setupCoord(srcSLCoord_, srcSLCoordInternal);
+    setupCoord(srcDLCoord_, srcDLCoordInternal);
     setupCoord(trgCoord_, trgCoordInternal);
     printf("points set\n");
 }
 
 void STKFMM::setupTree(KERNEL kernel_) {
-    poolFMM[kernel_]->setupTree(srcCoordInternal, trgCoordInternal);
+    poolFMM[kernel_]->setupTree(srcSLCoordInternal, srcDLCoordInternal, trgCoordInternal);
     printf("Coord setup for kernel %d\n", static_cast<int>(kernel_));
 }
 
-void STKFMM::evaluateFMM(std::vector<double> &srcValue, std::vector<double> &trgValue, KERNEL kernel) {
+void STKFMM::evaluateFMM(std::vector<double> &srcSLValue, std::vector<double> &srcDLValue,
+                         std::vector<double> &trgValue, KERNEL kernel) {
 
     if (poolFMM.find(kernel) == poolFMM.end()) {
         printf("Error: no such FMMData exists for kernel %d\n", static_cast<int>(kernel));
     }
     FMMData &fmm = *((*poolFMM.find(kernel)).second);
 
-    const int nSrc = srcCoordInternal.size() / 3;
+    const int nSL = srcSLCoordInternal.size() / 3;
+    const int nDL = srcDLCoordInternal.size() / 3;
     const int nTrg = trgCoordInternal.size() / 3;
-
-    trgValueInternal.resize(nTrg * fmm.kdimTrg);
+    srcSLValueInternal.resize(nSL * fmm.kdimSL);
+    srcDLValueInternal.resize(nDL * fmm.kdimDL);
     trgValue.resize(nTrg * fmm.kdimTrg);
 
-    // evaluate on internal operators
-    fmm.evaluate(trgValueInternal, srcValue);
+    // scale the source strength, SL as 1/r, DL as 1/r^2
+    // SL no extra scaling
+    // DL scale as scaleFactor
+    srcSLValueInternal = srcSLValue;
+#pragma omp parallel for
+    for (int i = 0; i < nDL * fmm.kdimDL; i++) {
+        srcDLValueInternal[i] = srcDLValue[i] * scaleFactor;
+    }
+
+    // run FMM
+    // evaluate on internal sources with proper scaling
+    trgValueInternal.resize(nTrg * fmm.kdimTrg);
+    fmm.evaluate(srcSLValueInternal, srcDLValueInternal, trgValueInternal);
 
     // scale back according to kernel
     switch (kernel) {
-    case KERNEL::SLPVel: {
+    case KERNEL::PVel: {
 // 1+3
 #pragma omp parallel for
         for (int i = 0; i < nTrg; i++) {
@@ -370,7 +372,7 @@ void STKFMM::evaluateFMM(std::vector<double> &srcValue, std::vector<double> &trg
             trgValue[4 * i + 3] = trgValueInternal[4 * i + 3] * scaleFactor;
         }
     } break;
-    case KERNEL::SLPVelGrad: {
+    case KERNEL::PVelGrad: {
 // 1+3+3+9
 #pragma omp parallel for
         for (int i = 0; i < nTrg; i++) {
@@ -386,14 +388,14 @@ void STKFMM::evaluateFMM(std::vector<double> &srcValue, std::vector<double> &trg
             }
         }
     } break;
-    case KERNEL::SLTraction: {
+    case KERNEL::Traction: {
 // 9
 #pragma omp parallel for
         for (int i = 0; i < 9 * nTrg; i++) {
             trgValue[i] = trgValueInternal[i] * scaleFactor * scaleFactor; // traction 1/r^2
         }
     } break;
-    case KERNEL::SLPVelLaplacian: {
+    case KERNEL::PVelLaplacian: {
 // 1+3+3
 #pragma omp parallel for
         for (int i = 0; i < nTrg; i++) {
@@ -407,54 +409,13 @@ void STKFMM::evaluateFMM(std::vector<double> &srcValue, std::vector<double> &trg
             }
         }
     } break;
-    case KERNEL::DLPVel: {
-// 1+3
-#pragma omp parallel for
-        for (int i = 0; i < nTrg; i++) {
-            trgValue[4 * i] = trgValueInternal[4 * i] * scaleFactor * scaleFactor * scaleFactor; // p, 1/r^3
-            for (int j = 1; j < 4; j++) {
-                trgValue[4 * i + j] = trgValueInternal[4 * i + j] * scaleFactor * scaleFactor; // v, 1/r^2
-            }
-        }
-    } break;
-    case KERNEL::DLPVelGrad: {
-// 1+3+3+9
-#pragma omp parallel for
-        for (int i = 0; i < nTrg; i++) {
-            trgValue[16 * i] = trgValueInternal[16 * i] * scaleFactor * scaleFactor * scaleFactor; // p, 1/r^3
-            for (int j = 1; j < 4; j++) {
-                trgValue[16 * i + j] = trgValueInternal[16 * i + j] * scaleFactor * scaleFactor; // v, 1/r^2
-            }
-            for (int j = 4; j < 7; j++) {
-                trgValue[16 * i + j] = trgValueInternal[16 * i + j] * scaleFactor * scaleFactor * scaleFactor *
-                                       scaleFactor; // grad p, 1/r^4
-            }
-            for (int j = 7; j < 16; j++) {
-                trgValue[16 * i + j] =
-                    trgValueInternal[16 * i + j] * scaleFactor * scaleFactor * scaleFactor; // grad v, 1/r^3
-            }
-        }
-
-    } break;
-    case KERNEL::LAPSLPGrad: {
+    case KERNEL::LAPPGrad: {
 // 1+3
 #pragma omp parallel for
         for (int i = 0; i < nTrg; i++) {
             trgValue[4 * i] = trgValueInternal[4 * i] * scaleFactor; // p, 1/r
             for (int j = 1; j < 4; j++) {
                 trgValue[4 * i + j] = trgValueInternal[4 * i + j] * scaleFactor * scaleFactor; // grad p, 1/r^2
-            }
-        }
-
-    } break;
-    case KERNEL::LAPDLPGrad: {
-// 1+3
-#pragma omp parallel for
-        for (int i = 0; i < nTrg; i++) {
-            trgValue[4 * i] = trgValueInternal[4 * i] * scaleFactor * scaleFactor; // p, 1/r^2
-            for (int j = 1; j < 4; j++) {
-                trgValue[4 * i + j] =
-                    trgValueInternal[4 * i + j] * scaleFactor * scaleFactor * scaleFactor; // grad p, 1/r^3
             }
         }
 
@@ -466,29 +427,20 @@ void STKFMM::evaluateFMM(std::vector<double> &srcValue, std::vector<double> &trg
 
 void STKFMM::showActiveKernels() {
     printf("active kernels:\n");
-    if (kernelComb & asInteger(KERNEL::SLPVel)) {
-        printf("SLPVel\n");
+    if (kernelComb & asInteger(KERNEL::PVel)) {
+        printf("PVel\n");
     }
-    if (kernelComb & asInteger(KERNEL::SLPVelGrad)) {
-        printf("SLPVelGrad\n");
+    if (kernelComb & asInteger(KERNEL::PVelGrad)) {
+        printf("PVelGrad\n");
     }
-    if (kernelComb & asInteger(KERNEL::SLTraction)) {
-        printf("SLTraction\n");
+    if (kernelComb & asInteger(KERNEL::Traction)) {
+        printf("Traction\n");
     }
-    if (kernelComb & asInteger(KERNEL::SLPVelLaplacian)) {
-        printf("SLPVelLaplacian\n");
+    if (kernelComb & asInteger(KERNEL::PVelLaplacian)) {
+        printf("PVelLaplacian\n");
     }
-    if (kernelComb & asInteger(KERNEL::DLPVel)) {
-        printf("DLPVel\n");
-    }
-    if (kernelComb & asInteger(KERNEL::DLPVelGrad)) {
-        printf("DLPVelGrad\n");
-    }
-    if (kernelComb & asInteger(KERNEL::LAPSLPGrad)) {
-        printf("LAPSLPGrad\n");
-    }
-    if (kernelComb & asInteger(KERNEL::LAPDLPGrad)) {
-        printf("LAPDLPGrad\n");
+    if (kernelComb & asInteger(KERNEL::LAPPGrad)) {
+        printf("LAPPGrad\n");
     }
 }
 

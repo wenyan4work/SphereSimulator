@@ -26,14 +26,11 @@ class STKFMM {
     };
 
     enum class KERNEL : size_t {
-        SLPVel = 1, // single layer kernel
-        SLPVelGrad = 2,
-        SLTraction = 4,
-        SLPVelLaplacian = 8,
-        DLPVel = 16, // double layer kernel
-        DLPVelGrad = 32,
-        LAPSLPGrad = 64, // laplace single layer
-        LAPDLPGrad = 128, // laplace double layer
+        PVel = 1, // single layer kernel
+        PVelGrad = 2,
+        PVelLaplacian = 4,
+        Traction = 8,
+        LAPPGrad = 16, // laplace single layer
     };
 
     template <typename Enumeration>
@@ -45,13 +42,15 @@ class STKFMM {
 
     ~STKFMM();
 
-    void evaluateFMM(std::vector<double> &srcValue, std::vector<double> &trgValue, KERNEL kernelChoice);
+    void evaluateFMM(std::vector<double> &srcSLValue, std::vector<double> &srcDLValue, std::vector<double> &trgValue,
+                     KERNEL kernelChoice);
 
     void clearFMM(KERNEL kernelChoice);
 
-    void setPoints(const std::vector<double> &srcCoord_, const std::vector<double> &trgCoord_);
+    void setPoints(const std::vector<double> &srcSLCoord_, const std::vector<double> &srcDLCoord_,
+                   const std::vector<double> &trgCoord_);
 
-    void setupTree(KERNEL);
+    void setupTree(KERNEL kernel_);
 
     void setBox(double, double, double, double, double, double);
 
@@ -59,8 +58,9 @@ class STKFMM {
 
     bool isKernelActive(KERNEL kernel_) { return asInteger(kernel_) & kernelComb; }
 
-    void getKernelDimension(int &kdimSrc_, int &kdimTrg_, KERNEL kernel_) {
-        kdimSrc_ = poolFMM[kernel_]->kdimSrc;
+    void getKernelDimension(int &kdimSL_, int &kdimDL_, int &kdimTrg_, KERNEL kernel_) {
+        kdimSL_ = poolFMM[kernel_]->kdimSL;
+        kdimDL_ = poolFMM[kernel_]->kdimDL;
         kdimTrg_ = poolFMM[kernel_]->kdimTrg;
     }
 
@@ -71,7 +71,8 @@ class STKFMM {
         const int multOrder;
         const size_t maxPts;
 
-        int kdimSrc;
+        int kdimSL;
+        int kdimDL;
         int kdimTrg;
 
         // forbid default constructor
@@ -92,10 +93,12 @@ class STKFMM {
         void setKernel(const pvfmm::Kernel<double> &kernelFunction);
 
         // computation routines
-        void setupTree(const std::vector<double> &, const std::vector<double> &);
+        void setupTree(const std::vector<double> &srcSLCoord, const std::vector<double> &srcDLCoord,
+                       const std::vector<double> &trgCoord);
+        void evaluate(std::vector<double> &srcSLValue, std::vector<double> &srcDLValue, std::vector<double> &trgValue);
+
         void deleteTree();
         void clear();
-        void evaluate(std::vector<double> &, std::vector<double> &);
 
       private:
         pvfmm::PtFMM *matrixPtr;
@@ -114,20 +117,22 @@ class STKFMM {
     double scaleFactor;
     double xshift, yshift, zshift;
 
-    std::vector<double> srcCoordInternal; // scaled coordinate
+    std::vector<double> srcSLCoordInternal; // scaled coordinate Single Layer
+    std::vector<double> srcDLCoordInternal; // scaled coordinate Double Layer
     std::vector<double> trgCoordInternal;
-    // std::vector<double> srcValueInternal;
-    std::vector<double> trgValueInternal; // scaled trg value
+    std::vector<double> srcSLValueInternal;   // scaled SL value
+    std::vector<double> srcDLValueInternal;   // scaled SL value
+    std::vector<double> trgValueInternal;   // scaled trg value
 
     void setupCoord(const std::vector<double> &, std::vector<double> &); // setup the internal srcCoord and
                                                                          // trgCoord, with proper rotation and BC
-
     struct EnumClassHash {
         template <typename T>
         std::size_t operator()(T t) const {
             return static_cast<std::size_t>(t);
         }
     };
+
     std::unordered_map<KERNEL, STKFMM::FMMData *, EnumClassHash> poolFMM;
 };
 
