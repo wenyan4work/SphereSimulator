@@ -7,7 +7,7 @@ LIBRARIES = $(Trilinos_LIBRARIES) $(Trilinos_TPL_LIBRARIES) $(USERLIB)
 CXX =mpicxx
 LD=$(CXX)
 
-CXXFLAGS= -std=c++11 -g -fopenmp
+CXXFLAGS= -std=c++11 -fopenmp -O3 -DNDEBUG
 LDFLAGS= $(CXXFLAGS)
 
 SRC =   TestSyncManager.cpp 

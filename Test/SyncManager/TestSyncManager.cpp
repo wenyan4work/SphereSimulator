@@ -92,7 +92,7 @@ int main(int argc, char **argv) {
         }
 
         sync.reduce();
-        printf("reduced");
+        printf("rank %d reduced\n", rank);
 
         // display on rank 0
         if (rank == 0) {

@@ -97,7 +97,7 @@ class SyncManager {
             objBuffer.resize(0);
             objSizeAll.resize(objVecPtr->size() * nProcs);
         }
-        printf("packed\n");
+        // printf("packed\n");
         assert(objSize.size() == objVecPtr->size());
         // gather size and prepare buffer on rank 0
         // int MPI_Gather(const void *sendbuf, int sendcount, MPI_Datatype sendtype, void *recvbuf, int recvcount,
@@ -107,7 +107,7 @@ class SyncManager {
 
         error = MPI_Gather(objSize.data(), objSize.size(), MPI_INT, objSizeAll.data(), objSize.size(), MPI_INT, 0,
                            MPI_COMM_WORLD);
-        printf("gather\n");
+        // printf("gather\n");
         assert(error == 0);
         // allocate buffer at rank 0
         std::vector<int> recvcounts;
@@ -117,7 +117,7 @@ class SyncManager {
             assert(nobj == objSize.size());
             assert(nobj * nProcs == objSizeAll.size());
             int bufSize = std::accumulate(objSizeAll.cbegin(), objSizeAll.cend(), 0);
-            printf("buffsize %d\n", bufSize);
+            // printf("buffsize %d\n", bufSize);
             objBufferAll.resize(bufSize);
 
             recvcounts.resize(nProcs, 0);
@@ -126,20 +126,20 @@ class SyncManager {
                 recvcounts[i] =
                     std::accumulate(objSizeAll.cbegin() + i * nobj, objSizeAll.cbegin() + i * nobj + nobj, 0);
             }
-            for (auto &i : objSizeAll) {
-                printf("objSizeAll %d\n", i);
-            }
-            for (auto &i : recvcounts) {
-                printf("recv %d\n", i);
-            }
+            // for (auto &i : objSizeAll) {
+            //     printf("objSizeAll %d\n", i);
+            // }
+            // for (auto &i : recvcounts) {
+            //     printf("recv %d\n", i);
+            // }
             std::partial_sum(recvcounts.cbegin(), recvcounts.cend() - 1, displs.begin() + 1);
-            for (auto &i : displs) {
-                printf("displ %d\n", i);
-            }
+            // for (auto &i : displs) {
+            //     printf("displ %d\n", i);
+            // }
         }
         error = MPI_Gatherv(objBuffer.data(), objBuffer.size(), MPI_CHAR, objBufferAll.data(), recvcounts.data(),
                             displs.data(), MPI_CHAR, 0, MPI_COMM_WORLD);
-        printf("gatherv\n");
+        // printf("gatherv\n");
         assert(error == 0);
 
         // step 2, unpack and reduce on rank 0
@@ -148,10 +148,10 @@ class SyncManager {
             // // the location where the buf for obj i from rank j begins in objBufferAll
             std::vector<int> objBuffIndex(objSizeAll.size(), 0);
             std::partial_sum(objSizeAll.cbegin(), objSizeAll.cend() - 1, objBuffIndex.begin() + 1);
-            for (auto &i : objBuffIndex) {
-                printf("objBuffIndex %d\n", i);
-            }
-            printf("objBufferAll size %d\n", objBufferAll.size());
+            // for (auto &i : objBuffIndex) {
+            //     printf("objBuffIndex %d\n", i);
+            // }
+            // printf("objBufferAll size %d\n", objBufferAll.size());
 
 #pragma omp parallel for
             for (int i = 0; i < nobj; i++) {
@@ -162,7 +162,7 @@ class SyncManager {
                     buf.clear();
                     int bufSize = objSizeAll[nobj * j + i];
                     int bufIndex = objBuffIndex[nobj * j + i];
-                    printf("%d,%d\n", bufSize, bufIndex);
+                    // printf("%d,%d\n", bufSize, bufIndex);
                     std::copy_n(objBufferAll.cbegin() + bufIndex, bufSize, std::back_inserter(buf));
                     // reduce
                     T source;
