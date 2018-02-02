@@ -24,13 +24,13 @@ template <class ValueType> inline ConstIterator<ValueType>::ConstIterator(const 
 }
 
 template <class ValueType> inline void ConstIterator<ValueType>::IteratorAssertChecks(Long j) const {
-  const auto& base = this->base;
+  //const auto& base = this->base;
   const auto& offset = this->offset + j * (Long)sizeof(ValueType);
   const auto& len = this->len;
   const auto& mem_head = this->mem_head;
   const auto& alloc_ctr = this->alloc_ctr;
 
-  if (*this == nullptr) SCTL_WARN("dereferencing a nullptr is undefined.");
+  if (*this == NullIterator<ValueType>()) SCTL_WARN("dereferencing a nullptr is undefined.");
   SCTL_ASSERT_MSG(offset >= 0 && offset + (Long)sizeof(ValueType) <= len, "access to pointer [B" << (offset < 0 ? "" : "+") << offset << ",B" << (offset + (Long)sizeof(ValueType) < 0 ? "" : "+") << offset + (Long)sizeof(ValueType) << ") is outside of the range [B,B+" << len << ").");
   if (mem_head) {
     MemoryManager::MemHead& mh = *(MemoryManager::MemHead*)(mem_head);
@@ -43,7 +43,7 @@ template <class ValueType> inline typename ConstIterator<ValueType>::reference C
   return *(ValueType*)(base + offset);
 }
 
-template <class ValueType> inline const typename ConstIterator<ValueType>::value_type* ConstIterator<ValueType>::operator->() const {
+template <class ValueType> inline typename ConstIterator<ValueType>::pointer ConstIterator<ValueType>::operator->() const {
   this->IteratorAssertChecks();
   return (ValueType*)(base + offset);
 }
@@ -69,19 +69,17 @@ template <class ValueType> inline typename Iterator<ValueType>::reference Iterat
 }
 
 template <class ValueType, Long DIM> inline StaticArray<ValueType, DIM>::StaticArray() {
-  // arr = aligned_new<ValueType>(DIM);
-  arr = Ptr2Itr<ValueType>(arr_, DIM);
-  Iterator<ValueType>::operator=(arr);
+  //Iterator<ValueType>::operator=(aligned_new<ValueType>(DIM));
+  Iterator<ValueType>::operator=(Ptr2Itr<ValueType>(arr_, DIM));
 }
 
 template <class ValueType, Long DIM> inline StaticArray<ValueType, DIM>::~StaticArray() {
-  // aligned_delete<ValueType>(arr);
+  // aligned_delete<ValueType>(*this);
 }
 
 template <class ValueType, Long DIM> inline StaticArray<ValueType, DIM>::StaticArray(const StaticArray& I) {
-  // arr = aligned_new<ValueType>(DIM);
-  arr = Ptr2Itr<ValueType>(arr_, DIM);
-  Iterator<ValueType>::operator=(arr);
+  //Iterator<ValueType>::operator=(aligned_new<ValueType>(DIM));
+  Iterator<ValueType>::operator=(Ptr2Itr<ValueType>(arr_, DIM));
   for (Long i = 0; i < DIM; i++) (*this)[i] = I[i];
 }
 
@@ -92,12 +90,10 @@ template <class ValueType, Long DIM> inline StaticArray<ValueType, DIM>& StaticA
 
 #endif
 
-template <class T> inline uintptr_t TypeTraits<T>::ID() { return (uintptr_t) & ID; }
-
 inline MemoryManager::MemoryManager(Long N) {
   buff_size = N;
   {  // Allocate buff
-    assert(SCTL_MEM_ALIGN <= 0x8000);
+    SCTL_ASSERT(SCTL_MEM_ALIGN <= 0x8000);
     Long alignment = SCTL_MEM_ALIGN - 1;
     char* base_ptr = (char*)::malloc(N + 2 + alignment);
     SCTL_ASSERT_MSG(base_ptr, "memory allocation failed.");
@@ -122,7 +118,7 @@ inline MemoryManager::MemoryManager(Long N) {
   n_dummy.prev = 0;
   n_dummy.next = n_indx;
   n_dummy.mem_ptr = &buff[0];
-  assert(n_indx);
+  SCTL_ASSERT(n_indx);
 
   n.size = N;
   n.free = true;
@@ -144,7 +140,7 @@ inline MemoryManager::~MemoryManager() {
   omp_destroy_lock(&omp_lock);
 
   {  // free buff
-    assert(buff);
+    SCTL_ASSERT(buff);
     ::free(buff - ((uint16_t*)buff)[-1]);
   }
 }
@@ -160,7 +156,7 @@ inline void MemoryManager::CheckMemHead(const MemHead& mem_head) {  // Verify he
 #ifdef SCTL_MEMDEBUG
   Long check_sum = 0;
   const unsigned char* base_ = (const unsigned char*)&mem_head;
-  for (Integer i = 0; i < sizeof(MemHead); i++) {
+  for (Integer i = 0; i < (Integer)sizeof(MemHead); i++) {
     check_sum += base_[i];
   }
   check_sum -= mem_head.check_sum;
@@ -169,8 +165,8 @@ inline void MemoryManager::CheckMemHead(const MemHead& mem_head) {  // Verify he
 #endif
 }
 
-inline Iterator<char> MemoryManager::malloc(const Long n_elem, const Long type_size, const uintptr_t type_id) const {
-  if (!n_elem) return nullptr;
+inline Iterator<char> MemoryManager::malloc(const Long n_elem, const Long type_size, const MemHead::TypeID type_id) const {
+  if (!n_elem) return NullIterator<char>();
   static uintptr_t alignment = SCTL_MEM_ALIGN - 1;
   static uintptr_t header_size = (uintptr_t)(sizeof(MemHead) + alignment) & ~(uintptr_t)alignment;
 
@@ -227,7 +223,7 @@ inline Iterator<char> MemoryManager::malloc(const Long n_elem, const Long type_s
     }
     {  // set p[*] to init_mem_val
 #pragma omp parallel for
-      for (Long i = 0; i < size + 2 + alignment + end_padding; i++) p[i] = init_mem_val;
+      for (Long i = 0; i < (Long)(size + 2 + alignment + end_padding); i++) p[i] = init_mem_val;
     }
 #endif
     {  // base <-- align(p)
@@ -248,7 +244,7 @@ inline Iterator<char> MemoryManager::malloc(const Long n_elem, const Long type_s
   MemHead& mem_head = *(MemHead*)base;
   {  // Set mem_head
 #ifdef SCTL_MEMDEBUG
-    for (Integer i = 0; i < sizeof(MemHead); i++) base[i] = init_mem_val;
+    for (Integer i = 0; i < (Integer)sizeof(MemHead); i++) base[i] = init_mem_val;
 #endif
     mem_head.n_indx = n_indx;
     mem_head.n_elem = n_elem;
@@ -261,7 +257,7 @@ inline Iterator<char> MemoryManager::malloc(const Long n_elem, const Long type_s
     Long check_sum = 0;
     unsigned char* base_ = (unsigned char*)base;
     mem_head.check_sum = 0;
-    for (Integer i = 0; i < sizeof(MemHead); i++) check_sum += base_[i];
+    for (Integer i = 0; i < (Integer)sizeof(MemHead); i++) check_sum += base_[i];
     check_sum = check_sum & ((1UL << (8 * sizeof(mem_head.check_sum))) - 1);
     mem_head.check_sum = check_sum;
 #endif
@@ -275,9 +271,10 @@ inline Iterator<char> MemoryManager::malloc(const Long n_elem, const Long type_s
 }
 
 inline void MemoryManager::free(Iterator<char> p) const {
-  if (p == nullptr) return;
+  if (p == NullIterator<char>()) return;
   static uintptr_t alignment = SCTL_MEM_ALIGN - 1;
   static uintptr_t header_size = (uintptr_t)(sizeof(MemHead) + alignment) & ~(uintptr_t)alignment;
+  SCTL_UNUSED(header_size);
 
   MemHead& mem_head = GetMemHead(&p[0]);
   Long n_indx = mem_head.n_indx;
@@ -291,7 +288,7 @@ inline void MemoryManager::free(Iterator<char> p) const {
     Long size = mem_head.n_elem * mem_head.type_size;
 #pragma omp parallel for
     for (Long i = 0; i < size; i++) p[i] = init_mem_val;
-    for (Integer i = 0; i < sizeof(MemHead); i++) base[i] = init_mem_val;
+    for (Integer i = 0; i < (Integer)sizeof(MemHead); i++) base[i] = init_mem_val;
 #endif
   }
 
@@ -310,7 +307,7 @@ inline void MemoryManager::free(Iterator<char> p) const {
       size = (uintptr_t)(size + alignment) & ~(uintptr_t)alignment;
       Long end_padding = 8;  // to check for out-of-bound writes
 #pragma omp parallel for
-      for (Long i = 0; i < size + 2 + alignment + end_padding; i++) {
+      for (Long i = 0; i < (Long)(size + 2 + alignment + end_padding); i++) {
         SCTL_ASSERT_MSG(p_[i] == init_mem_val, "memory corruption detected.");
       }
     }
@@ -322,7 +319,7 @@ inline void MemoryManager::free(Iterator<char> p) const {
 #endif
     ::free(p_);
   } else {
-    assert(n_indx <= node_buff.size());
+    assert(n_indx <= (Long)node_buff.size());
     omp_set_lock(&omp_lock);
     MemNode& n = node_buff[n_indx - 1];
     assert(!n.free && n.size > 0 && n.mem_ptr == base);
@@ -385,7 +382,7 @@ inline void MemoryManager::print() const {
 inline void MemoryManager::test() {
   Long M = 2000000000;
   {  // With memory manager
-    Long N = M * sizeof(double) * 1.1;
+    Long N = (Long)(M * sizeof(double) * 1.1);
     double tt;
     Iterator<double> tmp;
 
@@ -394,7 +391,7 @@ inline void MemoryManager::test() {
 
     for (Integer j = 0; j < 3; j++) {
       tmp = (Iterator<double>)memgr.malloc(M * sizeof(double));
-      SCTL_ASSERT(tmp != nullptr);
+      SCTL_ASSERT(tmp != NullIterator<double>());
       tt = omp_get_wtime();
 #pragma omp parallel for
       for (Long i = 0; i < M; i += 64) tmp[i] = (double)i;
@@ -456,7 +453,7 @@ inline Long MemoryManager::new_node() const {
 
 inline void MemoryManager::delete_node(Long indx) const {
   assert(indx);
-  assert(indx <= node_buff.size());
+  assert(indx <= (Long)node_buff.size());
   MemNode& n = node_buff[indx - 1];
   n.free = false;
   n.size = 0;
@@ -467,12 +464,12 @@ inline void MemoryManager::delete_node(Long indx) const {
 }
 
 template <class ValueType> inline Iterator<ValueType> aligned_new(Long n_elem, const MemoryManager* mem_mgr) {
-  if (!n_elem) return nullptr;
+  if (!n_elem) return NullIterator<ValueType>();
 
   static MemoryManager def_mem_mgr(0);
   if (!mem_mgr) mem_mgr = &def_mem_mgr;
-  Iterator<ValueType> A = (Iterator<ValueType>)mem_mgr->malloc(n_elem, sizeof(ValueType));
-  SCTL_ASSERT_MSG(A != nullptr, "memory allocation failed.");
+  Iterator<ValueType> A = (Iterator<ValueType>)mem_mgr->malloc(n_elem, sizeof(ValueType), typeid(ValueType).hash_code());
+  SCTL_ASSERT_MSG(A != NullIterator<ValueType>(), "memory allocation failed.");
 
   if (!std::is_trivial<ValueType>::value) {  // Call constructors
                                           // printf("%s\n", __PRETTY_FUNCTION__);
@@ -480,13 +477,14 @@ template <class ValueType> inline Iterator<ValueType> aligned_new(Long n_elem, c
     for (Long i = 0; i < n_elem; i++) {
       ValueType* Ai = new (&A[i]) ValueType();
       assert(Ai == (&A[i]));
+      SCTL_UNUSED(Ai);
     }
   } else {
 #ifdef SCTL_MEMDEBUG
     static Long random_init_val = 1;
     Iterator<char> A_ = (Iterator<char>)A;
 #pragma omp parallel for schedule(static)
-    for (Long i = 0; i < n_elem * sizeof(ValueType); i++) {
+    for (Long i = 0; i < n_elem * (Long)sizeof(ValueType); i++) {
       A_[i] = random_init_val + i;
     }
     random_init_val += n_elem * sizeof(ValueType);
@@ -497,14 +495,14 @@ template <class ValueType> inline Iterator<ValueType> aligned_new(Long n_elem, c
 }
 
 template <class ValueType> inline void aligned_delete(Iterator<ValueType> A, const MemoryManager* mem_mgr) {
-  if (A == nullptr) return;
+  if (A == NullIterator<ValueType>()) return;
 
   if (!std::is_trivial<ValueType>::value) {  // Call destructors
     // printf("%s\n", __PRETTY_FUNCTION__);
     MemoryManager::MemHead& mem_head = MemoryManager::GetMemHead((char*)&A[0]);
 #ifdef SCTL_MEMDEBUG
     MemoryManager::CheckMemHead(mem_head);
-// SCTL_ASSERT_MSG(mem_head.n_elem==1 || mem_head.type_id==TypeTraits<ValueType>::ID(), "pointer to aligned_delete has different type than what was used in aligned_new.");
+    SCTL_ASSERT_MSG(mem_head.type_id==typeid(ValueType).hash_code(), "pointer to aligned_delete has different type than what was used in aligned_new.");
 #endif
     Long n_elem = mem_head.n_elem;
     for (Long i = 0; i < n_elem; i++) {
@@ -514,7 +512,7 @@ template <class ValueType> inline void aligned_delete(Iterator<ValueType> A, con
 #ifdef SCTL_MEMDEBUG
     MemoryManager::MemHead& mem_head = MemoryManager::GetMemHead((char*)&A[0]);
     MemoryManager::CheckMemHead(mem_head);
-    // SCTL_ASSERT_MSG(mem_head.type_id==TypeTraits<ValueType>::ID(), "pointer to aligned_delete has different type than what was used in aligned_new.");
+    SCTL_ASSERT_MSG(mem_head.type_id==typeid(ValueType).hash_code(), "pointer to aligned_delete has different type than what was used in aligned_new.");
     Long size = mem_head.n_elem * mem_head.type_size;
     Iterator<char> A_ = (Iterator<char>)A;
 #pragma omp parallel for
@@ -532,8 +530,8 @@ template <class ValueType> inline void aligned_delete(Iterator<ValueType> A, con
 template <class ValueType> inline Iterator<ValueType> memcopy(Iterator<ValueType> destination, ConstIterator<ValueType> source, Long num) {
   if (destination != source && num) {
 #ifdef SCTL_MEMDEBUG
-    destination[num - 1];
-    source[num - 1];
+    SCTL_UNUSED(destination[num - 1]);
+    SCTL_UNUSED(source[num - 1]     );
 #endif
     if (std::is_trivially_copyable<ValueType>::value) {
       memcpy(&destination[0], &source[0], num * sizeof(ValueType));
@@ -547,8 +545,8 @@ template <class ValueType> inline Iterator<ValueType> memcopy(Iterator<ValueType
 template <class ValueType> inline Iterator<ValueType> memset(Iterator<ValueType> ptr, int value, Long num) {
   if (num) {
 #ifdef SCTL_MEMDEBUG
-    ptr[0];
-    ptr[num - 1];
+    SCTL_UNUSED(ptr[0]      );
+    SCTL_UNUSED(ptr[num - 1]);
 #endif
     ::memset(&ptr[0], value, num * sizeof(ValueType));
   }

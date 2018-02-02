@@ -5,21 +5,20 @@
 
 #define SCTL_NAMESPACE sctl
 
-#define SCTL_QUOTEME(x) SCTL_QUOTEME_1(x)
-#define SCTL_QUOTEME_1(x) #x
-#define SCTL_INCLUDE(x) SCTL_QUOTEME(sctl/x)
-
-// Have MPI
-//#define SCTL_HAVE_MPI
+// Profiling parameters
+#ifndef SCTL_PROFILE
+#define SCTL_PROFILE -1 // Granularity level
+#endif
 
 // Parameters for memory manager
 #define SCTL_MEM_ALIGN 64
+#ifndef SCTL_GLOBAL_MEM_BUFF
 #define SCTL_GLOBAL_MEM_BUFF 1024LL * 0LL  // in MB
-//#define SCTL_MEMDEBUG // Enable memory checks.
+#endif
 
-// Profiling parameters
-#define SCTL_PROFILE 5 // Granularity level
-#define SCTL_VERBOSE
+#define SCTL_QUOTEME(x) SCTL_QUOTEME_1(x)
+#define SCTL_QUOTEME_1(x) #x
+#define SCTL_INCLUDE(x) SCTL_QUOTEME(SCTL_NAMESPACE/x)
 
 // MPI Wrapper
 #include SCTL_INCLUDE(comm.hpp)
@@ -42,11 +41,14 @@
 // Parallel solver
 #include SCTL_INCLUDE(parallel_solver.hpp)
 
-// ChebBasis
+// Chebyshev basis
 #include SCTL_INCLUDE(cheb_utils.hpp)
 
 // Morton
 #include SCTL_INCLUDE(morton.hpp)
+
+// Spherical Harmonics
+#include SCTL_INCLUDE(sph_harm.hpp)
 
 #include SCTL_INCLUDE(fft_wrapper.hpp)
 

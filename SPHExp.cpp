@@ -332,3 +332,27 @@ void SPHExp::getGridCellConnect(std::vector<int32_t> &gridCellConnect, std::vect
 
     return;
 }
+
+void SPHExp::calcGridValues(std::vector<double>& val, const std::vector<double>& coeff) const {
+  typedef double Real;
+  long Ncoeff = (order+1)*(order+2);
+  long Ngrid = (order+1)*(2*order+2);
+  long dof = coeff.size() / Ncoeff;
+  assert(coeff.size() == dof * Ncoeff);
+  if (val.size() != dof * Ngrid) val.resize(dof * Ngrid);
+  const sctl::Vector<Real> coeff_(coeff.size(), sctl::Ptr2Itr<Real>(coeff.size()?(Real*)coeff.data():nullptr,coeff.size()), false);
+  sctl::Vector<Real> val_(val.size(), sctl::Ptr2Itr<Real>(val.size()?val.data():nullptr,val.size()), false);
+  sctl::SphericalHarmonics<Real>::SHC2Grid(coeff_, sctl::SHCArrange::ROW_MAJOR, order, order+1, 2*order+2, &val_);
+}
+
+void SPHExp::calcSpectralValues(std::vector<double>& coeff, const std::vector<double>& val) const {
+  typedef double Real;
+  long Ncoeff = (order+1)*(order+2);
+  long Ngrid = (order+1)*(2*order+2);
+  long dof = val.size() / Ngrid;
+  assert(val.size() == dof * Ngrid);
+  if (coeff.size() != dof * Ncoeff) coeff.resize(dof * Ncoeff);
+  sctl::Vector<Real> coeff_(coeff.size(), sctl::Ptr2Itr<Real>(coeff.size()?coeff.data():nullptr,coeff.size()), false);
+  const sctl::Vector<Real> val_(val.size(), sctl::Ptr2Itr<Real>(val.size()?(Real*)val.data():nullptr,val.size()), false);
+  sctl::SphericalHarmonics<Real>::Grid2SHC(val_, order+1, 2*order+2, order, coeff_, sctl::SHCArrange::ROW_MAJOR);
+}

@@ -1,21 +1,30 @@
 #ifndef _SCTL_VECTOR_HPP_
 #define _SCTL_VECTOR_HPP_
 
+#include SCTL_INCLUDE(mem_mgr.hpp)
 #include SCTL_INCLUDE(common.hpp)
 
 #include <vector>
 #include <cstdlib>
 #include <cstdint>
 
+// TODO: Implement dynamic-vector which can be created with variable size from a stack memory pool
+
 namespace SCTL_NAMESPACE {
 
 template <class ValueType> class Vector {
-
  public:
+  typedef ValueType value_type;
+  typedef ValueType& reference;
+  typedef const ValueType& const_reference;
+  typedef Iterator<ValueType> iterator;
+  typedef ConstIterator<ValueType> const_iterator;
+  typedef Long difference_type;
+  typedef Long size_type;
 
   Vector();
 
-  Vector(Long dim_, Iterator<ValueType> data_ = nullptr, bool own_data_ = true);
+  Vector(Long dim_, Iterator<ValueType> data_ = NullIterator<ValueType>(), bool own_data_ = true);
 
   Vector(const Vector& V);
 
@@ -25,7 +34,7 @@ template <class ValueType> class Vector {
 
   void Swap(Vector<ValueType>& v1);
 
-  void ReInit(Long dim_, Iterator<ValueType> data_ = nullptr, bool own_data_ = true);
+  void ReInit(Long dim_, Iterator<ValueType> data_ = NullIterator<ValueType>(), bool own_data_ = true);
 
   void Write(const char* fname) const;
 
@@ -96,6 +105,8 @@ template <class ValueType> class Vector {
   Vector operator/(ValueType s) const;
 
  private:
+  void Init(Long dim_, Iterator<ValueType> data_ = NullIterator<ValueType>(), bool own_data_ = true);
+
   Long dim;
   Long capacity;
   Iterator<ValueType> data_ptr;

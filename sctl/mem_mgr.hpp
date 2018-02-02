@@ -3,6 +3,7 @@
 #define _SCTL_MEM_MGR_HPP_
 
 #include <omp.h>
+#include <typeinfo>
 #include <cstdlib>
 #include <cstdint>
 #include <cassert>
@@ -28,11 +29,11 @@ template <class ValueType> class ConstIterator {
   void IteratorAssertChecks(Long j = 0) const;
 
  public:
-  typedef std::random_access_iterator_tag iterator_category;
-  typedef const ValueType& reference;
   typedef Long difference_type;
   typedef ValueType value_type;
   typedef const ValueType* pointer;
+  typedef const ValueType& reference;
+  typedef std::random_access_iterator_tag iterator_category;
 
  protected:
   char* base;
@@ -42,19 +43,19 @@ template <class ValueType> class ConstIterator {
   static const Long ValueSize = sizeof(ValueType);
 
  public:
-  ConstIterator(void* base_ = nullptr) {
-    base = (char*)base_;
+  ConstIterator() {
+    base = nullptr;
     len = 0;
     offset = 0;
     alloc_ctr = 0;
     mem_head = nullptr;
   }
 
-  // template <size_t LENGTH> ConstIterator(ValueType (&base_)[LENGTH]) {  // DEPRECATED
+  // template <size_t LENGTH> ConstIterator(ValueType (&base_)[LENGTH]) {  // DEPRECATED (because mem_head cannot be stored)
   //   SCTL_ASSERT(false);
   // }
 
-  ConstIterator(const ValueType* base_, difference_type len_, bool dynamic_alloc = false);
+  ConstIterator(pointer base_, difference_type len_, bool dynamic_alloc = false);
 
   template <class AnotherType> explicit ConstIterator(const ConstIterator<AnotherType>& I) {
     this->base = I.base;
@@ -68,7 +69,7 @@ template <class ValueType> class ConstIterator {
   // value_type* like operators
   reference operator*() const;
 
-  const value_type* operator->() const;
+  pointer operator->() const;
 
   reference operator[](difference_type off) const;
 
@@ -122,7 +123,7 @@ template <class ValueType> class ConstIterator {
 
   difference_type operator-(const ConstIterator& I) const {
     // if (base != I.base) SCTL_WARN("comparing two unrelated memory addresses.");
-    Long diff = ((ValueType*)(base + offset)) - ((ValueType*)(I.base + I.offset));
+    Long diff = ((pointer)(base + offset)) - ((pointer)(I.base + I.offset));
     SCTL_ASSERT_MSG(I.base + I.offset + diff * (Long)sizeof(ValueType) == base + offset, "invalid memory address alignment.");
     return diff;
   }
@@ -161,18 +162,18 @@ template <class ValueType> class ConstIterator {
 template <class ValueType> class Iterator : public ConstIterator<ValueType> {
 
  public:
-  typedef std::random_access_iterator_tag iterator_category;
-  typedef ValueType& reference;
   typedef Long difference_type;
   typedef ValueType value_type;
   typedef ValueType* pointer;
+  typedef ValueType& reference;
+  typedef std::random_access_iterator_tag iterator_category;
 
  public:
-  Iterator(void* base_ = nullptr) : ConstIterator<ValueType>(base_) {}
+  Iterator() : ConstIterator<ValueType>() {}
 
-  template <size_t LENGTH> Iterator(ValueType (&base_)[LENGTH]) : ConstIterator<ValueType>(base_) {}
+  //template <size_t LENGTH> Iterator(ValueType (&base_)[LENGTH]) : ConstIterator<ValueType>(base_) {}
 
-  Iterator(ValueType* base_, difference_type len_, bool dynamic_alloc = false) : ConstIterator<ValueType>(base_, len_, dynamic_alloc) {}
+  Iterator(pointer base_, difference_type len_, bool dynamic_alloc = false) : ConstIterator<ValueType>(base_, len_, dynamic_alloc) {}
 
   template <class AnotherType> explicit Iterator(const ConstIterator<AnotherType>& I) : ConstIterator<ValueType>(I) {}
 
@@ -234,7 +235,7 @@ template <class ValueType> class Iterator : public ConstIterator<ValueType> {
   difference_type operator-(const ConstIterator<ValueType>& I) const { return static_cast<const ConstIterator<ValueType>&>(*this) - I; }
 };
 
-template <class ValueType, Long DIM> class StaticArray : public Iterator<ValueType> { // Warning: objects are not byte-copyable
+template <class ValueType, Long DIM> class StaticArray : public Iterator<ValueType> { // Warning: objects are not byte-copyable // TODO: Can be made by copyable by not inheriting Iterator and can also add memory header and padding to detect additional memory errors
 
  public:
   StaticArray();
@@ -248,12 +249,11 @@ template <class ValueType, Long DIM> class StaticArray : public Iterator<ValueTy
   StaticArray(std::initializer_list<ValueType> arr_) : StaticArray() {
     // static_assert(arr_.size() <= DIM, "too many initializer values"); // allowed in C++14
     SCTL_ASSERT_MSG(arr_.size() <= DIM, "too many initializer values");
-    for (Long i = 0; i < arr_.size(); i++) arr[i] = arr_.begin()[i];
+    for (Long i = 0; i < (Long)arr_.size(); i++) (*this)[i] = arr_.begin()[i];
   }
 
  private:
 
-  Iterator<ValueType> arr;
   ValueType arr_[DIM];
 };
 
@@ -262,19 +262,12 @@ template <class ValueType> ConstIterator<ValueType> Ptr2ConstItr(const void* ptr
 
 #else
 
-template <class ValueType> ValueType* Ptr2Itr(void* ptr, Long len) { return (ValueType*) ptr; }
-template <class ValueType> const ValueType* Ptr2ConstItr(const void* ptr, Long len) { return (const ValueType*) ptr; }
+template <class ValueType> Iterator<ValueType> Ptr2Itr(void* ptr, Long len) { return (Iterator<ValueType>) ptr; }
+template <class ValueType> ConstIterator<ValueType> Ptr2ConstItr(const void* ptr, Long len) { return (ConstIterator<ValueType>) ptr; }
 
 #endif
 
-/**
- * \brief Identify each type uniquely.
- */
-template <class T> class TypeTraits {
-
- public:
-  static uintptr_t ID();
-};
+template <class ValueType> Iterator<ValueType> NullIterator() { return Ptr2Itr<ValueType>(nullptr, 0); }
 
 /**
  * \brief MemoryManager class declaration.
@@ -288,11 +281,12 @@ class MemoryManager {
    * \brief Header data for each memory block.
    */
   struct MemHead {
+    typedef decltype(typeid(char).hash_code()) TypeID;
     Long n_indx;
     Long n_elem;
     Long type_size;
     Long alloc_ctr;
-    uintptr_t type_id;
+    TypeID type_id;
     unsigned char check_sum;
   };
 
@@ -310,7 +304,7 @@ class MemoryManager {
 
   static void CheckMemHead(const MemHead& p);
 
-  Iterator<char> malloc(const Long n_elem = 1, const Long type_size = sizeof(char), const uintptr_t type_id = TypeTraits<char>::ID()) const;
+  Iterator<char> malloc(const Long n_elem, const Long type_size = sizeof(char), const MemHead::TypeID type_id = typeid(char).hash_code()) const;
 
   void free(Iterator<char> p) const;
 
@@ -383,8 +377,7 @@ template <class ValueType> Iterator<ValueType> aligned_new(Long n_elem = 1, cons
 
 /**
  * \brief Aligned de-allocation as an alternative to delete. Calls the object
- * destructors. Not sure which destructor is called for virtual classes, this
- * is why we also match the TypeTraits<T>::ID()
+ * destructor.
  */
 template <class ValueType> void aligned_delete(Iterator<ValueType> A, const MemoryManager* mem_mgr = &MemoryManager::glbMemMgr());
 

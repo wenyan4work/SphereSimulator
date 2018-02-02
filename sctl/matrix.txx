@@ -26,47 +26,41 @@ template <class ValueType> std::ostream& operator<<(std::ostream& output, const 
   return output;
 }
 
-template <class ValueType> Matrix<ValueType>::Matrix() {
-  dim[0] = 0;
-  dim[1] = 0;
-  own_data = true;
-  data_ptr = nullptr;
-}
-
-template <class ValueType> Matrix<ValueType>::Matrix(Long dim1, Long dim2, Iterator<ValueType> data_, bool own_data_) {
+template <class ValueType> void Matrix<ValueType>::Init(Long dim1, Long dim2, Iterator<ValueType> data_, bool own_data_) {
   dim[0] = dim1;
   dim[1] = dim2;
   own_data = own_data_;
   if (own_data) {
     if (dim[0] * dim[1] > 0) {
       data_ptr = aligned_new<ValueType>(dim[0] * dim[1]);
-      if (data_ != nullptr) {
+      if (data_ != NullIterator<ValueType>()) {
         memcopy(data_ptr, data_, dim[0] * dim[1]);
       }
     } else
-      data_ptr = nullptr;
+      data_ptr = NullIterator<ValueType>();
   } else
     data_ptr = data_;
 }
 
+template <class ValueType> Matrix<ValueType>::Matrix() {
+  Init(0, 0);
+}
+
+template <class ValueType> Matrix<ValueType>::Matrix(Long dim1, Long dim2, Iterator<ValueType> data_, bool own_data_) {
+  Init(dim1, dim2, data_, own_data_);
+}
+
 template <class ValueType> Matrix<ValueType>::Matrix(const Matrix<ValueType>& M) {
-  dim[0] = M.dim[0];
-  dim[1] = M.dim[1];
-  own_data = true;
-  if (dim[0] * dim[1] > 0) {
-    data_ptr = aligned_new<ValueType>(dim[0] * dim[1]);
-    memcopy(data_ptr, M.data_ptr, dim[0] * dim[1]);
-  } else
-    data_ptr = nullptr;
+  Init(M.Dim(0), M.Dim(1), (Iterator<ValueType>)M.begin());
 }
 
 template <class ValueType> Matrix<ValueType>::~Matrix() {
   if (own_data) {
-    if (data_ptr != nullptr) {
+    if (data_ptr != NullIterator<ValueType>()) {
       aligned_delete(data_ptr);
     }
   }
-  data_ptr = nullptr;
+  data_ptr = NullIterator<ValueType>();
   dim[0] = 0;
   dim[1] = 0;
 }
@@ -93,7 +87,7 @@ template <class ValueType> void Matrix<ValueType>::ReInit(Long dim1, Long dim2, 
   if (own_data_ && own_data && dim[0] * dim[1] >= dim1 * dim2) {
     dim[0] = dim1;
     dim[1] = dim2;
-    if (data_ != nullptr) {
+    if (data_ != NullIterator<ValueType>()) {
       memcopy(data_ptr, data_, dim[0] * dim[1]);
     }
   } else {
@@ -124,18 +118,20 @@ template <class ValueType> void Matrix<ValueType>::Read(const char* fname) {
   }
   StaticArray<uint64_t, 2> dim_;
   Long readlen = fread(&dim_[0], sizeof(uint64_t), 2, f1);
-  assert(readlen == 2);
+  SCTL_ASSERT(readlen == 2);
 
-  if (Dim(0)!=dim_[0] || Dim(1)!=dim_[1]) ReInit(dim_[0], dim_[1]);
-  if (dim_[0] * dim_[1]) readlen = fread(&data_ptr[0], sizeof(ValueType), dim_[0] * dim_[1], f1);
-  assert(readlen == dim_[0] * dim_[1]);
+  if (Dim(0) != (Long)dim_[0] || Dim(1) != (Long)dim_[1]) ReInit(dim_[0], dim_[1]);
+  if (dim_[0] && dim_[1]) {
+    readlen = fread(&data_ptr[0], sizeof(ValueType), dim_[0] * dim_[1], f1);
+    SCTL_ASSERT(readlen == (Long)(dim_[0] * dim_[1]));
+  }
   fclose(f1);
 }
 
 template <class ValueType> Long Matrix<ValueType>::Dim(Long i) const { return dim[i]; }
 
 template <class ValueType> void Matrix<ValueType>::SetZero() {
-  if (dim[0] * dim[1]) memset(data_ptr, 0, dim[0] * dim[1]);
+  if (dim[0] && dim[1]) memset(data_ptr, 0, dim[0] * dim[1]);
 }
 
 template <class ValueType> Iterator<ValueType> Matrix<ValueType>::begin() { return data_ptr; }

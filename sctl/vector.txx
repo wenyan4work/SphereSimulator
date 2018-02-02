@@ -7,58 +7,45 @@
 
 namespace SCTL_NAMESPACE {
 
-template <class ValueType> Vector<ValueType>::Vector() {
-  dim = 0;
-  capacity = 0;
-  own_data = true;
-  data_ptr = nullptr;
-}
-
-template <class ValueType> Vector<ValueType>::Vector(Long dim_, Iterator<ValueType> data_, bool own_data_) {
+template <class ValueType> void Vector<ValueType>::Init(Long dim_, Iterator<ValueType> data_, bool own_data_) {
   dim = dim_;
   capacity = dim;
   own_data = own_data_;
   if (own_data) {
     if (dim > 0) {
       data_ptr = aligned_new<ValueType>(capacity);
-      if (data_ != nullptr) {
+      if (data_ != NullIterator<ValueType>()) {
         memcopy(data_ptr, data_, dim);
       }
     } else
-      data_ptr = nullptr;
+      data_ptr = NullIterator<ValueType>();
   } else
     data_ptr = data_;
 }
 
+template <class ValueType> Vector<ValueType>::Vector() {
+  Init(0);
+}
+
+template <class ValueType> Vector<ValueType>::Vector(Long dim_, Iterator<ValueType> data_, bool own_data_) {
+  Init(dim_, data_, own_data_);
+}
+
 template <class ValueType> Vector<ValueType>::Vector(const Vector<ValueType>& V) {
-  dim = V.dim;
-  capacity = dim;
-  own_data = true;
-  if (dim > 0) {
-    data_ptr = aligned_new<ValueType>(capacity);
-    memcopy(data_ptr, V.data_ptr, dim);
-  } else
-    data_ptr = nullptr;
+  Init(V.Dim(), (Iterator<ValueType>)V.begin());
 }
 
 template <class ValueType> Vector<ValueType>::Vector(const std::vector<ValueType>& V) {
-  dim = V.size();
-  capacity = dim;
-  own_data = true;
-  if (dim > 0) {
-    data_ptr = aligned_new<ValueType>(capacity);
-    memcopy(data_ptr, Ptr2ConstItr<ValueType>(&V[0], V.size()), dim);
-  } else
-    data_ptr = nullptr;
+  Init(V.size(), Ptr2Itr<ValueType>((ValueType*)(V.size()?&V[0]:nullptr), V.size()));
 }
 
 template <class ValueType> Vector<ValueType>::~Vector() {
   if (own_data) {
-    if (data_ptr != nullptr) {
+    if (data_ptr != NullIterator<ValueType>()) {
       aligned_delete(data_ptr);
     }
   }
-  data_ptr = nullptr;
+  data_ptr = NullIterator<ValueType>();
   capacity = 0;
   dim = 0;
 }
@@ -81,15 +68,20 @@ template <class ValueType> void Vector<ValueType>::Swap(Vector<ValueType>& v1) {
 }
 
 template <class ValueType> void Vector<ValueType>::ReInit(Long dim_, Iterator<ValueType> data_, bool own_data_) {
+#ifdef SCTL_MEMDEBUG
+  Vector<ValueType> tmp(dim_, data_, own_data_);
+  this->Swap(tmp);
+#else
   if (own_data_ && own_data && dim_ <= capacity) {
     dim = dim_;
-    if (data_ != nullptr) {
+    if (data_ != NullIterator<ValueType>()) {
       memcopy(data_ptr, data_, dim);
     }
   } else {
     Vector<ValueType> tmp(dim_, data_, own_data_);
     this->Swap(tmp);
   }
+#endif
 }
 
 template <class ValueType> void Vector<ValueType>::Write(const char* fname) const {
@@ -124,7 +116,7 @@ template <class ValueType> void Vector<ValueType>::Read(const char* fname) {
 
 template <class ValueType> inline Long Vector<ValueType>::Dim() const { return dim; }
 
-template <class ValueType> inline Long Vector<ValueType>::Capacity() const { return capacity; }
+//template <class ValueType> inline Long Vector<ValueType>::Capacity() const { return capacity; }
 
 template <class ValueType> void Vector<ValueType>::SetZero() {
   if (dim > 0) memset<ValueType>(data_ptr, 0, dim);
@@ -143,7 +135,7 @@ template <class ValueType> void Vector<ValueType>::PushBack(const ValueType& x) 
     data_ptr[dim] = x;
     dim++;
   } else {
-    Vector<ValueType> v(capacity * 1.6 + 1);
+    Vector<ValueType> v((Long)(capacity * 1.6) + 1);
     memcopy(v.data_ptr, data_ptr, dim);
     v.dim = dim;
     Swap(v);
@@ -169,18 +161,14 @@ template <class ValueType> inline const ValueType& Vector<ValueType>::operator[]
 // Vector-Vector operations
 
 template <class ValueType> Vector<ValueType>& Vector<ValueType>::operator=(const std::vector<ValueType>& V) {
-  {
-    if (capacity < V.size()) ReInit(V.size());
-    dim = V.size();
-    memcopy(data_ptr, Ptr2ConstItr<ValueType>(&V[0], V.size()), dim);
-  }
+  if (dim != V.size()) ReInit(V.size());
+  memcopy(data_ptr, Ptr2ConstItr<ValueType>(&V[0], V.size()), dim);
   return *this;
 }
 
 template <class ValueType> Vector<ValueType>& Vector<ValueType>::operator=(const Vector<ValueType>& V) {
   if (this != &V) {
-    if (capacity < V.dim) ReInit(V.dim);
-    dim = V.dim;
+    if (dim != V.dim) ReInit(V.dim);
     memcopy(data_ptr, V.data_ptr, dim);
   }
   return *this;
