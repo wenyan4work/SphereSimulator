@@ -39,6 +39,11 @@ template <class Real> class SphericalHarmonics{
 
     static void WriteVTK(const char* fname, const Vector<Real>* S, const Vector<Real>* f_val, SHCArrange arrange, Long p_in, Long p_out, Real period=0, const Comm& comm = Comm::World());
 
+    static void Grid2VecSHC(const Vector<Real>& X_in, Long Nt_in, Long Np_in, Long p_out, Vector<Real>& S_out, SHCArrange arrange_out);
+
+    static void VecSHC2Grid(const Vector<Real>& S_in, SHCArrange arrange_in, Long p_in, Long Nt_out, Long Np_out, Vector<Real>& X_out);
+
+
     static void test() {
       int p = 3;
       int dof = 2;
@@ -72,6 +77,12 @@ template <class Real> class SphericalHarmonics{
     static void RotateAll(const Vector<Real>& S, Long p0, Long dof, Vector<Real>& S_);
     static void RotateTranspose(const Vector<Real>& S_, Long p0, Long dof, Vector<Real>& S);
     static void StokesSingularInteg(const Vector<Real>& S, Long p0, Long p1, Vector<Real>* SLMatrix=nullptr, Vector<Real>* DLMatrix=nullptr);
+
+    static void Grid2SHC_(const Vector<Real>& X, Long Nt, Long Np, Long p, Vector<Real>& B1);
+    static void SHCArrange0(const Vector<Real>& B1, Long p, Vector<Real>& S, SHCArrange arrange);
+
+    static void SHC2Grid_(const Vector<Real>& S, Long p, Long Nt, Long Np, Vector<Real>* X, Vector<Real>* X_theta=nullptr, Vector<Real>* X_phi=nullptr);
+    static void SHCArrange1(const Vector<Real>& S_in, SHCArrange arrange_out, Long p, Vector<Real>& S_out);
 
     /**
      * \brief Computes all the Associated Legendre Polynomials (normalized) up to the specified degree.
