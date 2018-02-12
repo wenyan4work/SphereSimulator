@@ -7,10 +7,12 @@
 using Teuchos::RCP;
 using Teuchos::rcp;
 
-class SPHSphereOperator : public TOP {
-    // 
+
+// all operators are derived from this
+template<>
+class SystemOperator : public TOP {
   private:
-    SPHSphereSystem *systemPtr;
+    System *systemPtr;
     RCP<const TMAP> dofMapRcp;
 
   public:
