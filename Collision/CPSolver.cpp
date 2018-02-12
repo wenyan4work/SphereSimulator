@@ -1,6 +1,6 @@
 
 #include "CPSolver.hpp"
-#include "TpetraUtil.hpp"
+#include "Trilinos/TpetraUtil.hpp"
 #include "mpi.h"
 
 #include <Teuchos_SerialDenseMatrix.hpp>

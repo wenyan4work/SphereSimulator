@@ -1,12 +1,13 @@
 #ifndef CPSOLVER_HPP_
 #define CPSOLVER_HPP_
 
-#include "TpetraUtil.hpp"
+#include "Trilinos/TpetraUtil.hpp"
+
 #include <array>
 #include <deque>
 #include <vector>
 
-typedef std::deque<std::array<double, 6>> IteHistory;
+using IteHistory = std::deque<std::array<double, 6>>;
 
 class CPMatOp : public TOP {
   public:
@@ -64,9 +65,6 @@ class CPSolver {
 
     // Barzilai-Borwein step length
     int LCP_BBPGD(Teuchos::RCP<TV> &, const double, const int, IteHistory &) const;
-
-    // // Nesterov + Barzilai-Borwein step length
-    // int LCP_ABBPGD(Teuchos::RCP<TV> &, const double, const int, IteHistory &) const;
 
     // Minimum-Map Newtom
     int LCP_mmNewton(Teuchos::RCP<TV> &, const double, const int, IteHistory &) const;
