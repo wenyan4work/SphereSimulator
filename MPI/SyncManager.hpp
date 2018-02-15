@@ -9,7 +9,7 @@
 
 #include <mpi.h>
 
-#include "Buffer.hpp"
+#include "Util/Buffer.hpp"
 
 // helper class to broadcast and reduce replicated objects through all process
 // required interface of T:

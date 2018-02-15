@@ -1,6 +1,4 @@
 /*
- * FMMWrapper.h
- *
  *  Created on: Oct 6, 2016
  *      Author: wyan
  */
@@ -120,8 +118,8 @@ class STKFMM {
     std::vector<double> srcSLCoordInternal; // scaled coordinate Single Layer
     std::vector<double> srcDLCoordInternal; // scaled coordinate Double Layer
     std::vector<double> trgCoordInternal;
-    std::vector<double> srcSLValueInternal;   // scaled SL value
-    std::vector<double> srcDLValueInternal;   // scaled SL value
+    std::vector<double> srcSLValueInternal; // scaled SL value
+    std::vector<double> srcDLValueInternal; // scaled SL value
     std::vector<double> trgValueInternal;   // scaled trg value
 
     void setupCoord(const std::vector<double> &, std::vector<double> &); // setup the internal srcCoord and

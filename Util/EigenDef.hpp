@@ -8,12 +8,13 @@
 #ifndef EIGENDEF_HPP_
 #define EIGENDEF_HPP_
 
-#define EIGEN_DONT_PARALLELIZE  // 1 thread for any eigen stuff
+
+#define EIGEN_DONT_PARALLELIZE // 1 thread for any eigen stuff
 #include <Eigen/Dense>
 #include <Eigen/Sparse>
-
-#include <vector>
 #include <cmath>
+#include <vector>
+
 
 /*
  *
@@ -35,6 +36,8 @@ using Emat2 = Eigen::Matrix<double, 2, 2, Eigen::DontAlign>;
 using Emat3 = Eigen::Matrix<double, 3, 3, Eigen::DontAlign>;
 using Emat4 = Eigen::Matrix<double, 4, 4, Eigen::DontAlign>;
 using Emat6 = Eigen::Matrix<double, 6, 6, Eigen::DontAlign>;
+using EmatPsi = Eigen::Matrix<double, 4, 3, Eigen::DontAlign>; // psi mat for quaternion rotation
+
 
 // unaligned quaternion
 using Equatn = Eigen::Quaternion<double, Eigen::DontAlign>;
@@ -50,9 +53,10 @@ using EAmat2 = Eigen::Matrix2d;
 using EAmat3 = Eigen::Matrix3d;
 using EAmat4 = Eigen::Matrix4d;
 using EAmat6 = Eigen::Matrix<double, 6, 6>;
+using EAmatPsi = Eigen::Matrix<double, 4, 3, Eigen::DontAlign>;
 
 // aligned quaternion
-using EAquatn = Eigen::Quaternion<double>;
+using EAquatn = Eigen::Quaterniond;
 
 // dynamic size types
 using Evec = Eigen::VectorXd;

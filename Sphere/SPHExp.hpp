@@ -10,7 +10,7 @@
 #include <string>
 #include <vector>
 
-#include "EigenDef.hpp"
+#include "Util/EigenDef.hpp"
 
 class SPHExp {
   public:

@@ -1,11 +1,11 @@
 include ../../MakefileInc.mk
 
-INCLUDE_DIRS = $(Trilinos_INCLUDE_DIRS) $(Trilinos_TPL_INCLUDE_DIRS) $(USERINCLUDE)
+INCLUDE_DIRS = $(Trilinos_INCLUDE_DIRS) $(Trilinos_TPL_INCLUDE_DIRS) $(USERINCLUDE) -I../../
 LIBRARY_DIRS = $(Trilinos_LIBRARY_DIRS) $(Trilinos_TPL_LIBRARY_DIRS) 
 LIBRARIES = $(Trilinos_LIBRARIES) $(Trilinos_TPL_LIBRARIES) $(USERLIB)
 
-SRC =   testBuffer.cpp ../../Sphere.cpp ../../SPHExp.cpp
-INC =   ../../Buffer.hpp
+SRC =   testBuffer.cpp ../../Sphere/Sphere.cpp ../../Sphere/SPHExp.cpp
+INC =   ../../Sphere/Sphere.hpp ../../Sphere/SPHExp.hpp ../../Util/Buffer.hpp
          
 # Definitions
 

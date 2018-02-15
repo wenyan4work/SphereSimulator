@@ -1,11 +1,9 @@
 
+#include <chrono>
+
 #include "CPSolver.hpp"
 #include "Trilinos/TpetraUtil.hpp"
 #include "mpi.h"
-
-#include <Teuchos_SerialDenseMatrix.hpp>
-
-#include <chrono>
 
 void CPSolver::clipZero(Teuchos::RCP<TV> &vecRcp) const {
     auto x_2d = vecRcp->getLocalView<Kokkos::HostSpace>(); // LeftLayout
@@ -664,8 +662,8 @@ int CPSolver::LCP_mmNewton(Teuchos::RCP<TV> &xsolRcp, const double tol, const in
     double oldErr;
     double tk = 0;
     while (iteCount++ < iteMax) {
-// check convergence
-// xkRcp, ykRcp saves last step
+    // check convergence
+    // xkRcp, ykRcp saves last step
 
 #ifdef DEBUGCOLLCP
         // detailed tolerance for debug build

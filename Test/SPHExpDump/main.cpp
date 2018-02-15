@@ -1,9 +1,10 @@
-#include "../../SPHExp.hpp"
 
 #include <cstdio>
 #include <fstream>
 #include <iostream>
 #include <vector>
+
+#include "Sphere/SPHExp.hpp"
 
 void writeHeadVTU(std::ofstream &vtkfile) {
     vtkfile << "<?xml version=\"1.0\"?>\n";
@@ -77,7 +78,7 @@ int main() {
 
     writePVTUFile("test.pvtu", dataFields, pieceNames);
 
-    // testSPHExp2VTK();
+    testSPHExp2VTK();
     return 0;
 }
 

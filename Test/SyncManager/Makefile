@@ -1,17 +1,11 @@
 include ../../MakefileInc.mk
 
-INCLUDE_DIRS = $(Trilinos_INCLUDE_DIRS) $(Trilinos_TPL_INCLUDE_DIRS) $(USERINCLUDE)
+INCLUDE_DIRS = $(Trilinos_INCLUDE_DIRS) $(Trilinos_TPL_INCLUDE_DIRS) $(USERINCLUDE) -I../../
 LIBRARY_DIRS = $(Trilinos_LIBRARY_DIRS) $(Trilinos_TPL_LIBRARY_DIRS) 
 LIBRARIES = $(Trilinos_LIBRARIES) $(Trilinos_TPL_LIBRARIES) $(USERLIB)
 
-CXX =mpicxx
-LD=$(CXX)
-
-CXXFLAGS= -std=c++11 -fopenmp -O3 -DNDEBUG
-LDFLAGS= $(CXXFLAGS)
-
-SRC =   TestSyncManager.cpp 
-INC =   ../../SyncManager.hpp
+SRC =   TestSyncManager.cpp
+INC =   ../../Util/Buffer.hpp ../../MPI/SyncManager.hpp
          
 # Definitions
 

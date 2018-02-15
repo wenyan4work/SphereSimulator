@@ -1,9 +1,10 @@
-#include "../../Buffer.hpp"
-#include "../../SyncManager.hpp"
 
-#include "mpi.h"
+#include <mpi.h>
 #include <cstdio>
 #include <vector>
+
+#include "Util/Buffer.hpp"
+#include "MPI/SyncManager.hpp"
 
 class Particle {
   public:

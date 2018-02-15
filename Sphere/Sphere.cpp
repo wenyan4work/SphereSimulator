@@ -1,15 +1,17 @@
 #include "Sphere.hpp"
 #include <cstdio>
 
+using Emap3 = Eigen::Map<Evec3>;
+
 void swap(Sphere &sphA, Sphere &sphB) {
     using std::swap;
     swap(sphA.gid, sphB.gid);
     swap(sphA.radius, sphB.radius);
     swap(sphA.radiusCollision, sphB.radiusCollision);
 
-    sphA.pos.swap(sphB.pos);
-    sphA.vel.swap(sphB.vel);
-    sphA.omega.swap(sphB.omega);
+    Eigen::Map<Evec3>(sphA.pos).swap(Eigen::Map<Evec3>(sphB.pos));
+    Eigen::Map<Evec3>(sphA.vel).swap(Eigen::Map<Evec3>(sphB.vel));
+    Eigen::Map<Evec3>(sphA.omega).swap(Eigen::Map<Evec3>(sphB.omega));
 
     Equatn otemp = sphB.orientation;
     sphB.orientation = sphA.orientation;
@@ -29,15 +31,19 @@ void SphereIO::dumpSphere() const {
     return;
 }
 
-Sphere::Sphere(const SphereIO &sphere): Sphere::Sphere(sphere.gid, sphere.radius, sphere.radiusCollision, sphere.pos, sphere.orientation) {
+Sphere::Sphere(const SphereIO &sphere)
+    : Sphere::Sphere(sphere.gid, sphere.radius, sphere.radiusCollision, sphere.pos, sphere.orientation) {
     return;
 }
 
 Sphere::Sphere(const int &gid_, const double &radius_, const double &radiusCollision_, const Evec3 &pos_,
                const Equatn &orientation_) noexcept
-    : gid(gid_), radius(radius_), radiusCollision(radiusCollision_), pos(pos_), orientation(orientation_) {
-    vel.setZero();
-    omega.setZero();
+    : gid(gid_), radius(radius_), radiusCollision(radiusCollision_), orientation(orientation_) {
+    pos[0] = pos_[0];
+    pos[1] = pos_[1];
+    pos[2] = pos_[2];
+    Emap3(vel).setZero();
+    Emap3(omega).setZero();
     sphNeighbor.reserve(10);
     return;
 }
@@ -55,9 +61,11 @@ Sphere::Sphere(const Sphere &other) noexcept {
     gid = other.gid;
     radius = other.radius;
     radiusCollision = other.radiusCollision;
-    pos = other.pos;
-    vel = other.vel;
-    omega = other.omega;
+    for (int i = 0; i < 3; i++) {
+        pos[i] = other.pos[i];
+        vel[i] = other.vel[i];
+        omega[i] = other.omega[i];
+    }
     orientation = other.orientation;
 
     // copy neighbors
@@ -73,9 +81,11 @@ Sphere::Sphere(Sphere &&other) noexcept {
     gid = other.gid;
     radius = other.radius;
     radiusCollision = other.radiusCollision;
-    pos = other.pos;
-    vel = other.vel;
-    omega = other.omega;
+    for (int i = 0; i < 3; i++) {
+        pos[i] = other.pos[i];
+        vel[i] = other.vel[i];
+        omega[i] = other.omega[i];
+    }
     orientation = other.orientation;
 
     // directly move for rvalue
@@ -111,7 +121,8 @@ void Sphere::dumpNeighbor() const {
 
 void Sphere::dumpLayer(const std::string &name) const { sphLayer.find(name)->second->dumpSpectralValues(); }
 
-void Sphere::pack(Buffer &buffer) {
+void Sphere::Pack(std::vector<char> &buff) const {
+    Buffer buffer(buff);
     // head
     buffer.pack(std::string("SPHERE"));
     // fixed size data
@@ -140,30 +151,31 @@ void Sphere::pack(Buffer &buffer) {
     }
 }
 
-void Sphere::unpack(const Buffer &buffer) {
+void Sphere::Unpack(const std::vector<char> &buff) {
+    Buffer buffer;
     // head
     std::string strbuf;
-    buffer.unpack(strbuf);
+    buffer.unpack(strbuf, buff);
     assert(strbuf == std::string("SPHERE"));
     // fixed size data
-    buffer.unpack(gid);             // int gid = INVALID;
-    buffer.unpack(radius);          // double radius;
-    buffer.unpack(radiusCollision); // double radiusCollision;
+    buffer.unpack(gid, buff);             // int gid = INVALID;
+    buffer.unpack(radius, buff);          // double radius;
+    buffer.unpack(radiusCollision, buff); // double radiusCollision;
     std::array<double, 3> array3;
-    buffer.unpack(array3); // Evec3 pos;
+    buffer.unpack(array3, buff); // Evec3 pos;
     pos[0] = array3[0];
     pos[1] = array3[1];
     pos[2] = array3[2];
-    buffer.unpack(array3); // Evec3 vel;
+    buffer.unpack(array3, buff); // Evec3 vel;
     vel[0] = array3[0];
     vel[1] = array3[1];
     vel[2] = array3[2];
-    buffer.unpack(array3); // Evec3 omega;
+    buffer.unpack(array3, buff); // Evec3 omega;
     omega[0] = array3[0];
     omega[1] = array3[1];
     omega[2] = array3[2];
     std::array<double, 4> array4;
-    buffer.unpack(array4); // Equatn orientation;
+    buffer.unpack(array4, buff); // Equatn orientation;
     orientation.w() = array4[0];
     orientation.x() = array4[1];
     orientation.y() = array4[2];
@@ -173,17 +185,17 @@ void Sphere::unpack(const Buffer &buffer) {
     sphNeighbor.clear();
 
     int nLayer = 0;
-    buffer.unpack(nLayer); // number of layers
+    buffer.unpack(nLayer, buff); // number of layers
     std::string strbuf2;
     sphLayer.clear();
     for (int i = 0; i < nLayer; i++) {
-        buffer.unpack(strbuf); // the name
+        buffer.unpack(strbuf, buff); // the name
         // data
         int kind, order;
-        buffer.unpack(kind);    //    const KIND kind;
-        buffer.unpack(order);   // const int order;        // the order of expansion p
-        buffer.unpack(strbuf2); //    const std::string name; // the name of this quantity
-        buffer.unpack(array4);  // Equatn orientation;
+        buffer.unpack(kind, buff);    //    const KIND kind;
+        buffer.unpack(order, buff);   // const int order;        // the order of expansion p
+        buffer.unpack(strbuf2, buff); //    const std::string name; // the name of this quantity
+        buffer.unpack(array4, buff);  // Equatn orientation;
         Equatn orientTemp;
         orientTemp.w() = array4[0];
         orientTemp.x() = array4[1];
@@ -192,6 +204,6 @@ void Sphere::unpack(const Buffer &buffer) {
         // allocate
         sphLayer[strbuf] = new SPHExp(static_cast<SPHExp::KIND>(kind), strbuf2, order, orientTemp);
         // unpack the sph values
-        buffer.unpack(sphLayer[strbuf]->spectralCoeff);
+        buffer.unpack(sphLayer[strbuf]->spectralCoeff, buff);
     }
 }

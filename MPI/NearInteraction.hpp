@@ -1,7 +1,7 @@
 #ifndef _NEAR_INTERAC_HPP_
 #define _NEAR_INTERAC_HPP_
 
-#include <sctl.hpp>
+#include "Util/sctl.hpp"
 
 template <class Real, int DIM> class NearInteraction {
     typedef sctl::Morton<DIM> MID;
@@ -50,6 +50,6 @@ template <class Real, int DIM> class NearInteraction {
     sctl::Vector<ObjData> SData_, TData_; // Globally sorted
 };
 
-#include <NearInteraction.txx>
+#include "NearInteraction.txx"
 
 #endif //_NEAR_INTERAC_HPP_

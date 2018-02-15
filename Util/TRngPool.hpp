@@ -2,18 +2,19 @@
 #ifndef TRNGPOOL_H_
 #define TRNGPOOL_H_
 
-#include "mpi.h"
-#include "omp.h"
-
-#include "trng/config.hpp"
-#include "trng/lcg64_shift.hpp"
-#include "trng/lognormal_dist.hpp"
-#include "trng/mrg5.hpp"
-#include "trng/normal_dist.hpp"
-#include "trng/uniform01_dist.hpp"
-
 #include <iostream>
 #include <memory>
+
+#include <mpi.h>
+#include <omp.h>
+
+#include <trng/config.hpp>
+#include <trng/lcg64_shift.hpp>
+#include <trng/lognormal_dist.hpp>
+#include <trng/mrg5.hpp>
+#include <trng/normal_dist.hpp>
+#include <trng/uniform01_dist.hpp>
+
 
 class TRngPool {
   private:

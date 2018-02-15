@@ -12,6 +12,7 @@
 #include <Teuchos_GlobalMPISession.hpp>
 #include <Teuchos_TimeMonitor.hpp>
 #include <Teuchos_oblackholestream.hpp>
+#include <Teuchos_SerialDenseMatrix.hpp>
 
 // Container
 #include <MatrixMarket_Tpetra.hpp>

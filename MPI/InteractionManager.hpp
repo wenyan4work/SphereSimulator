@@ -9,7 +9,6 @@
 #include <vector>
 
 #include "NearInteraction.hpp"
-#include "sctl.hpp"
 
 // 1. given object, repartition
 // 2. given essential type, interaction functor, compute near interaction

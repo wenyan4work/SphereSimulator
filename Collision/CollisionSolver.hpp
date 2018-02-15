@@ -1,14 +1,14 @@
 #ifndef COLLISIONSOLVER_HPP
 #define COLLISIONSOLVER_HPP
 
-#include "Collision/CPSolver.hpp"
-#include "Trilinos/TpetraUtil.hpp"
-#include "Util/EigenDef.hpp"
-
 #include <algorithm>
 #include <cmath>
 #include <deque>
 #include <vector>
+
+#include "Collision/CPSolver.hpp"
+#include "Trilinos/TpetraUtil.hpp"
+#include "Util/EigenDef.hpp"
 
 struct CollisionBlock { // the information for each collision
   public:

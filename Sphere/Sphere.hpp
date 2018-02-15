@@ -4,8 +4,8 @@
 #include <unordered_map>
 #include <vector>
 
-#include "Buffer.hpp"
 #include "SPHExp.hpp"
+#include "Util/Buffer.hpp"
 
 #define INVALID -1
 
@@ -56,16 +56,16 @@ class Sphere {
     int gid = INVALID;
     double radius;
     double radiusCollision;
-    Evec3 pos;
-    Evec3 vel;
-    Evec3 omega;
+    double pos[3];
+    double vel[3];
+    double omega[3];
     Equatn orientation;
 
     std::vector<NeighborSphere> sphNeighbor;
     std::unordered_map<std::string, SPHExp *> sphLayer;
 
     Sphere() = default;
-    Sphere(const SphereIO& sphere) ;
+    Sphere(const SphereIO &sphere);
     Sphere(const int &gid_, const double &radius_, const double &radiusCollision_, const Evec3 &pos_ = Evec3::Zero(),
            const Equatn &orientation_ = Equatn::Identity()) noexcept;
     ~Sphere() noexcept;
@@ -81,8 +81,13 @@ class Sphere {
     void dumpNeighbor() const;
     void dumpLayer(const std::string &) const;
 
-    void pack(Buffer &buffer);
-    void unpack(const Buffer &buffer);
+    const double *Coord() const { return pos; }
+
+    double Rad() const { return radiusCollision; }
+
+    void Pack(std::vector<char> &buff) const;
+
+    void Unpack(const std::vector<char> &buff);
 
     friend void swap(Sphere &, Sphere &);
 };

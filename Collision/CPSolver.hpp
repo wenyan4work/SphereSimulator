@@ -1,11 +1,11 @@
 #ifndef CPSOLVER_HPP_
 #define CPSOLVER_HPP_
 
-#include "Trilinos/TpetraUtil.hpp"
-
 #include <array>
 #include <deque>
 #include <vector>
+
+#include "Trilinos/TpetraUtil.hpp"
 
 using IteHistory = std::deque<std::array<double, 6>>;
 

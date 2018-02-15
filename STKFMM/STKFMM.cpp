@@ -11,11 +11,11 @@
 #include <mpi.h>
 #include <omp.h>
 
-#include "../common/Timer.hpp"
-#include "LaplaceLayerKernel.hpp"
-#include "StokesLayerKernel.hpp"
+#include "Util/Timer.hpp"
 
+#include "LaplaceLayerKernel.hpp"
 #include "STKFMM.h"
+#include "StokesLayerKernel.hpp"
 
 PeriodicType periodicType;
 
