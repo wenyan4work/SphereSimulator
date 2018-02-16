@@ -74,7 +74,7 @@ void SPHExp::dumpSpectralValues(const std::string &filename) const {
     }
 }
 
-int SPHExp::dumpVTK(std::ofstream &file, double radius, const Evec3 &coordBase) const {
+int SPHExp::dumpVTK(std::ofstream &file, const double &radius, const Evec3 &coordBase) const {
     // indexBase is the index of the first grid point
 
     // this must be called in single thread
@@ -86,14 +86,9 @@ int SPHExp::dumpVTK(std::ofstream &file, double radius, const Evec3 &coordBase) 
     std::vector<double> gridPoints;
     std::vector<double> gridWeights;
     std::vector<double> gridValues;
-    getGrid(gridPoints, gridWeights, gridValues);
+    getGrid(gridPoints, gridWeights, gridValues, radius, coordBase);
     const int nPts = gridWeights.size();
     assert(gridPoints.size() == nPts * 3);
-
-    for (int i = 0; i < nPts; i++) {
-        Evec3 p = radius * Emap3(gridPoints.data() + 3 * i) + coordBase;
-        Emap3(gridPoints.data() + 3 * i) = p;
-    }
 
     // for debug
     printf("%d,%d,%d\n", gridPoints.size(), gridWeights.size(), gridValues.size());
@@ -174,8 +169,8 @@ int SPHExp::dumpVTK(std::ofstream &file, double radius, const Evec3 &coordBase) 
     return nPts;
 }
 
-void SPHExp::getGrid(std::vector<double> &gridPoints, std::vector<double> &gridWeights,
-                     std::vector<double> &gridValues) const {
+void SPHExp::getGrid(std::vector<double> &gridPoints, std::vector<double> &gridWeights, std::vector<double> &gridValues,
+                     const double &radius, const Evec3 &coordBase) const {
     /*
         point order: 0 at northpole, then 2p+2 points per circle. the last at south pole
         the north and south pole are not included in the nodesGL of Gauss-Legendre nodes.
@@ -232,7 +227,7 @@ void SPHExp::getGrid(std::vector<double> &gridPoints, std::vector<double> &gridW
     // rotation with quaternion for each point
     for (int i = 0; i < 2 * p * p + 4 * p + 4; i++) {
         EAvec3 pointVec(gridPoints[3 * i], gridPoints[3 * i + 1], gridPoints[3 * i + 2]); // aligned temporary object
-        Eigen::Map<Eigen::Vector3d>(gridPoints.data() + 3 * i) = orientation * pointVec;
+        Eigen::Map<Eigen::Vector3d>(gridPoints.data() + 3 * i) = radius * (orientation * pointVec) + coordBase;
     }
 
     return;

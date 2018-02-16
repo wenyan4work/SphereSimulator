@@ -15,30 +15,27 @@ class CollisionSphere {
     int gid = INVALID;
     int globalIndex = INVALID;
     double radiusCollision;
-    double radiusNeighbor;
     double pos[3];
 
-    CollisionSphere()=default;
-    CollisionSphere(const Sphere &s){
-        gid=s.gid;
-        globalIndex=s.globalIndex;
-        radiusCollision=s.radiusCollision;
-        radiusNeighbor=s.radiusNeighbor;
-        pos[0]=s.pos[0];
-        pos[1]=s.pos[1];
-        pos[2]=s.pos[2];
+    CollisionSphere() = default;
+    CollisionSphere(const Sphere &s) {
+        gid = s.gid;
+        globalIndex = s.globalIndex;
+        radiusCollision = s.radiusCollision;
+        pos[0] = s.pos[0];
+        pos[1] = s.pos[1];
+        pos[2] = s.pos[2];
     }
 
     // necessary interface for Near Interaction
     const double *Coord() const { return pos; }
-    double Rad() const { return radiusNeighbor; }
+    double Rad() const { return radiusCollision * 2; }
 
     void Pack(std::vector<char> &buff) const {
         Buffer mybuff(buff);
         mybuff.pack(gid);
         mybuff.pack(globalIndex);
         mybuff.pack(radiusCollision);
-        mybuff.pack(radiusNeighbor);
         mybuff.pack(pos[0]);
         mybuff.pack(pos[1]);
         mybuff.pack(pos[2]);
@@ -49,7 +46,6 @@ class CollisionSphere {
         mybuff.unpack(gid, buff);
         mybuff.unpack(globalIndex, buff);
         mybuff.unpack(radiusCollision, buff);
-        mybuff.unpack(radiusNeighbor, buff);
         mybuff.unpack(pos[0], buff);
         mybuff.unpack(pos[1], buff);
         mybuff.unpack(pos[2], buff);
@@ -95,7 +91,6 @@ void swap(CollisionSphere &A, CollisionSphere &B) {
     swap(A.gid, B.gid);
     swap(A.globalIndex, B.globalIndex);
     swap(A.radiusCollision, B.radiusCollision);
-    swap(A.radiusNeighbor, B.radiusNeighbor);
     swap(A.pos[0], B.pos[0]);
     swap(A.pos[1], B.pos[1]);
     swap(A.pos[2], B.pos[2]);
