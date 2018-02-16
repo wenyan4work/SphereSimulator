@@ -17,8 +17,7 @@ class CollisionSphere {
     double radiusCollision;
     double pos[3];
 
-    CollisionSphere() = default;
-    CollisionSphere(const Sphere &s) {
+    void CopyFromFull(const Sphere &s) {
         gid = s.gid;
         globalIndex = s.globalIndex;
         radiusCollision = s.radiusCollision;

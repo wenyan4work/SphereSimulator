@@ -39,14 +39,15 @@ class SphereSystem {
     std::vector<Sphere> sphere;
     // thread safe rng
     std::shared_ptr<TRngPool> rngPoolPtr;
+    std::shared_ptr<InteractionManager<double, 3, Sphere, Sphere>> interactManagerPtr;
     // MPI stuff
     Teuchos::RCP<TCOMM> commRcp;
     Teuchos::RCP<TMAP> sphereMapRcp; // 1 dof per sphere
 
-    void setInitial(const std::string &initPos); // initial configuration of spheres
-    void prepareTimestep();                      // prepare one timestep
-    void statistics();                           // statistics
-    void partition();                            // loadbalancing of spheres
+    void setInitial(const std::string &initPosFile); // initial configuration of spheres
+    void prepareTimestep();                          // prepare one timestep
+    void statistics();                               // statistics
+    void partition();                                // loadbalancing of spheres
 
     bool readXYZ(const std::string &filename);
 
@@ -59,7 +60,7 @@ class SphereSystem {
     void readSerialized();
 
     Teuchos::RCP<TOP> getMobOperator(bool manybody);
-    Teuchos::RCP<TOP> getVelocityKnown();
+    Teuchos::RCP<TV> getVelocityKnown();
 };
 
 //#pragma GCC pop_options

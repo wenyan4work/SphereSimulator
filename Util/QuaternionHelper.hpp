@@ -20,6 +20,7 @@
 // gen2 = gen1.inverse(); Spherical interpolation  (Rotation2D and Quaternion only)
 
 class EquatnHelper {
+  public:
     static void setUnitRandomQuatn(Equatn &q, const double &u1, const double &u2, const double &u3) {
         // a random unit quaternion following a uniform distribution law on SO(3)
         // from three U[0,1] random numbers
@@ -69,16 +70,16 @@ class EquatnHelper {
         const double s = q.w;
         const EAvec3 p(q.x, q.y, q.z);
         psi.block<1, 3>(0, 0) = 0.5 * (-p.transpose());
-        psi.block<3, 3>(1, 0) = 0.5 * s;
-        psi.block<3, 3>(1, 1) = 0.5 * p[2];
-        psi.block<3, 3>(1, 2) = -0.5 * p[1];
-        psi.block<3, 3>(2, 0) = -0.5 * p[2];
-        psi.block<3, 3>(2, 1) = 0.5 * s;
-        psi.block<3, 3>(2, 2) = 0.5 * p[0];
-        psi.block<3, 3>(3, 0) = 0.5 * p[1];
-        psi.block<3, 3>(3, 1) = -0.5 * p[0];
-        psi.block<3, 3>(3, 2) = 0.5 * s;
+        psi(1, 0) = 0.5 * s;
+        psi(1, 1) = 0.5 * p[2];
+        psi(1, 2) = -0.5 * p[1];
+        psi(2, 0) = -0.5 * p[2];
+        psi(2, 1) = 0.5 * s;
+        psi(2, 2) = 0.5 * p[0];
+        psi(3, 0) = 0.5 * p[1];
+        psi(3, 1) = -0.5 * p[0];
+        psi(3, 2) = 0.5 * s;
     }
-}
+};
 
 #endif

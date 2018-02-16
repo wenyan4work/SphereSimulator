@@ -7,6 +7,7 @@
 
 #include "SphereSystem.hpp"
 #include "Util/IOHelper.hpp"
+#include "Util/QuaternionHelper.hpp"
 
 SphereSystem::SphereSystem(const std::string &configFile, const std::string &posFile, int argc, char **argv)
     : runConfig(configFile) {
@@ -46,7 +47,46 @@ SphereSystem::SphereSystem(const std::string &configFile, const std::string &pos
     printf("SphereSystem initialized on process: %d \n", commRcp->getRank());
 }
 
-void SphereSystem::setInitial(const std::string &initPos) {}
+void SphereSystem::setInitial(const std::string &initPosFile) {
+    bool read = readXYZ(initPosFile);
+    if (read) {
+        return;
+    }
+
+    // this function executes only on process 0
+
+    double minBoxEdge =
+        std::min(runConfig.simBoxHigh[0] - runConfig.simBoxLow[0], runConfig.simBoxHigh[1] - runConfig.simBoxLow[1]);
+    minBoxEdge = std::min(runConfig.simBoxHigh[0] - runConfig.simBoxLow[0], minBoxEdge);
+
+    if (runConfig.sphereRadiusSigmaHydro > 0) {
+        rngPoolPtr->setLogNormalParameters(runConfig.sphereRadiusHydro, runConfig.sphereRadiusSigmaHydro);
+    }
+
+    const int nSphereGlobal = runConfig.sphereNumber;
+
+    for (int i = 0; i < nSphereGlobal; i++) {
+        double radius = rngPoolPtr->getLN();
+        double px = rngPoolPtr->getU01() * (runConfig.simBoxHigh[0] - runConfig.simBoxLow[0]) + runConfig.simBoxLow[0];
+        double py = rngPoolPtr->getU01() * (runConfig.simBoxHigh[1] - runConfig.simBoxLow[1]) + runConfig.simBoxLow[1];
+        double pz = rngPoolPtr->getU01() * (runConfig.simBoxHigh[2] - runConfig.simBoxLow[2]) + runConfig.simBoxLow[2];
+        Equatn orientation;
+        EquatnHelper::setUnitRandomQuatn(orientation, rngPoolPtr->getU01(), rngPoolPtr->getU01(), rngPoolPtr->getU01());
+        sphere.emplace_back(i, radius, radius * runConfig.sphereRadiusCollisionRatio, Evec3(px, py, pz), orientation);
+    }
+
+    // check volume fraction
+    double particleVolume = 0;
+    for (int i = 0; i < nSphereGlobal; i++) {
+        const auto &s = sphere[i];
+        particleVolume += 3.1416 * (4 / 3.0) * pow(s.radius, 3);
+    }
+    double boxVolume = (runConfig.simBoxHigh[0] - runConfig.simBoxLow[0]) *
+                       (runConfig.simBoxHigh[1] - runConfig.simBoxLow[1]) *
+                       (runConfig.simBoxHigh[2] - runConfig.simBoxLow[2]);
+
+    std::cout << "initial volume fraction: " << particleVolume / boxVolume << std::endl;
+}
 
 bool SphereSystem::readXYZ(const std::string &filename) {
     std::ifstream myfile(filename);
@@ -126,4 +166,16 @@ void SphereSystem::output() {
     IOHelper::makeSubFolder(baseFolder);
     writeXYZ(baseFolder);
     writeVTK(baseFolder);
+}
+
+void SphereSystem::partition() {
+    // initialize
+    if (!interactManagerPtr) {
+        interactManagerPtr = std::make_shared<InteractionManager<double, 3, Sphere, Sphere>>(&sphere, &sphere);
+    }
+
+    // create a nearInteractor for full particle
+    auto nearInteractFullParPtr = interactManagerPtr->getNewNearInteraction();
+    interactManagerPtr->partitionObject(nearInteractFullParPtr);
+    return;
 }
