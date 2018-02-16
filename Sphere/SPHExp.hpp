@@ -14,12 +14,12 @@
 
 class SPHExp {
   public:
-    enum class KIND : uint {
+    enum class KIND {
         LAP, // Laplace single layer, etc
         STK  // Stokes
     };
 
-    enum class TRGPOS : uint {
+    enum class TRGPOS {
         IN, // target inside, outside, on the sphere
         OUT,
         ON,
