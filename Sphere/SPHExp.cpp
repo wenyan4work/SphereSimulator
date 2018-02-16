@@ -74,7 +74,7 @@ void SPHExp::dumpSpectralValues(const std::string &filename) const {
     }
 }
 
-int SPHExp::dumpVTK(std::ofstream &file, double radius, const std::array<double, 3> &coordBase) const {
+int SPHExp::dumpVTK(std::ofstream &file, double radius, const Evec3 &coordBase) const {
     // indexBase is the index of the first grid point
 
     // this must be called in single thread
@@ -91,9 +91,8 @@ int SPHExp::dumpVTK(std::ofstream &file, double radius, const std::array<double,
     assert(gridPoints.size() == nPts * 3);
 
     for (int i = 0; i < nPts; i++) {
-        gridPoints[3 * i] = gridPoints[3 * i] * radius + coordBase[0];
-        gridPoints[3 * i + 1] = gridPoints[3 * i + 1] * radius + coordBase[1];
-        gridPoints[3 * i + 2] = gridPoints[3 * i + 2] * radius + coordBase[2];
+        Evec3 p = radius * Emap3(gridPoints.data() + 3 * i) + coordBase;
+        Emap3(gridPoints.data() + 3 * i) = p;
     }
 
     // for debug
@@ -231,10 +230,9 @@ void SPHExp::getGrid(std::vector<double> &gridPoints, std::vector<double> &gridW
     std::fill(gridValues.begin(), gridValues.end(), 0);
 
     // rotation with quaternion for each point
-    const EAmat3 rotation = orientation.toRotationMatrix(); // an aligned temporary rotation matrix for all points
-    for (int i = 0; i < 2 * p * p + 2; i++) {
+    for (int i = 0; i < 2 * p * p + 4 * p + 4; i++) {
         EAvec3 pointVec(gridPoints[3 * i], gridPoints[3 * i + 1], gridPoints[3 * i + 2]); // aligned temporary object
-        Eigen::Map<Eigen::Vector3d>(gridPoints.data() + 3 * i) = rotation * pointVec;
+        Eigen::Map<Eigen::Vector3d>(gridPoints.data() + 3 * i) = orientation * pointVec;
     }
 
     return;

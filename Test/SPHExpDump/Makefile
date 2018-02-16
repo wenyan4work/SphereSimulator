@@ -4,12 +4,12 @@ INCLUDE_DIRS = $(Trilinos_INCLUDE_DIRS) $(Trilinos_TPL_INCLUDE_DIRS) $(USERINCLU
 LIBRARY_DIRS = $(Trilinos_LIBRARY_DIRS) $(Trilinos_TPL_LIBRARY_DIRS) 
 LIBRARIES = $(Trilinos_LIBRARIES) $(Trilinos_TPL_LIBRARIES) $(USERLIB)
 
-SRC =   main.cpp ../../Sphere/Sphere.cpp ../../Sphere/SPHExp.cpp ../../Util/Base64.cpp
+SRC =   testDump.cpp ../../Sphere/Sphere.cpp ../../Sphere/SPHExp.cpp ../../Util/Base64.cpp
 INC =   ../../Sphere/Sphere.hpp ../../Sphere/SPHExp.hpp ../../Util/Buffer.hpp
          
 # Definitions
 
-EXE =   TestSPHExpDump.X
+EXE =   TestDump.X
 OBJ :=   $(SRC:.cpp=.o)
 
 

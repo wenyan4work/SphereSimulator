@@ -21,7 +21,7 @@ class SphereSystem {
   public:
     double sysTime;
     double snapTime;
-    int id_snap;
+    int snapID;   // id of snap shot
 
     void stepEuler(); // Euler step forward
 
@@ -50,7 +50,8 @@ class SphereSystem {
 
     // IO
     void writeVTK();
-    void readVTK();
+    void writeSerialized();
+    void readSerialized();
 
     Teuchos::RCP<TOP> getMobOperator(bool manybody);
     Teuchos::RCP<TOP> getVelocityKnown();

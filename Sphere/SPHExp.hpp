@@ -87,7 +87,7 @@ class SPHExp {
     // each sph dump to a 'piece'.
     // points in different pieces are completely independent
     // variable names in different pieces must be the same.
-    int dumpVTK(std::ofstream &file, double radius = 1, const std::array<double, 3> &coordBase = {0, 0, 0}) const;
+    int dumpVTK(std::ofstream &file, double radius = 1, const Evec3 &coordBase = Evec3::Zero()) const;
 
     // debug routines
     void dumpSpectralValues(const std::string &filename = std::string("")) const; // default to empty string

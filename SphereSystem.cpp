@@ -18,7 +18,7 @@ SphereSystem::SphereSystem(const std::string &configFile, const std::string &pos
 
     sysTime = 0;
     snapTime = 0;
-    id_snap = 0;
+    snapID = 0;
 
     // TRNG pool must be initialized after mpi is initialized
     rngPoolPtr = std::make_shared<TRngPool>(runConfig.rngSeed);
@@ -49,5 +49,17 @@ SphereSystem::SphereSystem(const std::string &configFile, const std::string &pos
 void SphereSystem::setInitial(const std::string &initPos) {}
 
 void SphereSystem::writeVTK() {
-
+    Sphere::writeVTP(sphere, std::to_string(snapID), commRcp->getRank());
+    Sphere::writeVTU(sphere, std::to_string(snapID), commRcp->getRank());
+    // write parallel head
+    if (commRcp->getSize() > 1 && commRcp->getRank() == 0) {
+        Sphere::writePVTP("000", commRcp->getSize());
+        std::vector<std::pair<int, std::string>> dataFields;
+        std::vector<IOHelper::IOTYPE> types = {IOHelper::IOTYPE::Float64, IOHelper::IOTYPE::Float64};
+        for (auto &layer : sphere[0].sphLayer) {
+            dataFields.emplace_back(std::pair<int, std::string>(layer.second->dimension, layer.second->name));
+        }
+        dataFields.emplace_back(std::pair<int, std::string>(3, "stk"));
+        Sphere::writePVTU(dataFields, types, std::to_string(snapID), commRcp->getSize());
+    }
 }

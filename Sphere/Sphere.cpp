@@ -295,7 +295,7 @@ void Sphere::writeVTU(const std::vector<Sphere> &sphere, const std::string &post
         IOHelper::writeHeadVTU(file);
         for (auto &s : sphere) {
             const auto &it = s.sphLayer.find(name);
-            std::array<double, 3> coordBase = {s.pos[0], s.pos[1], s.pos[2]};
+            Evec3 coordBase(s.pos[0], s.pos[1], s.pos[2]);
             if (it == s.sphLayer.end())
                 std::cout << "not found";
             else
