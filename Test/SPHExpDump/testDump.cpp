@@ -9,6 +9,13 @@
 #include "Util/IOHelper.hpp"
 
 void testVTK() {
+    const int num = 200;
+    int k = 200 / num;
+    int low = k * num, high = k * num + num - 1;
+    std::string baseFolder =
+        "result/" + std::to_string(low) + std::string("-") + std::to_string(high) + std::string("/");
+    IOHelper::makeSubFolder(baseFolder);
+
     std::vector<Sphere> sphere(10);
     for (int i = 0; i < 10; i++) {
         // fill random data
@@ -24,15 +31,15 @@ void testVTK() {
         s.addLayer("lap", SPHExp::KIND::LAP, 6, Equatn::UnitRandom());
         s.addLayer("stk", SPHExp::KIND::STK, 8, Equatn::UnitRandom());
     }
-    Sphere::writeVTP(sphere, "000", 0);
-    Sphere::writeVTU(sphere, "000", 0);
-    Sphere::writePVTP("000", 1);
+    Sphere::writeVTP(sphere,baseFolder, "000", 0);
+    Sphere::writeVTU(sphere, baseFolder,"000", 0);
+    Sphere::writePVTP(baseFolder,"000", 1);
     std::vector<std::pair<int, std::string>> dataFields;
     std::vector<IOHelper::IOTYPE> types = {IOHelper::IOTYPE::Float64, IOHelper::IOTYPE::Float64,
                                            IOHelper::IOTYPE::Float64};
     dataFields.emplace_back(std::pair<int, std::string>(1, "lap"));
     dataFields.emplace_back(std::pair<int, std::string>(3, "stk"));
-    Sphere::writePVTU(dataFields, types, "000", 1);
+    Sphere::writePVTU(dataFields, types,baseFolder, "000", 1);
 }
 
 int main() {

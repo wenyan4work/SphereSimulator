@@ -8,9 +8,9 @@
 
 #include "Collision/CollisionSphere.hpp"
 #include "MPI/InteractionManager.hpp"
+#include "STKFMM/STKFMM.h"
 #include "Sphere/Sphere.hpp"
 #include "Util/TRngPool.hpp"
-#include "STKFMM/STKFMM.h"
 
 #include "config.h"
 
@@ -21,7 +21,7 @@ class SphereSystem {
   public:
     double sysTime;
     double snapTime;
-    int snapID;   // id of snap shot
+    int snapID; // id of snap shot
 
     void stepEuler(); // Euler step forward
 
@@ -46,10 +46,15 @@ class SphereSystem {
     void setInitial(const std::string &initPos); // initial configuration of spheres
     void prepareTimestep();                      // prepare one timestep
     void statistics();                           // statistics
-    void partition();                            // loadbalancing of objects
+    void partition();                            // loadbalancing of spheres
+
+    bool readXYZ(const std::string &filename);
 
     // IO
-    void writeVTK();
+    void writeVTK(const std::string &baseFolder);
+    void writeXYZ(const std::string &baseFolder);
+
+    // TODO: implement these two for restart a simulation exactly
     void writeSerialized();
     void readSerialized();
 

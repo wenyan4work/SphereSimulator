@@ -216,7 +216,8 @@ void Sphere::Unpack(const std::vector<char> &buff) {
     }
 }
 
-void Sphere::writeVTP(const std::vector<Sphere> &sphere, const std::string &postfix, int rank) {
+void Sphere::writeVTP(const std::vector<Sphere> &sphere, const std::string &prefix, const std::string &postfix,
+                      int rank) {
     // for each sphere:
     /*
     TODO: Procedure for dumping spheres in the system:
@@ -255,7 +256,7 @@ void Sphere::writeVTP(const std::vector<Sphere> &sphere, const std::string &post
         }
     }
 
-    std::ofstream file(std::string("Sphere_") + postfix + "_r" + std::to_string(rank) + std::string(".vtp"),
+    std::ofstream file(prefix + std::string("Sphere_") + postfix + "_r" + std::to_string(rank) + std::string(".vtp"),
                        std::ios::out);
 
     IOHelper::writeHeadVTP(file);
@@ -284,12 +285,13 @@ void Sphere::writeVTP(const std::vector<Sphere> &sphere, const std::string &post
     file.close();
 }
 
-void Sphere::writeVTU(const std::vector<Sphere> &sphere, const std::string &postfix, int rank) {
+void Sphere::writeVTU(const std::vector<Sphere> &sphere, const std::string &prefix, const std::string &postfix,
+                      int rank) {
     // each sphere has the same number and name of layers
     // dump one vtu file for each sph
     for (const auto &layer : sphere[0].sphLayer) {
         const std::string &name = layer.first;
-        std::ofstream file(std::string("Sphere_") + name + "_" + postfix + "_r" + std::to_string(rank) +
+        std::ofstream file(prefix + std::string("Sphere_") + name + "_" + postfix + "_r" + std::to_string(rank) +
                                std::string(".vtu"),
                            std::ios::out);
         IOHelper::writeHeadVTU(file);
@@ -305,7 +307,7 @@ void Sphere::writeVTU(const std::vector<Sphere> &sphere, const std::string &post
     }
 }
 
-void Sphere::writePVTP(const std::string &postfix, const int nProcs) {
+void Sphere::writePVTP(const std::string &prefix, const std::string &postfix, const int nProcs) {
     std::vector<std::pair<int, std::string>> dataFields;
     std::vector<std::string> pieceNames;
     dataFields.emplace_back(std::pair<int, std::string>(1, "gid"));
@@ -323,11 +325,12 @@ void Sphere::writePVTP(const std::string &postfix, const int nProcs) {
         pieceNames.emplace_back("Sphere_" + postfix + "_r" + std::to_string(i) + ".vtp");
     }
 
-    IOHelper::writePVTPFile("Sphere_" + postfix + ".pvtp", dataFields, types, pieceNames);
+    IOHelper::writePVTPFile(prefix + "Sphere_" + postfix + ".pvtp", dataFields, types, pieceNames);
 }
 
 void Sphere::writePVTU(const std::vector<std::pair<int, std::string>> &dataFields,
-                       const std::vector<IOHelper::IOTYPE> &types, const std::string &postfix, const int nProcs) {
+                       const std::vector<IOHelper::IOTYPE> &types, const std::string &prefix,
+                       const std::string &postfix, const int nProcs) {
 
     for (int j = 0; j < dataFields.size(); j++) {
         std::vector<std::string> pieceNames;
@@ -341,6 +344,7 @@ void Sphere::writePVTU(const std::vector<std::pair<int, std::string>> &dataField
             pieceNames.emplace_back("Sphere_" + dataFields[j].second + "_" + postfix + "_r" + std::to_string(i) +
                                     ".vtu");
         }
-        IOHelper::writePVTUFile("Sphere_" + dataFields[j].second + "_" + postfix + ".pvtu", names, t, pieceNames);
+        IOHelper::writePVTUFile(prefix + "Sphere_" + dataFields[j].second + "_" + postfix + ".pvtu", names, t,
+                                pieceNames);
     }
 }

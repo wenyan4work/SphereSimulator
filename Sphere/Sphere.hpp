@@ -93,11 +93,14 @@ class Sphere {
 
     friend void swap(Sphere &, Sphere &);
 
-    static void writeVTP(const std::vector<Sphere> &sphere, const std::string &postfix, int rank);
-    static void writeVTU(const std::vector<Sphere> &sphere, const std::string &postfix, int rank);
-    static void writePVTP(const std::string &postfix, const int nProcs);
+    static void writeVTP(const std::vector<Sphere> &sphere, const std::string &prefix, const std::string &postfix,
+                         int rank);
+    static void writeVTU(const std::vector<Sphere> &sphere, const std::string &prefix, const std::string &postfix,
+                         int rank);
+    static void writePVTP(const std::string &prefix, const std::string &postfix, const int nProcs);
     static void writePVTU(const std::vector<std::pair<int, std::string>> &dataFields,
-                          const std::vector<IOHelper::IOTYPE> &types, const std::string &postfix, const int nProcs);
+                          const std::vector<IOHelper::IOTYPE> &types, const std::string &prefix,
+                          const std::string &postfix, const int nProcs);
 };
 
 #endif // SPHERE_HPP

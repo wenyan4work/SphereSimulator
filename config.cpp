@@ -17,23 +17,15 @@ Config::Config(std::string fileName) {
         exit(1);
     }
     std::string line;
-    getline(myfile, line);
-    xProcs = 1;
-    yProcs = 1;
-    zProcs = 1;
-    myfile >> xProcs >> yProcs >> zProcs >> line;
 
     getline(myfile, line);
     ompThreads = 1;
     myfile >> ompThreads >> line;
-#ifdef PARTICLE_SIMULATOR_THREAD_PARALLEL
     if (ompThreads > 0) {
         omp_set_num_threads(ompThreads);
     }
     std::cout << "using max OpenMP threads: " << omp_get_max_threads() << std::endl;
-#else
 
-#endif
     getline(myfile, line);
     simBoxLow[0] = 0;
     simBoxLow[1] = 0;
@@ -50,14 +42,13 @@ Config::Config(std::string fileName) {
     myfile >> xPeriodic >> yPeriodic >> zPeriodic >> line;
 
     getline(myfile, line);
-    sphereRadiusA = 0;
-    sphereRadiusB = 0;
-    myfile >> sphereRadiusA >> sphereRadiusB >> line;
+    sphereRadiusHydro = 0;
+    sphereRadiusSigmaHydro = 0;
+    myfile >> sphereRadiusHydro >> sphereRadiusSigmaHydro >> line;
 
     getline(myfile, line);
-    sphereRadiusSigmaA = 0;
-    sphereRadiusSigmaB = 0;
-    myfile >> sphereRadiusSigmaA >> sphereRadiusSigmaB >> line;
+    sphereRadiusCollisionRatio = 0;
+    myfile >> sphereRadiusCollisionRatio >> line;
 
     getline(myfile, line);
     viscosity = 0;
@@ -66,32 +57,6 @@ Config::Config(std::string fileName) {
     getline(myfile, line);
     kBT = 0;
     myfile >> kBT >> line;
-
-    getline(myfile, line);
-    swimForce = 0;
-    myfile >> swimForce >> line;
-
-    getline(myfile, line);
-    forceMaxRatio = 0;
-    myfile >> forceMaxRatio >> line;
-
-    getline(myfile, line);
-    springLength = 0;
-    myfile >> springLength >> line;
-
-    if (springLength <= (sphereRadiusA + sphereRadiusB)) {
-        std::cout << "Error: spring length must be larger than the sum of two sphere radii \n Exit Now. " << std::endl;
-        exit(1);
-    }
-
-    getline(myfile, line);
-    springMaxLength = 0;
-    myfile >> springMaxLength >> line;
-
-    if (springMaxLength <= springLength) {
-        std::cout << "Error: max length must be larger than length \n Exit Now. " << std::endl;
-        exit(1);
-    }
 
     getline(myfile, line);
     sphereNumber = 0;
@@ -188,15 +153,14 @@ Config::Config(std::string fileName) {
         printf("Simulation box Low: %lf,%lf,%lf\n", simBoxLow[0], simBoxLow[1], simBoxLow[2]);
         printf("Simulation box High: %lf,%lf,%lf\n", simBoxHigh[0], simBoxHigh[1], simBoxHigh[2]);
         printf("Periodicity: %d,%d,%d\n", xPeriodic > 0 ? true : false, yPeriodic > 0 ? true : false,
-                zPeriodic > 0 ? true : false);
-        printf("MPI processes: %d,%d,%d\n", xProcs, yProcs, zProcs);
+               zPeriodic > 0 ? true : false);
         printf("Monolayer: %d\n", monolayer);
         printf("With hydrodynamics: %d\n", hydro);
     }
     {
         printf("Sphere Setting: \n");
-        printf("Sphere radius: %lf, %lf \n", sphereRadiusA, sphereRadiusB);
-        printf("Sphere radius LogNormal Sigma: %lf, %lf \n", sphereRadiusSigmaA, sphereRadiusSigmaB);
+        printf("Sphere radius average: %lf, LogNormal sigma: %lf \n", sphereRadiusHydro, sphereRadiusSigmaHydro);
+        printf("Sphere radius collision ratio: %lf\n", sphereRadiusCollisionRatio);
     }
 
     {
