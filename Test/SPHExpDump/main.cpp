@@ -5,6 +5,8 @@
 #include <vector>
 
 #include "Sphere/SPHExp.hpp"
+#include "Sphere/Sphere.hpp"
+#include "Util/IOHelper.hpp"
 
 void writeHeadVTU(std::ofstream &vtkfile) {
     vtkfile << "<?xml version=\"1.0\"?>\n";
@@ -60,25 +62,53 @@ void testSPHExp2VTK() {
     std::array<double, 3> coordBase = {2, 2, 2};
 
     writeHeadVTU(vtkfile);
-    sph1.dumpVTK(vtkfile, {2, 0, 0});
-    sph2.dumpVTK(vtkfile, {0, 2, 0});
+    sph1.dumpVTK(vtkfile, 1, {2, 0, 0});
+    sph2.dumpVTK(vtkfile, 1, {0, 2, 0});
     writeTailVTU(vtkfile);
 
     vtkfile.close();
 }
 
-int main() {
+void testVTK() {
+    std::vector<Sphere> sphere(10);
+    for (int i = 0; i < 10; i++) {
+        // fill random data
+        auto &s = sphere[i];
+        s.gid = i;
+        s.globalIndex = i;
+        s.radius = drand48();
+        s.radiusCollision = drand48();
+        Emap3(s.pos).setRandom();
+        Emap3(s.vel).setRandom();
+        Emap3(s.omega).setRandom();
+        s.orientation = Equatn::UnitRandom();
+        s.addLayer("lap", SPHExp::KIND::LAP);
+        s.addLayer("stk", SPHExp::KIND::STK);
+    }
+    Sphere::writeVTP(sphere, "000", 0);
+    Sphere::writeVTU(sphere, "000", 0);
+    Sphere::writePVTP("000", 1);
     std::vector<std::pair<int, std::string>> dataFields;
-    std::vector<std::string> pieceNames;
-    dataFields.emplace_back(std::pair<int, std::string>(1, "test"));
-    dataFields.emplace_back(std::pair<int, std::string>(3, "weight"));
+    std::vector<IOHelper::IOTYPE> types = {IOHelper::IOTYPE::Float64, IOHelper::IOTYPE::Float64,
+                                           IOHelper::IOTYPE::Float64};
+    dataFields.emplace_back(std::pair<int, std::string>(1, "lap"));
+    dataFields.emplace_back(std::pair<int, std::string>(3, "stk"));
+    Sphere::writePVTU(dataFields, types, "000", 1);
+}
 
-    pieceNames.emplace_back("test0.vtu");
-    pieceNames.emplace_back("test1.vtu");
+int main() {
+    // std::vector<std::pair<int, std::string>> dataFields;
+    // std::vector<std::string> pieceNames;
+    // dataFields.emplace_back(std::pair<int, std::string>(1, "test"));
+    // dataFields.emplace_back(std::pair<int, std::string>(3, "weight"));
 
-    writePVTUFile("test.pvtu", dataFields, pieceNames);
+    // pieceNames.emplace_back("test0.vtu");
+    // pieceNames.emplace_back("test1.vtu");
 
-    testSPHExp2VTK();
+    // writePVTUFile("test.pvtu", dataFields, pieceNames);
+
+    // testSPHExp2VTK();
+    testVTK();
     return 0;
 }
 

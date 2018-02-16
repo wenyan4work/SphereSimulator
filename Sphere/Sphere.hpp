@@ -1,11 +1,14 @@
 #ifndef SPHERE_HPP
 #define SPHERE_HPP
 
+#include <fstream>
+#include <iostream>
 #include <unordered_map>
 #include <vector>
 
 #include "SPHExp.hpp"
 #include "Util/Buffer.hpp"
+#include "Util/IOHelper.hpp"
 
 #define INVALID -1
 
@@ -54,6 +57,7 @@ class NeighborSphere {
 class Sphere {
   public:
     int gid = INVALID;
+    int globalIndex = INVALID;
     double radius;
     double radiusCollision;
     double pos[3];
@@ -81,15 +85,19 @@ class Sphere {
     void dumpNeighbor() const;
     void dumpLayer(const std::string &) const;
 
+    // necessary interface for Near Interaction
     const double *Coord() const { return pos; }
-
-    double Rad() const { return radiusCollision; }
-
+    double Rad() const { return radiusCollision * 4; }
     void Pack(std::vector<char> &buff) const;
-
     void Unpack(const std::vector<char> &buff);
 
     friend void swap(Sphere &, Sphere &);
+
+    static void writeVTP(const std::vector<Sphere> &sphere, const std::string &postfix, int rank);
+    static void writeVTU(const std::vector<Sphere> &sphere, const std::string &postfix, int rank);
+    static void writePVTP(const std::string &postfix, const int nProcs);
+    static void writePVTU(const std::vector<std::pair<int, std::string>> &dataFields,
+                          const std::vector<IOHelper::IOTYPE> &types, const std::string &postfix, const int nProcs);
 };
 
 #endif // SPHERE_HPP

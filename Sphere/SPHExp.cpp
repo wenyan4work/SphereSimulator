@@ -6,6 +6,7 @@
 #include "SPHExp.hpp"
 #include "Util/Base64.hpp"
 #include "Util/Gauss_Legendre_Nodes_and_Weights.hpp"
+#include "Util/IOHelper.hpp"
 #include "Util/sctl.hpp"
 
 constexpr double pi = 3.1415926535897932384626433;
@@ -73,7 +74,7 @@ void SPHExp::dumpSpectralValues(const std::string &filename) const {
     }
 }
 
-int SPHExp::dumpVTK(std::ofstream &file, const std::array<double, 3> &coordBase) const {
+int SPHExp::dumpVTK(std::ofstream &file, double radius, const std::array<double, 3> &coordBase) const {
     // indexBase is the index of the first grid point
 
     // this must be called in single thread
@@ -90,9 +91,9 @@ int SPHExp::dumpVTK(std::ofstream &file, const std::array<double, 3> &coordBase)
     assert(gridPoints.size() == nPts * 3);
 
     for (int i = 0; i < nPts; i++) {
-        gridPoints[3 * i] += coordBase[0];
-        gridPoints[3 * i + 1] += coordBase[1];
-        gridPoints[3 * i + 2] += coordBase[2];
+        gridPoints[3 * i] = gridPoints[3 * i] * radius + coordBase[0];
+        gridPoints[3 * i + 1] = gridPoints[3 * i + 1] * radius + coordBase[1];
+        gridPoints[3 * i + 2] = gridPoints[3 * i + 2] * radius + coordBase[2];
     }
 
     // for debug
@@ -150,51 +151,22 @@ int SPHExp::dumpVTK(std::ofstream &file, const std::array<double, 3> &coordBase)
 
     // point data
     file << "<PointData Scalars=\"scalars\">\n";
-    contentB64.clear();
-    B64Converter::getBase64FromVector(gridValues, contentB64);
-    file << "<DataArray Name=\"" << this->name << "\" type=\"Float64\" NumberOfComponents=\""
-         << ((kind == KIND::LAP) ? 1 : 3) << "\" format=\"binary\">\n";
-    file << contentB64 << "\n";
-    file << "</DataArray>\n";
-
-    contentB64.clear();
-    B64Converter::getBase64FromVector(gridWeights, contentB64);
-    file << "<DataArray Name=\""
-         << "weights"
-         << "\" type=\"Float64\" "
-         << " format=\"binary\">\n";
-    file << contentB64 << "\n";
-    file << "</DataArray>\n";
+    IOHelper::writeDataArrayBase64(gridValues, this->name, ((kind == KIND::LAP) ? 1 : 3), file);
+    IOHelper::writeDataArrayBase64(gridWeights, "weights", 1, file);
     file << "</PointData>\n";
 
     // cell data (empty)
 
     // point location
     file << "<Points>\n";
-    file << "<DataArray NumberOfComponents=\"3\" type=\"Float64\" format=\"binary\">\n";
-    contentB64.clear();
-    B64Converter::getBase64FromVector(gridPoints, contentB64);
-    file << contentB64 << "\n";
-    file << "</DataArray>\n";
+    IOHelper::writeDataArrayBase64(gridPoints, "points", 3, file);
     file << "</Points>\n";
 
     // cell definition
     file << "<Cells>\n";
-    file << "<DataArray type=\"Int32\" Name=\"connectivity\" format=\"binary\">\n";
-    contentB64.clear();
-    B64Converter::getBase64FromVector(connect, contentB64);
-    file << contentB64 << "\n";
-    file << "</DataArray>\n";
-    file << "<DataArray type=\"Int32\" Name=\"offsets\" format=\"binary\">\n";
-    contentB64.clear();
-    B64Converter::getBase64FromVector(offset, contentB64);
-    file << contentB64 << "\n";
-    file << "</DataArray>\n";
-    file << "<DataArray type=\"UInt8\" Name=\"types\" format=\"binary\">\n";
-    contentB64.clear();
-    B64Converter::getBase64FromVector(type, contentB64);
-    file << contentB64 << "\n";
-    file << "</DataArray>\n";
+    IOHelper::writeDataArrayBase64(connect, "connectivity", 1, file);
+    IOHelper::writeDataArrayBase64(offset, "offsets", 1, file);
+    IOHelper::writeDataArrayBase64(type, "types", 1, file);
     file << "</Cells>\n";
 
     // end

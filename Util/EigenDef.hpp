@@ -58,6 +58,9 @@ using EAmatPsi = Eigen::Matrix<double, 4, 3, Eigen::DontAlign>;
 // aligned quaternion
 using EAquatn = Eigen::Quaterniond;
 
+// map from raw pointer to fixed size type
+using Emap3 = Eigen::Map<Evec3>;
+
 // dynamic size types
 using Evec = Eigen::VectorXd;
 using Espmat = Eigen::SparseMatrix<double>;                         // default to column major

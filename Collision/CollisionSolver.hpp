@@ -6,35 +6,11 @@
 #include <deque>
 #include <vector>
 
-#include "Collision/CPSolver.hpp"
 #include "Trilinos/TpetraUtil.hpp"
 #include "Util/EigenDef.hpp"
 
-struct CollisionBlock { // the information for each collision
-  public:
-    double phi0;  // constraint value
-    double gamma; // force magnitude , could be an initial guess
-    int gidI, gidJ;
-    int globalIndexI, globalIndexJ;
-    Evec3 normI, normJ; // norm vector for each particle. gvecJ = - gvecI
-    Evec3 posI, posJ;   // the collision position on I and J. useless for spheres.
-
-    CollisionBlock() : gidI(0), gidJ(0), globalIndexI(0), globalIndexJ(0), phi0(0), gamma(0) {
-        // default constructor
-        normI.setZero();
-        normJ.setZero();
-        posI.setZero();
-        posJ.setZero();
-    }
-
-    CollisionBlock(double phi0_, double gamma_, int gidI_, int gidJ_, int globalIndexI_, int globalIndexJ_,
-                   const Evec3 &normI_, const Evec3 &normJ_, const Evec3 &posI_, const Evec3 &posJ_)
-        : phi0(phi0_), gamma(gamma_), gidI(gidI_), gidJ(gidJ_), globalIndexI(globalIndexI_),
-          globalIndexJ(globalIndexJ_), normI(normI_), normJ(normJ_), posI(posI_), posJ(posJ_) {}
-};
-
-using CollisionBlockQue = std::vector<CollisionBlock>; // can be changed to other containers, e.g., deque
-using CollisionBlockPool = std::vector<CollisionBlockQue>;
+#include "CPSolver.hpp"
+#include "CollisionCollector.hpp"
 
 class CollisionSolver {
 

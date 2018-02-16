@@ -1,7 +1,13 @@
-#include "Sphere.hpp"
 #include <cstdio>
+#include <vector>
 
-using Emap3 = Eigen::Map<Evec3>;
+#include "Sphere.hpp"
+#include "Util/Base64.hpp"
+#include "Util/IOHelper.hpp"
+
+/*****************************************************
+ *  Sphere
+ ******************************************************/
 
 void swap(Sphere &sphA, Sphere &sphB) {
     using std::swap;
@@ -127,6 +133,7 @@ void Sphere::Pack(std::vector<char> &buff) const {
     buffer.pack(std::string("SPHERE"));
     // fixed size data
     buffer.pack(gid);                                                 // int gid = INVALID;
+    buffer.pack(globalIndex);                                         // int gid = INVALID;
     buffer.pack(radius);                                              // double radius;
     buffer.pack(radiusCollision);                                     // double radiusCollision;
     buffer.pack(std::array<double, 3>{pos[0], pos[1], pos[2]});       // Evec3 pos;
@@ -159,6 +166,7 @@ void Sphere::Unpack(const std::vector<char> &buff) {
     assert(strbuf == std::string("SPHERE"));
     // fixed size data
     buffer.unpack(gid, buff);             // int gid = INVALID;
+    buffer.unpack(globalIndex, buff);     // int gid = INVALID;
     buffer.unpack(radius, buff);          // double radius;
     buffer.unpack(radiusCollision, buff); // double radiusCollision;
     std::array<double, 3> array3;
@@ -205,5 +213,134 @@ void Sphere::Unpack(const std::vector<char> &buff) {
         sphLayer[strbuf] = new SPHExp(static_cast<SPHExp::KIND>(kind), strbuf2, order, orientTemp);
         // unpack the sph values
         buffer.unpack(sphLayer[strbuf]->spectralCoeff, buff);
+    }
+}
+
+void Sphere::writeVTP(const std::vector<Sphere> &sphere, const std::string &postfix, int rank) {
+    // for each sphere:
+    /*
+    TODO: Procedure for dumping spheres in the system:
+
+    1 basic data (x,y,z), r, rcol, v, omega, etc output as VTK POLY_DATA file (*.vtp), each partiel is a VTK_VERTEX
+    2 each sph with the same name, output as UnstructuredGrid (*.vtu). each sph belongs to one particle is an
+   independent piece.
+    For each dataset, rank 0 writes the parallel header , then each rank write its own serial vtp/vtu file
+    */
+
+    // write VTP for basic data
+    //  use float to save some space
+    const int sphereNumber = sphere.size();
+    std::vector<int> gid(sphereNumber);
+    std::vector<float> radius(sphereNumber);
+    std::vector<float> radiusCollision(sphereNumber);
+    std::vector<double> pos(3 * sphereNumber);
+    std::vector<double> vel(3 * sphereNumber);
+    std::vector<double> omega(3 * sphereNumber);
+    std::vector<float> xnorm(3 * sphereNumber);
+    std::vector<float> znorm(3 * sphereNumber);
+
+#pragma omp parallel for
+    for (int i = 0; i < sphereNumber; i++) {
+        gid[i] = sphere[i].gid;
+        radius[i] = sphere[i].radius;
+        radiusCollision[i] = sphere[i].radiusCollision;
+        Evec3 nx = sphere[i].orientation * Evec3(1, 0, 0);
+        Evec3 nz = sphere[i].orientation * Evec3(0, 0, 1);
+        for (int j = 0; j < 3; j++) {
+            pos[3 * i + j] = sphere[i].pos[j];
+            vel[3 * i + j] = sphere[i].vel[j];
+            omega[3 * i + j] = sphere[i].omega[j];
+            xnorm[3 * i + j] = nx[j];
+            znorm[3 * i + j] = nz[j];
+        }
+    }
+
+    std::ofstream file(std::string("Sphere_") + postfix + "_r" + std::to_string(rank) + std::string(".vtp"),
+                       std::ios::out);
+
+    IOHelper::writeHeadVTP(file);
+    std::string contentB64; // data converted to base64 format
+    contentB64.reserve(4 * sphereNumber);
+
+    file << "<Piece NumberOfPoints=\"" << sphereNumber << "\" NumberOfCells=\"" << 0 << "\">\n";
+    // point data
+    file << "<PointData Scalars=\"scalars\">\n";
+    IOHelper::writeDataArrayBase64(gid, "gid", 1, file);
+    IOHelper::writeDataArrayBase64(radius, "radius", 1, file);
+    IOHelper::writeDataArrayBase64(radiusCollision, "radiusCollision", 1, file);
+    IOHelper::writeDataArrayBase64(vel, "velocity", 3, file);
+    IOHelper::writeDataArrayBase64(omega, "omega", 3, file);
+    IOHelper::writeDataArrayBase64(xnorm, "xnorm", 3, file);
+    IOHelper::writeDataArrayBase64(znorm, "znorm", 3, file);
+    file << "</PointData>\n";
+    // no cell data
+    // Points
+    file << "<Points>\n";
+    IOHelper::writeDataArrayBase64(pos, "position", 3, file);
+    file << "</Points>\n";
+    file << "</Piece>\n";
+
+    IOHelper::writeTailVTP(file);
+    file.close();
+}
+
+void Sphere::writeVTU(const std::vector<Sphere> &sphere, const std::string &postfix, int rank) {
+    // each sphere has the same number and name of layers
+    // dump one vtu file for each sph
+    for (const auto &layer : sphere[0].sphLayer) {
+        const std::string &name = layer.first;
+        std::ofstream file(std::string("Sphere_") + name + "_" + postfix + "_r" + std::to_string(rank) +
+                               std::string(".vtu"),
+                           std::ios::out);
+        IOHelper::writeHeadVTU(file);
+        for (auto &s : sphere) {
+            const auto &it = s.sphLayer.find(name);
+            std::array<double, 3> coordBase = {s.pos[0], s.pos[1], s.pos[2]};
+            if (it == s.sphLayer.end())
+                std::cout << "not found";
+            else
+                it->second->dumpVTK(file, s.radius, coordBase);
+        }
+        IOHelper::writeTailVTU(file);
+    }
+}
+
+void Sphere::writePVTP(const std::string &postfix, const int nProcs) {
+    std::vector<std::pair<int, std::string>> dataFields;
+    std::vector<std::string> pieceNames;
+    dataFields.emplace_back(std::pair<int, std::string>(1, "gid"));
+    dataFields.emplace_back(std::pair<int, std::string>(1, "radius"));
+    dataFields.emplace_back(std::pair<int, std::string>(1, "radiusCollision"));
+    dataFields.emplace_back(std::pair<int, std::string>(3, "vel"));
+    dataFields.emplace_back(std::pair<int, std::string>(3, "omega"));
+    dataFields.emplace_back(std::pair<int, std::string>(3, "xnorm"));
+    dataFields.emplace_back(std::pair<int, std::string>(3, "znorm"));
+    std::vector<IOHelper::IOTYPE> types = {
+        IOHelper::IOTYPE::Int32,   IOHelper::IOTYPE::Float32, IOHelper::IOTYPE::Float32, IOHelper::IOTYPE::Float64,
+        IOHelper::IOTYPE::Float64, IOHelper::IOTYPE::Float32, IOHelper::IOTYPE::Float32};
+
+    for (int i = 0; i < nProcs; i++) {
+        pieceNames.emplace_back("Sphere_" + postfix + "_r" + std::to_string(i) + ".vtp");
+    }
+
+    IOHelper::writePVTPFile("Sphere_" + postfix + ".pvtp", dataFields, types, pieceNames);
+}
+
+void Sphere::writePVTU(const std::vector<std::pair<int, std::string>> &dataFields,
+                       const std::vector<IOHelper::IOTYPE> &types, const std::string &postfix, const int nProcs) {
+
+    for (int j = 0; j < dataFields.size(); j++) {
+        std::vector<std::string> pieceNames;
+        std::vector<std::pair<int, std::string>> names;
+        names.emplace_back(dataFields[j]);
+        names.emplace_back(std::pair<int, std::string>(1, "weights"));
+        std::vector<IOHelper::IOTYPE> t;
+        t.emplace_back(IOHelper::IOTYPE::Float64);
+        t.emplace_back(IOHelper::IOTYPE::Float64);
+        for (int i = 0; i < nProcs; i++) {
+            pieceNames.emplace_back("Sphere_" + dataFields[j].second + "_" + postfix + "_r" + std::to_string(i) +
+                                    ".vtu");
+        }
+        IOHelper::writePVTUFile("Sphere_" + dataFields[j].second + "_" + postfix + ".pvtu", names, t, pieceNames);
     }
 }

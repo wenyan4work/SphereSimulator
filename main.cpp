@@ -3,8 +3,9 @@
 #include <string>
 #include <vector>
 
-#include "EigenDef.hpp"
-#include "mpi.h"
+#include <mpi.h>
+
+#include "Util/EigenDef.hpp"
 #include "SphereSystem.hpp"
 
 int main(int argc, char **argv) {
@@ -12,8 +13,7 @@ int main(int argc, char **argv) {
     Eigen::setNbThreads(1); // disable threading in eigen
 
     MPI_Init(&argc, &argv);
-    // int myRank;
-    // MPI_Comm_rank(MPI_COMM_WORLD, &myRank);
+
     // create a system and distribute it to all ranks
     std::string configFile = "runConfig.txt";
     std::string posFile = "posInitial.txt";
@@ -25,14 +25,13 @@ int main(int argc, char **argv) {
 
         while (t < mySystem.runConfig.timeTotal + mySystem.runConfig.dt / 2) {
             MPI_Barrier(MPI_COMM_WORLD); // barrier before destructing mySystem;
-            mySystem.stepForward();
+            mySystem.stepEuler();
             t += mySystem.runConfig.dt;
             iStep++;
         }
         MPI_Barrier(MPI_COMM_WORLD); // barrier before destructing mySystem;
         printf("mySystem destroyed");
     }
-    // clean up
 
     // mpi finalize
     // let the root rank wait for other
