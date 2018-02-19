@@ -10,417 +10,45 @@ template <class Real> void SphericalHarmonics<Real>::Grid2SHC(const Vector<Real>
 
   Vector<Real> B1(N*(p1+1)*(p1+1));
   Grid2SHC_(X, Nt, Np, p1, B1);
-  B1 *= 1 / sqrt<Real>(4 * const_pi<Real>() * Np); // Scaling to match Zydrunas Fortran code.
   SHCArrange0(B1, p1, S, arrange);
 }
 
-template <class Real> void SphericalHarmonics<Real>::Grid2SHC_(const Vector<Real>& X, Long Nt, Long Np, Long p1, Vector<Real>& B1){
-  const auto& Mf = OpFourierInv(Np);
-  assert(Mf.Dim(0) == Np);
-
-  const std::vector<Matrix<Real>>& Ml = SphericalHarmonics<Real>::MatLegendreInv(Nt-1,p1);
-  assert((Long)Ml.size() == p1+1);
-
-  Long N = X.Dim() / (Np*Nt);
-  assert(X.Dim() == N*Np*Nt);
-
-  Vector<Real> B0((2*p1+1) * N*Nt);
-  #pragma omp parallel
-  { // B0 <-- Transpose(FFT(X))
-    Integer tid=omp_get_thread_num();
-    Integer omp_p=omp_get_num_threads();
-    Long a=(tid+0)*N*Nt/omp_p;
-    Long b=(tid+1)*N*Nt/omp_p;
-
-    Vector<Real> buff(Mf.Dim(1));
-    Long fft_coeff_len = std::min(buff.Dim(), 2*p1+2);
-    Matrix<Real> B0_(2*p1+1, N*Nt, B0.begin(), false);
-    const Matrix<Real> MX(N * Nt, Np, (Iterator<Real>)X.begin(), false);
-    for (Long i = a; i < b; i++) {
-      { // buff <-- FFT(Xi)
-        const Vector<Real> Xi(Np, (Iterator<Real>)X.begin() + Np * i, false);
-        Mf.Execute(Xi, buff);
-      }
-      { // B0 <-- Transpose(buff)
-        B0_[0][i] = buff[0]; // skipping buff[1] == 0
-        for (Long j = 2; j < fft_coeff_len; j++) B0_[j-1][i] = buff[j];
-        for (Long j = fft_coeff_len; j < 2*p1+2; j++) B0_[j-1][i] = 0;
-      }
-    }
-  }
-
-  if (B1.Dim() != N*(p1+1)*(p1+1)) B1.ReInit(N*(p1+1)*(p1+1));
-  #pragma omp parallel
-  { // Evaluate Legendre polynomial
-    Integer tid=omp_get_thread_num();
-    Integer omp_p=omp_get_num_threads();
-
-    Long offset0=0;
-    Long offset1=0;
-    for (Long i = 0; i < p1+1; i++) {
-      Long N_ = (i==0 ? N : 2*N);
-      Matrix<Real> Min (N_, Nt    , B0.begin()+offset0, false);
-      Matrix<Real> Mout(N_, p1+1-i, B1.begin()+offset1, false);
-      { // Mout = Min * Ml[i]  // split between threads
-        Long a=(tid+0)*N_/omp_p;
-        Long b=(tid+1)*N_/omp_p;
-        if (a < b) {
-          Matrix<Real> Min_ (b-a, Min .Dim(1), Min [a], false);
-          Matrix<Real> Mout_(b-a, Mout.Dim(1), Mout[a], false);
-          Matrix<Real>::GEMM(Mout_,Min_,Ml[i]);
-        }
-      }
-      offset0+=Min .Dim(0)*Min .Dim(1);
-      offset1+=Mout.Dim(0)*Mout.Dim(1);
-    }
-    assert(offset0 == B0.Dim());
-    assert(offset1 == B1.Dim());
-  }
-}
-
-template <class Real> void SphericalHarmonics<Real>::SHCArrange0(const Vector<Real>& B1, Long p1, Vector<Real>& S, SHCArrange arrange){
-  Long M = (p1+1)*(p1+1);
-  Long N = B1.Dim() / M;
-  assert(B1.Dim() == N*M);
-  if (arrange == SHCArrange::ALL) { // S <-- Rearrange(B1)
-    Long M = 2*(p1+1)*(p1+1);
-    if(S.Dim() != N * M) S.ReInit(N * M);
-    #pragma omp parallel
-    { // S <-- Rearrange(B1)
-      Integer tid=omp_get_thread_num();
-      Integer omp_p=omp_get_num_threads();
-
-      Long a=(tid+0)*N/omp_p;
-      Long b=(tid+1)*N/omp_p;
-      for (Long i = a; i < b; i++) {
-        Long offset = 0;
-        for (Long j = 0; j < p1+1; j++) {
-          Long len = p1+1 - j;
-          if (1) { // Set Real(S_n^m) for m=j and n=j..p
-            ConstIterator<Real> B_ = B1.begin() + i*len + N*offset;
-            Iterator<Real>      S_ = S .begin() + i*M   + j*(p1+1)*2 + j*2 + 0;
-            for (Long k = 0; k < len; k++) S_[k * (p1+1)*2] = B_[k];
-            offset += len;
-          }
-          if (j) { // Set Imag(S_n^m) for m=j and n=j..p
-            ConstIterator<Real> B_ = B1.begin() + i*len + N*offset;
-            Iterator<Real>      S_ = S .begin() + i*M   + j*(p1+1)*2 + j*2 + 1;
-            for (Long k = 0; k < len; k++) S_[k * (p1+1)*2] = B_[k];
-            offset += len;
-          } else {
-            Iterator<Real>      S_ = S .begin() + i*M   + j*(p1+1)*2 + j*2 + 1;
-            for (Long k = 0; k < len; k++) S_[k * (p1+1)*2] = 0;
-          }
-        }
-      }
-    }
-  }
-  if (arrange == SHCArrange::ROW_MAJOR) { // S <-- Rearrange(B1)
-    Long M = (p1+1)*(p1+2);
-    if(S.Dim() != N * M) S.ReInit(N * M);
-    #pragma omp parallel
-    { // S <-- Rearrange(B1)
-      Integer tid=omp_get_thread_num();
-      Integer omp_p=omp_get_num_threads();
-
-      Long a=(tid+0)*N/omp_p;
-      Long b=(tid+1)*N/omp_p;
-      for (Long i = a; i < b; i++) {
-        Long offset = 0;
-        for (Long j = 0; j < p1+1; j++) {
-          Long len = p1+1 - j;
-          if (1) { // Set Real(S_n^m) for m=j and n=j..p
-            ConstIterator<Real> B_ = B1.begin() + i*len + N*offset;
-            Iterator<Real>      S_ = S .begin() + i*M + 0;
-            for (Long k=0;k<len;k++) S_[(j+k)*(j+k+1) + 2*j] = B_[k];
-            offset += len;
-          }
-          if (j) { // Set Imag(S_n^m) for m=j and n=j..p
-            ConstIterator<Real> B_ = B1.begin() + i*len + N*offset;
-            Iterator<Real>      S_ = S .begin() + i*M + 1;
-            for (Long k=0;k<len;k++) S_[(j+k)*(j+k+1) + 2*j] = B_[k];
-            offset += len;
-          } else {
-            Iterator<Real> S_ = S .begin() + i*M + 1;
-            for (Long k=0;k<len;k++) S_[(j+k)*(j+k+1) + 2*j] = 0;
-          }
-        }
-      }
-    }
-  }
-  if (arrange == SHCArrange::COL_MAJOR_NONZERO) { // S <-- Rearrange(B1)
-    Long M = (p1+1)*(p1+1);
-    if(S.Dim() != N * M) S.ReInit(N * M);
-    #pragma omp parallel
-    { // S <-- Rearrange(B1)
-      Integer tid=omp_get_thread_num();
-      Integer omp_p=omp_get_num_threads();
-
-      Long a=(tid+0)*N/omp_p;
-      Long b=(tid+1)*N/omp_p;
-      for (Long i = a; i < b; i++) {
-        Long offset = 0;
-        for (Long j = 0; j <  p1+1; j++) {
-          Long len = p1+1 - j;
-          if (1) { // Set Real(S_n^m) for m=j and n=j..p
-            ConstIterator<Real> B_ = B1.begin() + i*len + N*offset;
-            Iterator<Real>      S_ = S .begin() + i*M   + offset;
-            for (Long k = 0; k < len; k++) S_[k] = B_[k];
-            offset += len;
-          }
-          if (j) { // Set Imag(S_n^m) for m=j and n=j..p
-            ConstIterator<Real> B_ = B1.begin() + i*len + N*offset;
-            Iterator<Real>      S_ = S .begin() + i*M   + offset;
-            for (Long k = 0; k < len; k++) S_[k] = B_[k];
-            offset += len;
-          }
-        }
-      }
-    }
-  }
-}
-
-template <class Real> void SphericalHarmonics<Real>::SHC2Grid(const Vector<Real>& S, SHCArrange arrange, Long p0, Long Nt, Long Np, Vector<Real>* X, Vector<Real>* X_phi, Vector<Real>* X_theta){
+template <class Real> void SphericalHarmonics<Real>::SHC2Grid(const Vector<Real>& S, SHCArrange arrange, Long p0, Long Nt, Long Np, Vector<Real>* X, Vector<Real>* X_theta, Vector<Real>* X_phi){
   Vector<Real> B0;
   SHCArrange1(S, arrange, p0, B0);
-  B0 *= sqrt<Real>(4 * const_pi<Real>() * Np); // Scaling to match Zydrunas Fortran code.
   SHC2Grid_(B0, p0, Nt, Np, X, X_phi, X_theta);
 }
 
-template <class Real> void SphericalHarmonics<Real>::SHCArrange1(const Vector<Real>& S, SHCArrange arrange, Long p0, Vector<Real>& B0){
-  Long M, N;
-  { // Set M, N
-    M = 0;
-    if (arrange == SHCArrange::ALL) M = 2*(p0+1)*(p0+1);
-    if (arrange == SHCArrange::ROW_MAJOR) M = (p0+1)*(p0+2);
-    if (arrange == SHCArrange::COL_MAJOR_NONZERO) M = (p0+1)*(p0+1);
-    if (M == 0) return;
-    N = S.Dim() / M;
-    assert(S.Dim() == N * M);
+template <class Real> void SphericalHarmonics<Real>::SHCEval(const Vector<Real>& S, SHCArrange arrange, Long p0, const Vector<Real>& cos_theta_phi, Vector<Real>& X) {
+  Long M = (p0+1) * (p0+1);
+
+  Long dof;
+  Matrix<Real> B1;
+  { // Set B1, dof
+    Vector<Real> B0;
+    SHCArrange1(S, arrange, p0, B0);
+    dof = B0.Dim() / M;
+    assert(B0.Dim() == dof * M);
+
+    B1.ReInit(dof, M);
+    Vector<Real> B1_(B1.Dim(0) * B1.Dim(1), B1.begin(), false);
+    SHCArrange0(B0, p0, B1_, SHCArrange::COL_MAJOR_NONZERO);
   }
+  assert(B1.Dim(0) == dof);
+  assert(B1.Dim(1) == M);
 
-  if (B0.Dim() != N*(p0+1)*(p0+1)) B0.ReInit(N*(p0+1)*(p0+1));
-  if (arrange == SHCArrange::ALL) { // B0 <-- Rearrange(S)
-    #pragma omp parallel
-    { // B0 <-- Rearrange(S)
-      Integer tid=omp_get_thread_num();
-      Integer omp_p=omp_get_num_threads();
+  Matrix<Real> SHBasis;
+  SHBasisEval(p0, cos_theta_phi, SHBasis);
+  assert(SHBasis.Dim(1) == M);
+  Long N = SHBasis.Dim(0);
 
-      Long a=(tid+0)*N/omp_p;
-      Long b=(tid+1)*N/omp_p;
-      for (Long i = a; i < b; i++) {
-        Long offset = 0;
-        for (Long j = 0; j < p0+1; j++) {
-          Long len = p0+1 - j;
-          if (1) { // Get Real(S_n^m) for m=j and n=j..p
-            Iterator<Real>      B_ = B0.begin() + i*len + N*offset;
-            ConstIterator<Real> S_ = S .begin() + i*M   + j*(p0+1)*2 + j*2 + 0;
-            for (Long k = 0; k < len; k++) B_[k] = S_[k * (p0+1)*2];
-            offset += len;
-          }
-          if (j) { // Get Imag(S_n^m) for m=j and n=j..p
-            Iterator<Real>      B_ = B0.begin() + i*len + N*offset;
-            ConstIterator<Real> S_ = S .begin() + i*M   + j*(p0+1)*2 + j*2 + 1;
-            for (Long k = 0; k < len; k++) B_[k] = S_[k * (p0+1)*2];
-            offset += len;
-          }
-        }
-      }
-    }
-  }
-  if (arrange == SHCArrange::ROW_MAJOR) { // B0 <-- Rearrange(S)
-    #pragma omp parallel
-    { // B0 <-- Rearrange(S)
-      Integer tid=omp_get_thread_num();
-      Integer omp_p=omp_get_num_threads();
-
-      Long a=(tid+0)*N/omp_p;
-      Long b=(tid+1)*N/omp_p;
-      for (Long i = a; i < b; i++) {
-        Long offset = 0;
-        for (Long j = 0; j < p0+1; j++) {
-          Long len = p0+1 - j;
-          if (1) { // Get Real(S_n^m) for m=j and n=j..p
-            Iterator<Real>      B_ = B0.begin() + i*len + N*offset;
-            ConstIterator<Real> S_ = S .begin() + i*M + 0;
-            for (Long k=0;k<len;k++) B_[k] = S_[(j+k)*(j+k+1) + 2*j];
-            offset += len;
-          }
-          if (j) { // Get Imag(S_n^m) for m=j and n=j..p
-            Iterator<Real>      B_ = B0.begin() + i*len + N*offset;
-            ConstIterator<Real> S_ = S .begin() + i*M + 1;
-            for (Long k=0;k<len;k++) B_[k] = S_[(j+k)*(j+k+1) + 2*j];
-            offset += len;
-          }
-        }
-      }
-    }
-  }
-  if (arrange == SHCArrange::COL_MAJOR_NONZERO) { // B0 <-- Rearrange(S)
-    #pragma omp parallel
-    { // B0 <-- Rearrange(S)
-      Integer tid=omp_get_thread_num();
-      Integer omp_p=omp_get_num_threads();
-
-      Long a=(tid+0)*N/omp_p;
-      Long b=(tid+1)*N/omp_p;
-      for (Long i = a; i < b; i++) {
-        Long offset = 0;
-        for (Long j = 0; j <  p0+1; j++) {
-          Long len = p0+1 - j;
-          if (1) { // Get Real(S_n^m) for m=j and n=j..p
-            Iterator<Real>      B_ = B0.begin() + i*len + N*offset;
-            ConstIterator<Real> S_ = S .begin() + i*M   + offset;
-            for (Long k = 0; k < len; k++) B_[k] = S_[k];
-            offset += len;
-          }
-          if (j) { // Get Imag(S_n^m) for m=j and n=j..p
-            Iterator<Real>      B_ = B0.begin() + i*len + N*offset;
-            ConstIterator<Real> S_ = S .begin() + i*M   + offset;
-            for (Long k = 0; k < len; k++) B_[k] = S_[k];
-            offset += len;
-          }
-        }
-      }
-    }
-  }
-}
-
-template <class Real> void SphericalHarmonics<Real>::SHC2Grid_(const Vector<Real>& B0, Long p0, Long Nt, Long Np, Vector<Real>* X, Vector<Real>* X_phi, Vector<Real>* X_theta){
-  const auto& Mf = OpFourier(Np);
-  assert(Mf.Dim(1) == Np);
-
-  const std::vector<Matrix<Real>>& Ml =SphericalHarmonics<Real>::MatLegendre    (p0,Nt-1);
-  const std::vector<Matrix<Real>>& Mdl=SphericalHarmonics<Real>::MatLegendreGrad(p0,Nt-1);
-  assert((Long)Ml .size() == p0+1);
-  assert((Long)Mdl.size() == p0+1);
-
-  Long N = B0.Dim() / ((p0+1)*(p0+1));
-  assert(B0.Dim() == N*(p0+1)*(p0+1));
-
-  if(X       && X      ->Dim()!=N*Np*Nt) X      ->ReInit(N*Np*Nt);
-  if(X_theta && X_theta->Dim()!=N*Np*Nt) X_theta->ReInit(N*Np*Nt);
-  if(X_phi   && X_phi  ->Dim()!=N*Np*Nt) X_phi  ->ReInit(N*Np*Nt);
-
-  Vector<Real> B1(N*(2*p0+1)*Nt);
-  if(X || X_phi){
-    #pragma omp parallel
-    { // Evaluate Legendre polynomial
-      Integer tid=omp_get_thread_num();
-      Integer omp_p=omp_get_num_threads();
-
-      Long offset0=0;
-      Long offset1=0;
-      for(Long i=0;i<p0+1;i++){
-        Long N_ = (i==0 ? N : 2*N);
-        const Matrix<Real> Min (N_, p0+1-i, (Iterator<Real>)B0.begin()+offset0, false);
-        Matrix<Real> Mout(N_, Nt    , B1.begin()+offset1, false);
-        { // Mout = Min * Ml[i]  // split between threads
-          Long a=(tid+0)*N_/omp_p;
-          Long b=(tid+1)*N_/omp_p;
-          if(a<b){
-            const Matrix<Real> Min_ (b-a, Min .Dim(1), (Iterator<Real>)Min [a], false);
-            Matrix<Real> Mout_(b-a, Mout.Dim(1), Mout[a], false);
-            Matrix<Real>::GEMM(Mout_,Min_,Ml[i]);
-          }
-        }
-        offset0+=Min .Dim(0)*Min .Dim(1);
-        offset1+=Mout.Dim(0)*Mout.Dim(1);
-      }
-    }
-
-    #pragma omp parallel
-    { // Transpose and evaluate Fourier
-      Integer tid=omp_get_thread_num();
-      Integer omp_p=omp_get_num_threads();
-
-      Long a=(tid+0)*N*Nt/omp_p;
-      Long b=(tid+1)*N*Nt/omp_p;
-
-      Vector<Real> buff(Mf.Dim(0)); buff = 0;
-      Long fft_coeff_len = std::min(buff.Dim(), 2*p0+2);
-      Matrix<Real> B1_(2*p0+1, N*Nt, B1.begin(), false);
-      for (Long i = a; i < b; i++) {
-        { // buff <-- Transpose(B1)
-          buff[0] = B1_[0][i];
-          buff[1] = 0;
-          for (Long j = 2; j < fft_coeff_len; j++) buff[j] = B1_[j-1][i];
-          for (Long j = fft_coeff_len; j < buff.Dim(); j++) buff[j] = 0;
-        }
-        { // X <-- FFT(buff)
-          Vector<Real> Xi(Np, X->begin() + Np * i, false);
-          Mf.Execute(buff, Xi);
-        }
-
-        if(X_phi){ // Evaluate Fourier gradient
-          { // buff <-- Transpose(B1)
-            buff[0] = 0;
-            buff[1] = 0;
-            for (Long j = 2; j < fft_coeff_len; j++) buff[j] = B1_[j-1][i];
-            for (Long j = fft_coeff_len; j < buff.Dim(); j++) buff[j] = 0;
-            for (Long j = 1; j < buff.Dim()/2; j++) {
-              Real x = buff[2*j+0];
-              Real y = buff[2*j+1];
-              buff[2*j+0] = -j*y;
-              buff[2*j+1] =  j*x;
-            }
-          }
-          { // X_phi <-- FFT(buff)
-            Vector<Real> Xi(Np, X_phi->begin() + Np * i, false);
-            Mf.Execute(buff, Xi);
-          }
-        }
-      }
-    }
-  }
-  if(X_theta){
-    #pragma omp parallel
-    { // Evaluate Legendre gradient
-      Integer tid=omp_get_thread_num();
-      Integer omp_p=omp_get_num_threads();
-
-      Long offset0=0;
-      Long offset1=0;
-      for(Long i=0;i<p0+1;i++){
-        Long N_ = (i==0 ? N : 2*N);
-        const Matrix<Real> Min (N_, p0+1-i, (Iterator<Real>)B0.begin()+offset0, false);
-        Matrix<Real> Mout(N_, Nt    , B1.begin()+offset1, false);
-        { // Mout = Min * Mdl[i]  // split between threads
-          Long a=(tid+0)*N_/omp_p;
-          Long b=(tid+1)*N_/omp_p;
-          if(a<b){
-            const Matrix<Real> Min_ (b-a, Min .Dim(1), (Iterator<Real>)Min [a], false);
-            Matrix<Real> Mout_(b-a, Mout.Dim(1), Mout[a], false);
-            Matrix<Real>::GEMM(Mout_,Min_,Mdl[i]);
-          }
-        }
-        offset0+=Min .Dim(0)*Min .Dim(1);
-        offset1+=Mout.Dim(0)*Mout.Dim(1);
-      }
-    }
-
-    #pragma omp parallel
-    { // Transpose and evaluate Fourier
-      Integer tid=omp_get_thread_num();
-      Integer omp_p=omp_get_num_threads();
-
-      Long a=(tid+0)*N*Nt/omp_p;
-      Long b=(tid+1)*N*Nt/omp_p;
-
-      Vector<Real> buff(Mf.Dim(0)); buff = 0;
-      Long fft_coeff_len = std::min(buff.Dim(), 2*p0+2);
-      Matrix<Real> B1_(2*p0+1, N*Nt, B1.begin(), false);
-      for (Long i = a; i < b; i++) {
-        { // buff <-- Transpose(B1)
-          buff[0] = B1_[0][i];
-          buff[1] = 0;
-          for (Long j = 2; j < fft_coeff_len; j++) buff[j] = B1_[j-1][i];
-          for (Long j = fft_coeff_len; j < buff.Dim(); j++) buff[j] = 0;
-        }
-        { // Xi <-- FFT(buff)
-          Vector<Real> Xi(Np, X_theta->begin() + Np * i, false);
-          Mf.Execute(buff, Xi);
-        }
+  { // Set X
+    if (X.Dim() != N*dof) X.ReInit(N * dof);
+    for (Long k0 = 0; k0 < N; k0++) {
+      for (Long k1 = 0; k1 < dof; k1++) {
+        Real X_ = 0;
+        for (Long i = 0; i < M; i++) X_ += B1[k1][i] * SHBasis[k0][i];
+        X[k0 * dof + k1] = X_;
       }
     }
   }
@@ -731,6 +359,7 @@ template <class Real> void SphericalHarmonics<Real>::WriteVTK(const char* fname,
   pvtufile.close();
 }
 
+
 template <class Real> void SphericalHarmonics<Real>::Grid2VecSHC(const Vector<Real>& X, Long Nt, Long Np, Long p0, Vector<Real>& S, SHCArrange arrange) {
   Long N = X.Dim() / (Np*Nt);
   assert(X.Dim() == N*Np*Nt);
@@ -738,16 +367,35 @@ template <class Real> void SphericalHarmonics<Real>::Grid2VecSHC(const Vector<Re
 
   Vector<Real> B0(N*Nt*Np);
   { // Set B0
-    B0 = X;
+    Vector<Real> sin_phi(Np), cos_phi(Np);
+    for (Long i = 0; i < Np; i++) {
+      sin_phi[i] = sin(2 * const_pi<Real>() * i / Np);
+      cos_phi[i] = cos(2 * const_pi<Real>() * i / Np);
+    }
     const auto& Y = LegendreNodes(Nt - 1);
     assert(Y.Dim() == Nt);
-    for (Long k = 0; k < N; k++) {
-      if (k % COORD_DIM) {
-        for (Long i = 0; i < Nt; i++) {
-          Real s = 1/sqrt<Real>(1 - Y[i]*Y[i]);
-          for (Long j = 0; j < Np; j++) {
-            B0[(k*Nt+i)*Np+j] *= s;
-          }
+    Long Ngrid = Nt * Np;
+    for (Long k = 0; k < N; k+=COORD_DIM) {
+      for (Long i = 0; i < Nt; i++) {
+        Real sin_theta = sqrt<Real>(1 - Y[i]*Y[i]);
+        Real cos_theta = Y[i];
+        Real s = 1 / sin_theta;
+        const auto X_ = X.begin() + (k*Nt+i)*Np;
+        auto B0_ = B0.begin() + (k*Nt+i)*Np;
+        for (Long j = 0; j < Np; j++) {
+          StaticArray<Real,3> in;
+          in[0] = X_[0*Ngrid+j];
+          in[1] = X_[1*Ngrid+j];
+          in[2] = X_[2*Ngrid+j];
+
+          StaticArray<Real,9> M;
+          M[0] = sin_theta*cos_phi[j]; M[1] = sin_theta*sin_phi[j]; M[2] = cos_theta;
+          M[3] = cos_theta*cos_phi[j]; M[4] = cos_theta*sin_phi[j]; M[5] =-sin_theta;
+          M[6] =          -sin_phi[j]; M[7] =           cos_phi[j]; M[8] =         0;
+
+          B0_[0*Ngrid+j] = ( M[0] * in[0] + M[1] * in[1] + M[2] * in[2] );
+          B0_[1*Ngrid+j] = ( M[3] * in[0] + M[4] * in[1] + M[5] * in[2] ) * s;
+          B0_[2*Ngrid+j] = ( M[6] * in[0] + M[7] * in[1] + M[8] * in[2] ) * s;
         }
       }
     }
@@ -758,7 +406,6 @@ template <class Real> void SphericalHarmonics<Real>::Grid2VecSHC(const Vector<Re
   Long M_ = (p_+1)*(p_+1);
   Vector<Real> B1(N*M_);
   Grid2SHC_(B0, Nt, Np, p_, B1);
-  B1 *= 1 / sqrt<Real>(4 * const_pi<Real>() * Np); // Scaling to match Zydrunas Fortran code.
 
   Vector<Real> B2(N*M0);
   const Complex<Real> imag(0,1);
@@ -857,7 +504,7 @@ template <class Real> void SphericalHarmonics<Real>::VecSHC2Grid(const Vector<Re
         auto phiY = [&](Long n, Long m) {
           auto phiV = read_coeff(B0, i+0, p0, n, m);
           auto phiW = read_coeff(B0, i+1, p0, n, m);
-          return -phiV * (n + 1) + phiW * n;
+          return phiW * n - phiV * (n + 1);
         };
         auto phiX = [&](Long n, Long m) {
           return read_coeff(B0, i+2, p0, n, m);
@@ -879,18 +526,560 @@ template <class Real> void SphericalHarmonics<Real>::VecSHC2Grid(const Vector<Re
     }
   }
 
-  B1 *= sqrt<Real>(4 * const_pi<Real>() * Np); // Scaling to match Zydrunas Fortran code.
-  SHC2Grid_(B1, p_, Nt, Np, &X);
-
   { // Set X
+    SHC2Grid_(B1, p_, Nt, Np, &X);
+
+    Vector<Real> sin_phi(Np), cos_phi(Np);
+    for (Long i = 0; i < Np; i++) {
+      sin_phi[i] = sin(2 * const_pi<Real>() * i / Np);
+      cos_phi[i] = cos(2 * const_pi<Real>() * i / Np);
+    }
     const auto& Y = LegendreNodes(Nt - 1);
     assert(Y.Dim() == Nt);
-    for (Long k = 0; k < N; k++) {
-      if (k % COORD_DIM) {
-        for (Long i = 0; i < Nt; i++) {
-          Real s = 1/sqrt<Real>(1 - Y[i]*Y[i]);
-          for (Long j = 0; j < Np; j++) {
-            X[(k*Nt+i)*Np+j] *= s;
+    Long Ngrid = Nt * Np;
+    for (Long k = 0; k < N; k+=COORD_DIM) {
+      for (Long i = 0; i < Nt; i++) {
+        Real sin_theta = sqrt<Real>(1 - Y[i]*Y[i]);
+        Real cos_theta = Y[i];
+        Real s = 1 / sin_theta;
+        auto X_ = X.begin() + (k*Nt+i)*Np;
+        for (Long j = 0; j < Np; j++) {
+          StaticArray<Real,3> in;
+          in[0] = X_[0*Ngrid+j];
+          in[1] = X_[1*Ngrid+j] * s;
+          in[2] = X_[2*Ngrid+j] * s;
+
+          StaticArray<Real,9> M;
+          M[0] = sin_theta*cos_phi[j]; M[1] = sin_theta*sin_phi[j]; M[2] = cos_theta;
+          M[3] = cos_theta*cos_phi[j]; M[4] = cos_theta*sin_phi[j]; M[5] =-sin_theta;
+          M[6] =          -sin_phi[j]; M[7] =           cos_phi[j]; M[8] =         0;
+
+          X_[0*Ngrid+j] = ( M[0] * in[0] + M[3] * in[1] + M[6] * in[2] );
+          X_[1*Ngrid+j] = ( M[1] * in[0] + M[4] * in[1] + M[7] * in[2] );
+          X_[2*Ngrid+j] = ( M[2] * in[0] + M[5] * in[1] + M[8] * in[2] );
+        }
+      }
+    }
+  }
+}
+
+template <class Real> void SphericalHarmonics<Real>::VecSHCEval(const Vector<Real>& S, SHCArrange arrange, Long p0, const Vector<Real>& cos_theta_phi, Vector<Real>& X) {
+  Long M = (p0+1) * (p0+1);
+
+  Long dof;
+  Matrix<Real> B1;
+  { // Set B1, dof
+    Vector<Real> B0;
+    SHCArrange1(S, arrange, p0, B0);
+    dof = B0.Dim() / M / COORD_DIM;
+    assert(B0.Dim() == dof * COORD_DIM * M);
+
+    B1.ReInit(dof, COORD_DIM * M);
+    Vector<Real> B1_(B1.Dim(0) * B1.Dim(1), B1.begin(), false);
+    SHCArrange0(B0, p0, B1_, SHCArrange::COL_MAJOR_NONZERO);
+  }
+  assert(B1.Dim(1) == COORD_DIM * M);
+  assert(B1.Dim(0) == dof);
+
+  Matrix<Real> SHBasis;
+  VecSHBasisEval(p0, cos_theta_phi, SHBasis);
+  assert(SHBasis.Dim(1) == COORD_DIM * M);
+  Long N = SHBasis.Dim(0) / COORD_DIM;
+
+  { // Set X
+    if (X.Dim() != N * dof * COORD_DIM) X.ReInit(N * dof * COORD_DIM);
+    for (Long k0 = 0; k0 < N; k0++) {
+      for (Long k1 = 0; k1 < dof; k1++) {
+        StaticArray<Real,COORD_DIM> in;
+        for (Long j = 0; j < COORD_DIM; j++) {
+          in[j] = 0;
+          for (Long i = 0; i < COORD_DIM * M; i++) {
+            in[j] += B1[k1][i] * SHBasis[k0 * COORD_DIM + j][i];
+          }
+        }
+
+        StaticArray<Real,9> M;
+        Real cos_theta = cos_theta_phi[k0 * 2 + 0];
+        Real sin_theta = sqrt<Real>(1 - cos_theta * cos_theta);
+        Real cos_phi = cos(cos_theta_phi[k0 * 2 + 1]);
+        Real sin_phi = sin(cos_theta_phi[k0 * 2 + 1]);
+        M[0] = sin_theta*cos_phi; M[1] = sin_theta*sin_phi; M[2] = cos_theta;
+        M[3] = cos_theta*cos_phi; M[4] = cos_theta*sin_phi; M[5] =-sin_theta;
+        M[6] =          -sin_phi; M[7] =           cos_phi; M[8] =         0;
+
+        X[(k0 * dof + k1) * COORD_DIM + 0] = M[0] * in[0] + M[3] * in[1] + M[6] * in[2];
+        X[(k0 * dof + k1) * COORD_DIM + 1] = M[1] * in[0] + M[4] * in[1] + M[7] * in[2];
+        X[(k0 * dof + k1) * COORD_DIM + 2] = M[2] * in[0] + M[5] * in[1] + M[8] * in[2];
+      }
+    }
+  }
+}
+
+template <class Real> void SphericalHarmonics<Real>::StokesEvalSL(const Vector<Real>& S, SHCArrange arrange, Long p0, const Vector<Real>& coord, Vector<Real>& X) {
+  Long M = (p0+1) * (p0+1);
+
+  Long dof;
+  Matrix<Real> B1;
+  { // Set B1, dof
+    Vector<Real> B0;
+    SHCArrange1(S, arrange, p0, B0);
+    dof = B0.Dim() / M / COORD_DIM;
+    assert(B0.Dim() == dof * COORD_DIM * M);
+
+    B1.ReInit(dof, COORD_DIM * M);
+    Vector<Real> B1_(B1.Dim(0) * B1.Dim(1), B1.begin(), false);
+    SHCArrange0(B0, p0, B1_, SHCArrange::COL_MAJOR_NONZERO);
+  }
+  assert(B1.Dim(1) == COORD_DIM * M);
+  assert(B1.Dim(0) == dof);
+
+  Long N;
+  Matrix<Real> SHBasis;
+  Vector<Real> R, cos_theta_phi;
+  { // Set N, R, SHBasis
+    N = coord.Dim() / COORD_DIM;
+    assert(coord.Dim() == N * COORD_DIM);
+
+    R.ReInit(N);
+    cos_theta_phi.ReInit(2 * N);
+    for (Long i = 0; i < N; i++) { // Set R, cos_theta_phi
+      ConstIterator<Real> x = coord.begin() + i * COORD_DIM;
+      R[i] = sqrt<Real>(x[0]*x[0] + x[1]*x[1] + x[2]*x[2]);
+      cos_theta_phi[i * 2 + 0] = x[2] / R[i];
+      cos_theta_phi[i * 2 + 1] = atan2(x[1], x[0]); // TODO: works only for float and double
+    }
+    VecSHBasisEval(p0, cos_theta_phi, SHBasis);
+    assert(SHBasis.Dim(1) == COORD_DIM * M);
+    assert(SHBasis.Dim(0) == N * COORD_DIM);
+  }
+
+  Matrix<Real> StokesOp(SHBasis.Dim(0), SHBasis.Dim(1));
+  for (Long i = 0; i < N; i++) { // Set StokesOp
+    for (Long m = 0; m <= p0; m++) {
+      for (Long n = m; n <= p0; n++) {
+        auto read_coeff = [&](Long n, Long m, Long k0, Long k1) {
+          Complex<Real> c;
+          if (0 <= m && m <= n && n <= p0 && 0 <= k0 && k0 < COORD_DIM && 0 <= k1 && k1 < COORD_DIM) {
+            Long idx = (2 * p0 - m + 2) * m - (m ? p0+1 : 0) + n;
+            c.real = SHBasis[i * COORD_DIM + k1][k0 * M + idx];
+            if (m) {
+              idx += (p0+1-m);
+              c.imag = SHBasis[i * COORD_DIM + k1][k0 * M + idx];
+            }
+          }
+          return c;
+        };
+        auto write_coeff = [&](Complex<Real> c, Long n, Long m, Long k0, Long k1) {
+          if (0 <= m && m <= n && n <= p0 && 0 <= k0 && k0 < COORD_DIM && 0 <= k1 && k1 < COORD_DIM) {
+            Long idx = (2 * p0 - m + 2) * m - (m ? p0+1 : 0) + n;
+            StokesOp[i * COORD_DIM + k1][k0 * M + idx] = c.real;
+            if (m) {
+              idx += (p0+1-m);
+              StokesOp[i * COORD_DIM + k1][k0 * M + idx] = c.imag;
+            }
+          }
+        };
+
+        auto Vr = read_coeff(n, m, 0, 0);
+        auto Vt = read_coeff(n, m, 0, 1);
+        auto Vp = read_coeff(n, m, 0, 2);
+
+        auto Wr = read_coeff(n, m, 1, 0);
+        auto Wt = read_coeff(n, m, 1, 1);
+        auto Wp = read_coeff(n, m, 1, 2);
+
+        auto Xr = read_coeff(n, m, 2, 0);
+        auto Xt = read_coeff(n, m, 2, 1);
+        auto Xp = read_coeff(n, m, 2, 2);
+
+
+        Real a,b;
+        a = n / (Real)((2*n+1) * (2*n+3)) * pow<Real>(R[i], -n-2);
+        Complex<Real> SVr = a * Vr;
+        Complex<Real> SVt = a * Vt;
+        Complex<Real> SVp = a * Vp;
+
+        a = (n+1) / (Real)((2*n+1) * (2*n-1)) * pow<Real>(R[i], -n);
+        b = n / (Real)(4*n+2) * (pow<Real>(R[i], -n-2) - pow<Real>(R[i], -n));
+        Complex<Real> SWr = a * Wr + b * Vr;
+        Complex<Real> SWt = a * Wt + b * Vt;
+        Complex<Real> SWp = a * Wp + b * Vp;
+
+        a = 1 / (Real)(2*n+1) * pow<Real>(R[i], -n-1);
+        Complex<Real> SXr = a * Xr;
+        Complex<Real> SXt = a * Xt;
+        Complex<Real> SXp = a * Xp;
+
+
+        write_coeff(SVr, n, m, 0, 0);
+        write_coeff(SVt, n, m, 0, 1);
+        write_coeff(SVp, n, m, 0, 2);
+
+        write_coeff(SWr, n, m, 1, 0);
+        write_coeff(SWt, n, m, 1, 1);
+        write_coeff(SWp, n, m, 1, 2);
+
+        write_coeff(SXr, n, m, 2, 0);
+        write_coeff(SXt, n, m, 2, 1);
+        write_coeff(SXp, n, m, 2, 2);
+      }
+    }
+  }
+
+  { // Set X
+    if (X.Dim() != N * dof * COORD_DIM) X.ReInit(N * dof * COORD_DIM);
+    for (Long k0 = 0; k0 < N; k0++) {
+      for (Long k1 = 0; k1 < dof; k1++) {
+        StaticArray<Real,COORD_DIM> in;
+        for (Long j = 0; j < COORD_DIM; j++) {
+          in[j] = 0;
+          for (Long i = 0; i < COORD_DIM * M; i++) {
+            in[j] += B1[k1][i] * StokesOp[k0 * COORD_DIM + j][i];
+          }
+        }
+
+        StaticArray<Real,9> M;
+        Real cos_theta = cos_theta_phi[k0 * 2 + 0];
+        Real sin_theta = sqrt<Real>(1 - cos_theta * cos_theta);
+        Real cos_phi = cos(cos_theta_phi[k0 * 2 + 1]);
+        Real sin_phi = sin(cos_theta_phi[k0 * 2 + 1]);
+        M[0] = sin_theta*cos_phi; M[1] = sin_theta*sin_phi; M[2] = cos_theta;
+        M[3] = cos_theta*cos_phi; M[4] = cos_theta*sin_phi; M[5] =-sin_theta;
+        M[6] =          -sin_phi; M[7] =           cos_phi; M[8] =         0;
+
+        X[(k0 * dof + k1) * COORD_DIM + 0] = M[0] * in[0] + M[3] * in[1] + M[6] * in[2];
+        X[(k0 * dof + k1) * COORD_DIM + 1] = M[1] * in[0] + M[4] * in[1] + M[7] * in[2];
+        X[(k0 * dof + k1) * COORD_DIM + 2] = M[2] * in[0] + M[5] * in[1] + M[8] * in[2];
+      }
+    }
+  }
+}
+
+template <class Real> void SphericalHarmonics<Real>::StokesEvalDL(const Vector<Real>& S, SHCArrange arrange, Long p0, const Vector<Real>& coord, Vector<Real>& X) {
+  Long M = (p0+1) * (p0+1);
+
+  Long dof;
+  Matrix<Real> B1;
+  { // Set B1, dof
+    Vector<Real> B0;
+    SHCArrange1(S, arrange, p0, B0);
+    dof = B0.Dim() / M / COORD_DIM;
+    assert(B0.Dim() == dof * COORD_DIM * M);
+
+    B1.ReInit(dof, COORD_DIM * M);
+    Vector<Real> B1_(B1.Dim(0) * B1.Dim(1), B1.begin(), false);
+    SHCArrange0(B0, p0, B1_, SHCArrange::COL_MAJOR_NONZERO);
+  }
+  assert(B1.Dim(1) == COORD_DIM * M);
+  assert(B1.Dim(0) == dof);
+
+  Long N;
+  Matrix<Real> SHBasis;
+  Vector<Real> R, cos_theta_phi;
+  { // Set N, R, SHBasis
+    N = coord.Dim() / COORD_DIM;
+    assert(coord.Dim() == N * COORD_DIM);
+
+    R.ReInit(N);
+    cos_theta_phi.ReInit(2 * N);
+    for (Long i = 0; i < N; i++) { // Set R, cos_theta_phi
+      ConstIterator<Real> x = coord.begin() + i * COORD_DIM;
+      R[i] = sqrt<Real>(x[0]*x[0] + x[1]*x[1] + x[2]*x[2]);
+      cos_theta_phi[i * 2 + 0] = x[2] / R[i];
+      cos_theta_phi[i * 2 + 1] = atan2(x[1], x[0]); // TODO: works only for float and double
+    }
+    VecSHBasisEval(p0, cos_theta_phi, SHBasis);
+    assert(SHBasis.Dim(1) == COORD_DIM * M);
+    assert(SHBasis.Dim(0) == N * COORD_DIM);
+  }
+
+  Matrix<Real> StokesOp(SHBasis.Dim(0), SHBasis.Dim(1));
+  for (Long i = 0; i < N; i++) { // Set StokesOp
+    for (Long m = 0; m <= p0; m++) {
+      for (Long n = m; n <= p0; n++) {
+        auto read_coeff = [&](Long n, Long m, Long k0, Long k1) {
+          Complex<Real> c;
+          if (0 <= m && m <= n && n <= p0 && 0 <= k0 && k0 < COORD_DIM && 0 <= k1 && k1 < COORD_DIM) {
+            Long idx = (2 * p0 - m + 2) * m - (m ? p0+1 : 0) + n;
+            c.real = SHBasis[i * COORD_DIM + k1][k0 * M + idx];
+            if (m) {
+              idx += (p0+1-m);
+              c.imag = SHBasis[i * COORD_DIM + k1][k0 * M + idx];
+            }
+          }
+          return c;
+        };
+        auto write_coeff = [&](Complex<Real> c, Long n, Long m, Long k0, Long k1) {
+          if (0 <= m && m <= n && n <= p0 && 0 <= k0 && k0 < COORD_DIM && 0 <= k1 && k1 < COORD_DIM) {
+            Long idx = (2 * p0 - m + 2) * m - (m ? p0+1 : 0) + n;
+            StokesOp[i * COORD_DIM + k1][k0 * M + idx] = c.real;
+            if (m) {
+              idx += (p0+1-m);
+              StokesOp[i * COORD_DIM + k1][k0 * M + idx] = c.imag;
+            }
+          }
+        };
+
+        auto Vr = read_coeff(n, m, 0, 0);
+        auto Vt = read_coeff(n, m, 0, 1);
+        auto Vp = read_coeff(n, m, 0, 2);
+
+        auto Wr = read_coeff(n, m, 1, 0);
+        auto Wt = read_coeff(n, m, 1, 1);
+        auto Wp = read_coeff(n, m, 1, 2);
+
+        auto Xr = read_coeff(n, m, 2, 0);
+        auto Xt = read_coeff(n, m, 2, 1);
+        auto Xp = read_coeff(n, m, 2, 2);
+
+        Complex<Real> SVr, SVt, SVp;
+        Complex<Real> SWr, SWt, SWp;
+        Complex<Real> SXr, SXt, SXp;
+
+        if (R[i] < 1) {
+          Real a,b;
+          a = -2*n*(n+2) / (Real)((2*n+1) * (2*n+3)) * pow<Real>(R[i], n+1);
+          b = (n+1)*(n+2) / (Real)((2*n+1)) * (pow<Real>(R[i], n+1) - pow<Real>(R[i], n-1));
+          SVr = a * Vr + b * Wr;
+          SVt = a * Vt + b * Wt;
+          SVp = a * Vp + b * Wp;
+
+          a = (-2*n*n+1) / (Real)((2*n+1) * (2*n-1)) * pow<Real>(R[i], n-1);
+          SWr = a * Wr;
+          SWt = a * Wt;
+          SWp = a * Wp;
+
+          a = -(n+2) / (Real)(2*n+1) * pow<Real>(R[i], n);
+          SXr = a * Xr;
+          SXt = a * Xt;
+          SXp = a * Xp;
+        } else {
+          Real a,b;
+          a = (2*n*n+4*n+3) / (Real)((2*n+1) * (2*n+3)) * pow<Real>(R[i], -n-2);
+          SVr = a * Vr;
+          SVt = a * Vt;
+          SVp = a * Vp;
+
+          a = 2*(n+1)*(n-1) / (Real)((2*n+1) * (2*n-1)) * pow<Real>(R[i], -n);
+          b = 2*n*(n-1) / (Real)(4*n+2) * (pow<Real>(R[i], -n-2) - pow<Real>(R[i], -n));
+          SWr = a * Wr + b * Vr;
+          SWt = a * Wt + b * Vt;
+          SWp = a * Wp + b * Vp;
+
+          a = (n-1) / (Real)(2*n+1) * pow<Real>(R[i], -n-1);
+          SXr = a * Xr;
+          SXt = a * Xt;
+          SXp = a * Xp;
+        }
+
+        write_coeff(SVr, n, m, 0, 0);
+        write_coeff(SVt, n, m, 0, 1);
+        write_coeff(SVp, n, m, 0, 2);
+
+        write_coeff(SWr, n, m, 1, 0);
+        write_coeff(SWt, n, m, 1, 1);
+        write_coeff(SWp, n, m, 1, 2);
+
+        write_coeff(SXr, n, m, 2, 0);
+        write_coeff(SXt, n, m, 2, 1);
+        write_coeff(SXp, n, m, 2, 2);
+      }
+    }
+  }
+
+  { // Set X
+    if (X.Dim() != N * dof * COORD_DIM) X.ReInit(N * dof * COORD_DIM);
+    for (Long k0 = 0; k0 < N; k0++) {
+      for (Long k1 = 0; k1 < dof; k1++) {
+        StaticArray<Real,COORD_DIM> in;
+        for (Long j = 0; j < COORD_DIM; j++) {
+          in[j] = 0;
+          for (Long i = 0; i < COORD_DIM * M; i++) {
+            in[j] += B1[k1][i] * StokesOp[k0 * COORD_DIM + j][i];
+          }
+        }
+
+        StaticArray<Real,9> M;
+        Real cos_theta = cos_theta_phi[k0 * 2 + 0];
+        Real sin_theta = sqrt<Real>(1 - cos_theta * cos_theta);
+        Real cos_phi = cos(cos_theta_phi[k0 * 2 + 1]);
+        Real sin_phi = sin(cos_theta_phi[k0 * 2 + 1]);
+        M[0] = sin_theta*cos_phi; M[1] = sin_theta*sin_phi; M[2] = cos_theta;
+        M[3] = cos_theta*cos_phi; M[4] = cos_theta*sin_phi; M[5] =-sin_theta;
+        M[6] =          -sin_phi; M[7] =           cos_phi; M[8] =         0;
+
+        X[(k0 * dof + k1) * COORD_DIM + 0] = M[0] * in[0] + M[3] * in[1] + M[6] * in[2];
+        X[(k0 * dof + k1) * COORD_DIM + 1] = M[1] * in[0] + M[4] * in[1] + M[7] * in[2];
+        X[(k0 * dof + k1) * COORD_DIM + 2] = M[2] * in[0] + M[5] * in[1] + M[8] * in[2];
+      }
+    }
+  }
+}
+
+
+
+
+
+
+template <class Real> void SphericalHarmonics<Real>::Grid2SHC_(const Vector<Real>& X, Long Nt, Long Np, Long p1, Vector<Real>& B1){
+  const auto& Mf = OpFourierInv(Np);
+  assert(Mf.Dim(0) == Np);
+
+  const std::vector<Matrix<Real>>& Ml = SphericalHarmonics<Real>::MatLegendreInv(Nt-1,p1);
+  assert((Long)Ml.size() == p1+1);
+
+  Long N = X.Dim() / (Np*Nt);
+  assert(X.Dim() == N*Np*Nt);
+
+  Vector<Real> B0((2*p1+1) * N*Nt);
+  #pragma omp parallel
+  { // B0 <-- Transpose(FFT(X))
+    Integer tid=omp_get_thread_num();
+    Integer omp_p=omp_get_num_threads();
+    Long a=(tid+0)*N*Nt/omp_p;
+    Long b=(tid+1)*N*Nt/omp_p;
+
+    Vector<Real> buff(Mf.Dim(1));
+    Long fft_coeff_len = std::min(buff.Dim(), 2*p1+2);
+    Matrix<Real> B0_(2*p1+1, N*Nt, B0.begin(), false);
+    const Matrix<Real> MX(N * Nt, Np, (Iterator<Real>)X.begin(), false);
+    for (Long i = a; i < b; i++) {
+      { // buff <-- FFT(Xi)
+        const Vector<Real> Xi(Np, (Iterator<Real>)X.begin() + Np * i, false);
+        Mf.Execute(Xi, buff);
+      }
+      { // B0 <-- Transpose(buff)
+        B0_[0][i] = buff[0]; // skipping buff[1] == 0
+        for (Long j = 2; j < fft_coeff_len; j++) B0_[j-1][i] = buff[j];
+        for (Long j = fft_coeff_len; j < 2*p1+2; j++) B0_[j-1][i] = 0;
+      }
+    }
+  }
+
+  if (B1.Dim() != N*(p1+1)*(p1+1)) B1.ReInit(N*(p1+1)*(p1+1));
+  #pragma omp parallel
+  { // Evaluate Legendre polynomial
+    Integer tid=omp_get_thread_num();
+    Integer omp_p=omp_get_num_threads();
+
+    Long offset0=0;
+    Long offset1=0;
+    for (Long i = 0; i < p1+1; i++) {
+      Long N_ = (i==0 ? N : 2*N);
+      Matrix<Real> Min (N_, Nt    , B0.begin()+offset0, false);
+      Matrix<Real> Mout(N_, p1+1-i, B1.begin()+offset1, false);
+      { // Mout = Min * Ml[i]  // split between threads
+        Long a=(tid+0)*N_/omp_p;
+        Long b=(tid+1)*N_/omp_p;
+        if (a < b) {
+          Matrix<Real> Min_ (b-a, Min .Dim(1), Min [a], false);
+          Matrix<Real> Mout_(b-a, Mout.Dim(1), Mout[a], false);
+          Matrix<Real>::GEMM(Mout_,Min_,Ml[i]);
+        }
+      }
+      offset0+=Min .Dim(0)*Min .Dim(1);
+      offset1+=Mout.Dim(0)*Mout.Dim(1);
+    }
+    assert(offset0 == B0.Dim());
+    assert(offset1 == B1.Dim());
+  }
+  B1 *= 1 / sqrt<Real>(4 * const_pi<Real>() * Np); // Scaling to match Zydrunas Fortran code.
+}
+template <class Real> void SphericalHarmonics<Real>::SHCArrange0(const Vector<Real>& B1, Long p1, Vector<Real>& S, SHCArrange arrange){
+  Long M = (p1+1)*(p1+1);
+  Long N = B1.Dim() / M;
+  assert(B1.Dim() == N*M);
+  if (arrange == SHCArrange::ALL) { // S <-- Rearrange(B1)
+    Long M = 2*(p1+1)*(p1+1);
+    if(S.Dim() != N * M) S.ReInit(N * M);
+    #pragma omp parallel
+    { // S <-- Rearrange(B1)
+      Integer tid=omp_get_thread_num();
+      Integer omp_p=omp_get_num_threads();
+
+      Long a=(tid+0)*N/omp_p;
+      Long b=(tid+1)*N/omp_p;
+      for (Long i = a; i < b; i++) {
+        Long offset = 0;
+        for (Long j = 0; j < p1+1; j++) {
+          Long len = p1+1 - j;
+          if (1) { // Set Real(S_n^m) for m=j and n=j..p
+            ConstIterator<Real> B_ = B1.begin() + i*len + N*offset;
+            Iterator<Real>      S_ = S .begin() + i*M   + j*(p1+1)*2 + j*2 + 0;
+            for (Long k = 0; k < len; k++) S_[k * (p1+1)*2] = B_[k];
+            offset += len;
+          }
+          if (j) { // Set Imag(S_n^m) for m=j and n=j..p
+            ConstIterator<Real> B_ = B1.begin() + i*len + N*offset;
+            Iterator<Real>      S_ = S .begin() + i*M   + j*(p1+1)*2 + j*2 + 1;
+            for (Long k = 0; k < len; k++) S_[k * (p1+1)*2] = B_[k];
+            offset += len;
+          } else {
+            Iterator<Real>      S_ = S .begin() + i*M   + j*(p1+1)*2 + j*2 + 1;
+            for (Long k = 0; k < len; k++) S_[k * (p1+1)*2] = 0;
+          }
+        }
+      }
+    }
+  }
+  if (arrange == SHCArrange::ROW_MAJOR) { // S <-- Rearrange(B1)
+    Long M = (p1+1)*(p1+2);
+    if(S.Dim() != N * M) S.ReInit(N * M);
+    #pragma omp parallel
+    { // S <-- Rearrange(B1)
+      Integer tid=omp_get_thread_num();
+      Integer omp_p=omp_get_num_threads();
+
+      Long a=(tid+0)*N/omp_p;
+      Long b=(tid+1)*N/omp_p;
+      for (Long i = a; i < b; i++) {
+        Long offset = 0;
+        for (Long j = 0; j < p1+1; j++) {
+          Long len = p1+1 - j;
+          if (1) { // Set Real(S_n^m) for m=j and n=j..p
+            ConstIterator<Real> B_ = B1.begin() + i*len + N*offset;
+            Iterator<Real>      S_ = S .begin() + i*M + 0;
+            for (Long k=0;k<len;k++) S_[(j+k)*(j+k+1) + 2*j] = B_[k];
+            offset += len;
+          }
+          if (j) { // Set Imag(S_n^m) for m=j and n=j..p
+            ConstIterator<Real> B_ = B1.begin() + i*len + N*offset;
+            Iterator<Real>      S_ = S .begin() + i*M + 1;
+            for (Long k=0;k<len;k++) S_[(j+k)*(j+k+1) + 2*j] = B_[k];
+            offset += len;
+          } else {
+            Iterator<Real> S_ = S .begin() + i*M + 1;
+            for (Long k=0;k<len;k++) S_[(j+k)*(j+k+1) + 2*j] = 0;
+          }
+        }
+      }
+    }
+  }
+  if (arrange == SHCArrange::COL_MAJOR_NONZERO) { // S <-- Rearrange(B1)
+    Long M = (p1+1)*(p1+1);
+    if(S.Dim() != N * M) S.ReInit(N * M);
+    #pragma omp parallel
+    { // S <-- Rearrange(B1)
+      Integer tid=omp_get_thread_num();
+      Integer omp_p=omp_get_num_threads();
+
+      Long a=(tid+0)*N/omp_p;
+      Long b=(tid+1)*N/omp_p;
+      for (Long i = a; i < b; i++) {
+        Long offset = 0;
+        for (Long j = 0; j <  p1+1; j++) {
+          Long len = p1+1 - j;
+          if (1) { // Set Real(S_n^m) for m=j and n=j..p
+            ConstIterator<Real> B_ = B1.begin() + i*len + N*offset;
+            Iterator<Real>      S_ = S .begin() + i*M   + offset;
+            for (Long k = 0; k < len; k++) S_[k] = B_[k];
+            offset += len;
+          }
+          if (j) { // Set Imag(S_n^m) for m=j and n=j..p
+            ConstIterator<Real> B_ = B1.begin() + i*len + N*offset;
+            Iterator<Real>      S_ = S .begin() + i*M   + offset;
+            for (Long k = 0; k < len; k++) S_[k] = B_[k];
+            offset += len;
           }
         }
       }
@@ -898,6 +1087,245 @@ template <class Real> void SphericalHarmonics<Real>::VecSHC2Grid(const Vector<Re
   }
 }
 
+template <class Real> void SphericalHarmonics<Real>::SHCArrange1(const Vector<Real>& S, SHCArrange arrange, Long p0, Vector<Real>& B0){
+  Long M, N;
+  { // Set M, N
+    M = 0;
+    if (arrange == SHCArrange::ALL) M = 2*(p0+1)*(p0+1);
+    if (arrange == SHCArrange::ROW_MAJOR) M = (p0+1)*(p0+2);
+    if (arrange == SHCArrange::COL_MAJOR_NONZERO) M = (p0+1)*(p0+1);
+    if (M == 0) return;
+    N = S.Dim() / M;
+    assert(S.Dim() == N * M);
+  }
+
+  if (B0.Dim() != N*(p0+1)*(p0+1)) B0.ReInit(N*(p0+1)*(p0+1));
+  if (arrange == SHCArrange::ALL) { // B0 <-- Rearrange(S)
+    #pragma omp parallel
+    { // B0 <-- Rearrange(S)
+      Integer tid=omp_get_thread_num();
+      Integer omp_p=omp_get_num_threads();
+
+      Long a=(tid+0)*N/omp_p;
+      Long b=(tid+1)*N/omp_p;
+      for (Long i = a; i < b; i++) {
+        Long offset = 0;
+        for (Long j = 0; j < p0+1; j++) {
+          Long len = p0+1 - j;
+          if (1) { // Get Real(S_n^m) for m=j and n=j..p
+            Iterator<Real>      B_ = B0.begin() + i*len + N*offset;
+            ConstIterator<Real> S_ = S .begin() + i*M   + j*(p0+1)*2 + j*2 + 0;
+            for (Long k = 0; k < len; k++) B_[k] = S_[k * (p0+1)*2];
+            offset += len;
+          }
+          if (j) { // Get Imag(S_n^m) for m=j and n=j..p
+            Iterator<Real>      B_ = B0.begin() + i*len + N*offset;
+            ConstIterator<Real> S_ = S .begin() + i*M   + j*(p0+1)*2 + j*2 + 1;
+            for (Long k = 0; k < len; k++) B_[k] = S_[k * (p0+1)*2];
+            offset += len;
+          }
+        }
+      }
+    }
+  }
+  if (arrange == SHCArrange::ROW_MAJOR) { // B0 <-- Rearrange(S)
+    #pragma omp parallel
+    { // B0 <-- Rearrange(S)
+      Integer tid=omp_get_thread_num();
+      Integer omp_p=omp_get_num_threads();
+
+      Long a=(tid+0)*N/omp_p;
+      Long b=(tid+1)*N/omp_p;
+      for (Long i = a; i < b; i++) {
+        Long offset = 0;
+        for (Long j = 0; j < p0+1; j++) {
+          Long len = p0+1 - j;
+          if (1) { // Get Real(S_n^m) for m=j and n=j..p
+            Iterator<Real>      B_ = B0.begin() + i*len + N*offset;
+            ConstIterator<Real> S_ = S .begin() + i*M + 0;
+            for (Long k=0;k<len;k++) B_[k] = S_[(j+k)*(j+k+1) + 2*j];
+            offset += len;
+          }
+          if (j) { // Get Imag(S_n^m) for m=j and n=j..p
+            Iterator<Real>      B_ = B0.begin() + i*len + N*offset;
+            ConstIterator<Real> S_ = S .begin() + i*M + 1;
+            for (Long k=0;k<len;k++) B_[k] = S_[(j+k)*(j+k+1) + 2*j];
+            offset += len;
+          }
+        }
+      }
+    }
+  }
+  if (arrange == SHCArrange::COL_MAJOR_NONZERO) { // B0 <-- Rearrange(S)
+    #pragma omp parallel
+    { // B0 <-- Rearrange(S)
+      Integer tid=omp_get_thread_num();
+      Integer omp_p=omp_get_num_threads();
+
+      Long a=(tid+0)*N/omp_p;
+      Long b=(tid+1)*N/omp_p;
+      for (Long i = a; i < b; i++) {
+        Long offset = 0;
+        for (Long j = 0; j <  p0+1; j++) {
+          Long len = p0+1 - j;
+          if (1) { // Get Real(S_n^m) for m=j and n=j..p
+            Iterator<Real>      B_ = B0.begin() + i*len + N*offset;
+            ConstIterator<Real> S_ = S .begin() + i*M   + offset;
+            for (Long k = 0; k < len; k++) B_[k] = S_[k];
+            offset += len;
+          }
+          if (j) { // Get Imag(S_n^m) for m=j and n=j..p
+            Iterator<Real>      B_ = B0.begin() + i*len + N*offset;
+            ConstIterator<Real> S_ = S .begin() + i*M   + offset;
+            for (Long k = 0; k < len; k++) B_[k] = S_[k];
+            offset += len;
+          }
+        }
+      }
+    }
+  }
+}
+template <class Real> void SphericalHarmonics<Real>::SHC2Grid_(const Vector<Real>& B0, Long p0, Long Nt, Long Np, Vector<Real>* X, Vector<Real>* X_phi, Vector<Real>* X_theta){
+  const auto& Mf = OpFourier(Np);
+  assert(Mf.Dim(1) == Np);
+
+  const std::vector<Matrix<Real>>& Ml =SphericalHarmonics<Real>::MatLegendre    (p0,Nt-1);
+  const std::vector<Matrix<Real>>& Mdl=SphericalHarmonics<Real>::MatLegendreGrad(p0,Nt-1);
+  assert((Long)Ml .size() == p0+1);
+  assert((Long)Mdl.size() == p0+1);
+
+  Long N = B0.Dim() / ((p0+1)*(p0+1));
+  assert(B0.Dim() == N*(p0+1)*(p0+1));
+
+  if(X       && X      ->Dim()!=N*Np*Nt) X      ->ReInit(N*Np*Nt);
+  if(X_theta && X_theta->Dim()!=N*Np*Nt) X_theta->ReInit(N*Np*Nt);
+  if(X_phi   && X_phi  ->Dim()!=N*Np*Nt) X_phi  ->ReInit(N*Np*Nt);
+
+  Vector<Real> B1(N*(2*p0+1)*Nt);
+  if(X || X_phi){
+    #pragma omp parallel
+    { // Evaluate Legendre polynomial
+      Integer tid=omp_get_thread_num();
+      Integer omp_p=omp_get_num_threads();
+
+      Long offset0=0;
+      Long offset1=0;
+      for(Long i=0;i<p0+1;i++){
+        Long N_ = (i==0 ? N : 2*N);
+        const Matrix<Real> Min (N_, p0+1-i, (Iterator<Real>)B0.begin()+offset0, false);
+        Matrix<Real> Mout(N_, Nt    , B1.begin()+offset1, false);
+        { // Mout = Min * Ml[i]  // split between threads
+          Long a=(tid+0)*N_/omp_p;
+          Long b=(tid+1)*N_/omp_p;
+          if(a<b){
+            const Matrix<Real> Min_ (b-a, Min .Dim(1), (Iterator<Real>)Min [a], false);
+            Matrix<Real> Mout_(b-a, Mout.Dim(1), Mout[a], false);
+            Matrix<Real>::GEMM(Mout_,Min_,Ml[i]);
+          }
+        }
+        offset0+=Min .Dim(0)*Min .Dim(1);
+        offset1+=Mout.Dim(0)*Mout.Dim(1);
+      }
+    }
+    B1 *= sqrt<Real>(4 * const_pi<Real>() * Np); // Scaling to match Zydrunas Fortran code.
+
+    #pragma omp parallel
+    { // Transpose and evaluate Fourier
+      Integer tid=omp_get_thread_num();
+      Integer omp_p=omp_get_num_threads();
+
+      Long a=(tid+0)*N*Nt/omp_p;
+      Long b=(tid+1)*N*Nt/omp_p;
+
+      Vector<Real> buff(Mf.Dim(0)); buff = 0;
+      Long fft_coeff_len = std::min(buff.Dim(), 2*p0+2);
+      Matrix<Real> B1_(2*p0+1, N*Nt, B1.begin(), false);
+      for (Long i = a; i < b; i++) {
+        { // buff <-- Transpose(B1)
+          buff[0] = B1_[0][i];
+          buff[1] = 0;
+          for (Long j = 2; j < fft_coeff_len; j++) buff[j] = B1_[j-1][i];
+          for (Long j = fft_coeff_len; j < buff.Dim(); j++) buff[j] = 0;
+        }
+        { // X <-- FFT(buff)
+          Vector<Real> Xi(Np, X->begin() + Np * i, false);
+          Mf.Execute(buff, Xi);
+        }
+
+        if(X_phi){ // Evaluate Fourier gradient
+          { // buff <-- Transpose(B1)
+            buff[0] = 0;
+            buff[1] = 0;
+            for (Long j = 2; j < fft_coeff_len; j++) buff[j] = B1_[j-1][i];
+            for (Long j = fft_coeff_len; j < buff.Dim(); j++) buff[j] = 0;
+            for (Long j = 1; j < buff.Dim()/2; j++) {
+              Real x = buff[2*j+0];
+              Real y = buff[2*j+1];
+              buff[2*j+0] = -j*y;
+              buff[2*j+1] =  j*x;
+            }
+          }
+          { // X_phi <-- FFT(buff)
+            Vector<Real> Xi(Np, X_phi->begin() + Np * i, false);
+            Mf.Execute(buff, Xi);
+          }
+        }
+      }
+    }
+  }
+  if(X_theta){
+    #pragma omp parallel
+    { // Evaluate Legendre gradient
+      Integer tid=omp_get_thread_num();
+      Integer omp_p=omp_get_num_threads();
+
+      Long offset0=0;
+      Long offset1=0;
+      for(Long i=0;i<p0+1;i++){
+        Long N_ = (i==0 ? N : 2*N);
+        const Matrix<Real> Min (N_, p0+1-i, (Iterator<Real>)B0.begin()+offset0, false);
+        Matrix<Real> Mout(N_, Nt    , B1.begin()+offset1, false);
+        { // Mout = Min * Mdl[i]  // split between threads
+          Long a=(tid+0)*N_/omp_p;
+          Long b=(tid+1)*N_/omp_p;
+          if(a<b){
+            const Matrix<Real> Min_ (b-a, Min .Dim(1), (Iterator<Real>)Min [a], false);
+            Matrix<Real> Mout_(b-a, Mout.Dim(1), Mout[a], false);
+            Matrix<Real>::GEMM(Mout_,Min_,Mdl[i]);
+          }
+        }
+        offset0+=Min .Dim(0)*Min .Dim(1);
+        offset1+=Mout.Dim(0)*Mout.Dim(1);
+      }
+    }
+    B1 *= sqrt<Real>(4 * const_pi<Real>() * Np); // Scaling to match Zydrunas Fortran code.
+
+    #pragma omp parallel
+    { // Transpose and evaluate Fourier
+      Integer tid=omp_get_thread_num();
+      Integer omp_p=omp_get_num_threads();
+
+      Long a=(tid+0)*N*Nt/omp_p;
+      Long b=(tid+1)*N*Nt/omp_p;
+
+      Vector<Real> buff(Mf.Dim(0)); buff = 0;
+      Long fft_coeff_len = std::min(buff.Dim(), 2*p0+2);
+      Matrix<Real> B1_(2*p0+1, N*Nt, B1.begin(), false);
+      for (Long i = a; i < b; i++) {
+        { // buff <-- Transpose(B1)
+          buff[0] = B1_[0][i];
+          buff[1] = 0;
+          for (Long j = 2; j < fft_coeff_len; j++) buff[j] = B1_[j-1][i];
+          for (Long j = fft_coeff_len; j < buff.Dim(); j++) buff[j] = 0;
+        }
+        { // Xi <-- FFT(buff)
+          Vector<Real> Xi(Np, X_theta->begin() + Np * i, false);
+          Mf.Execute(buff, Xi);
+        }
+      }
+    }
+  }
+}
 
 
 template <class Real> void SphericalHarmonics<Real>::LegPoly(Vector<Real>& poly_val, const Vector<Real>& X, Long degree){
@@ -958,11 +1386,12 @@ template <class Real> void SphericalHarmonics<Real>::LegPolyDeriv(Vector<Real>& 
       Real c2 = sqrt<Real>(m<n ? (n+m+1)*(n-m) : 0);
       for (Long i = 0; i < N; i++) {
         Real c1 = (X[i]*X[i]<1 ? m/sqrt<Real>(1-X[i]*X[i]) : 0);
-        Hn[i] = -c1*X[i]*Pn[i] - c2*Pn_[i];
+        Hn[i] = c1*X[i]*Pn[i] + c2*Pn_[i];
       }
     }
   }
 }
+
 
 template <class Real> const Vector<Real>& SphericalHarmonics<Real>::LegendreNodes(Long p){
   assert(p<SCTL_SHMAXDEG);
@@ -1023,6 +1452,7 @@ template <class Real> const Vector<Real>& SphericalHarmonics<Real>::SingularWeig
   return Sw;
 }
 
+
 template <class Real> const Matrix<Real>& SphericalHarmonics<Real>::MatFourier(Long p0, Long p1){
   assert(p0<SCTL_SHMAXDEG && p1<SCTL_SHMAXDEG);
   Matrix<Real>& Mf =MatrixStore().Mf_ [p0*SCTL_SHMAXDEG+p1];
@@ -1068,6 +1498,28 @@ template <class Real> const Matrix<Real>& SphericalHarmonics<Real>::MatFourierIn
   return Mf;
 }
 
+template <class Real> const Matrix<Real>& SphericalHarmonics<Real>::MatFourierGrad(Long p0, Long p1){
+  assert(p0<SCTL_SHMAXDEG && p1<SCTL_SHMAXDEG);
+  Matrix<Real>& Mdf=MatrixStore().Mdf_[p0*SCTL_SHMAXDEG+p1];
+  if(!Mdf.Dim(0)){
+    const Real SQRT2PI=sqrt(2*M_PI);
+    { // Set Mdf_
+      Matrix<Real> M(2*p0,2*p1);
+      for(Long j=0;j<2*p1;j++){
+        M[0][j]=SQRT2PI*0.0;
+        for(Long k=1;k<p0;k++){
+          M[2*k-1][j]=-SQRT2PI*k*sin(j*k*M_PI/p1);
+          M[2*k-0][j]= SQRT2PI*k*cos(j*k*M_PI/p1);
+        }
+        M[2*p0-1][j]=-SQRT2PI*p0*sin(j*p0*M_PI/p1);
+      }
+      Mdf=M;
+    }
+  }
+  return Mdf;
+}
+
+
 template <class Real> const FFT<Real>& SphericalHarmonics<Real>::OpFourier(Long Np){
   assert(Np<SCTL_SHMAXDEG);
   auto& Mf =MatrixStore().Mfftinv_ [Np];
@@ -1090,26 +1542,6 @@ template <class Real> const FFT<Real>& SphericalHarmonics<Real>::OpFourierInv(Lo
   return Mf;
 }
 
-template <class Real> const Matrix<Real>& SphericalHarmonics<Real>::MatFourierGrad(Long p0, Long p1){
-  assert(p0<SCTL_SHMAXDEG && p1<SCTL_SHMAXDEG);
-  Matrix<Real>& Mdf=MatrixStore().Mdf_[p0*SCTL_SHMAXDEG+p1];
-  if(!Mdf.Dim(0)){
-    const Real SQRT2PI=sqrt(2*M_PI);
-    { // Set Mdf_
-      Matrix<Real> M(2*p0,2*p1);
-      for(Long j=0;j<2*p1;j++){
-        M[0][j]=SQRT2PI*0.0;
-        for(Long k=1;k<p0;k++){
-          M[2*k-1][j]=-SQRT2PI*k*sin(j*k*M_PI/p1);
-          M[2*k-0][j]= SQRT2PI*k*cos(j*k*M_PI/p1);
-        }
-        M[2*p0-1][j]=-SQRT2PI*p0*sin(j*p0*M_PI/p1);
-      }
-      Mdf=M;
-    }
-  }
-  return Mdf;
-}
 
 template <class Real> const std::vector<Matrix<Real>>& SphericalHarmonics<Real>::MatLegendre(Long p0, Long p1){
   assert(p0<SCTL_SHMAXDEG && p1<SCTL_SHMAXDEG);
@@ -1172,6 +1604,134 @@ template <class Real> const std::vector<Matrix<Real>>& SphericalHarmonics<Real>:
   return Mdl;
 }
 
+
+template <class Real> void SphericalHarmonics<Real>::SHBasisEval(Long p0, const Vector<Real>& cos_theta_phi, Matrix<Real>& SHBasis) {
+  Long M = (p0+1) * (p0+1);
+  Long N = cos_theta_phi.Dim() / 2;
+  assert(cos_theta_phi.Dim() == N * 2);
+
+  Vector<Complex<Real>> exp_phi(N);
+  Matrix<Real> LegP((p0+1)*(p0+2)/2, N);
+  { // Set exp_phi, LegP
+    Vector<Real> cos_theta(N);
+    for (Long i = 0; i < N; i++) { // Set cos_theta, exp_phi
+      cos_theta[i] = cos_theta_phi[i*2+0];
+      exp_phi[i].real = cos(cos_theta_phi[i*2+1]);
+      exp_phi[i].imag = sin(cos_theta_phi[i*2+1]);
+    }
+
+    Vector<Real> alp(LegP.Dim(0) * LegP.Dim(1), LegP.begin(), false);
+    LegPoly(alp, cos_theta, p0);
+  }
+
+  { // Set SHBasis
+    SHBasis.ReInit(N, M);
+    Real s = 4 * sqrt<Real>(const_pi<Real>());
+    for (Long k0 = 0; k0 < N; k0++) {
+      Complex<Real> exp_phi_ = 1;
+      Complex<Real> exp_phi1 = exp_phi[k0];
+      for (Long m = 0; m <= p0; m++) {
+        for (Long n = m; n <= p0; n++) {
+          Long poly_idx = (2 * p0 - m + 1) * m / 2 + n;
+          Long basis_idx = (2 * p0 - m + 2) * m - (m ? p0+1 : 0) + n;
+          SHBasis[k0][basis_idx] = LegP[poly_idx][k0] * exp_phi_.real * s;
+          if (m) { // imaginary part
+            basis_idx += (p0+1-m);
+            SHBasis[k0][basis_idx] = -LegP[poly_idx][k0] * exp_phi_.imag * s;
+          } else {
+            SHBasis[k0][basis_idx] = SHBasis[k0][basis_idx] * 0.5;
+          }
+        }
+        exp_phi_ = exp_phi_ * exp_phi1;
+      }
+    }
+  }
+  assert(SHBasis.Dim(0) == N);
+  assert(SHBasis.Dim(1) == M);
+}
+
+template <class Real> void SphericalHarmonics<Real>::VecSHBasisEval(Long p0, const Vector<Real>& cos_theta_phi, Matrix<Real>& SHBasis) {
+  Long M = (p0+1) * (p0+1);
+  Long N = cos_theta_phi.Dim() / 2;
+  assert(cos_theta_phi.Dim() == N * 2);
+
+  Long p_ = p0 + 1;
+  Long M_ = (p_+1) * (p_+1);
+  Matrix<Real> Ynm(N, M_);
+  SHBasisEval(p_, cos_theta_phi, Ynm);
+
+  Vector<Real> cos_theta(N);
+  for (Long i = 0; i < N; i++) { // Set cos_theta
+    cos_theta[i] = cos_theta_phi[i*2+0];
+  }
+
+  { // Set SHBasis
+    SHBasis.ReInit(N * COORD_DIM, COORD_DIM * M);
+    SHBasis = 0;
+    const Complex<Real> imag(0,1);
+    for (Long i = 0; i < N; i++) {
+      Real s = 1 / sqrt<Real>(1 - cos_theta[i] * cos_theta[i]);
+      for (Long m = 0; m <= p0; m++) {
+        for (Long n = m; n <= p0; n++) {
+          auto Y = [&](Long n, Long m) {
+            Complex<Real> c;
+            if (0 <= m && m <= n && n <= p_) {
+              Long idx = (2 * p_ - m + 2) * m - (m ? p_+1 : 0) + n;
+              c.real = Ynm[i][idx];
+              if (m) {
+                idx += (p_+1-m);
+                c.imag = Ynm[i][idx];
+              }
+            }
+            return c;
+          };
+          auto write_coeff = [&](Complex<Real> c, Long n, Long m, Long k0, Long k1) {
+            if (0 <= m && m <= n && n <= p0 && 0 <= k0 && k0 < COORD_DIM && 0 <= k1 && k1 < COORD_DIM) {
+              Long idx = (2 * p0 - m + 2) * m - (m ? p0+1 : 0) + n;
+              SHBasis[i * COORD_DIM + k1][k0 * M + idx] = c.real;
+              if (m) {
+                idx += (p0+1-m);
+                SHBasis[i * COORD_DIM + k1][k0 * M + idx] = c.imag;
+              }
+            }
+          };
+
+          auto A = [&](Long n, Long m) { return (0<=n && m<=n && n<=p_ ? sqrt<Real>(n*n * ((n+1)*(n+1) - m*m) / (Real)((2*n+1)*(2*n+3))) : 0); };
+          auto B = [&](Long n, Long m) { return (0<=n && m<=n && n<=p_ ? sqrt<Real>((n+1)*(n+1) * (n*n - m*m) / (Real)((2*n+1)*(2*n-1))) : 0); };
+          Complex<Real> AYBY = A(n,m) * Y(n+1,m) - B(n,m) * Y(n-1,m);
+
+          Complex<Real> Fv2r = Y(n,m) * (-n-1);
+          Complex<Real> Fw2r = Y(n,m) * n;
+          Complex<Real> Fx2r = 0;
+
+          Complex<Real> Fv2t = AYBY * s;
+          Complex<Real> Fw2t = AYBY * s;
+          Complex<Real> Fx2t = imag * m * Y(n,m) * s;
+
+          Complex<Real> Fv2p = -imag * m * Y(n,m) * s;
+          Complex<Real> Fw2p = -imag * m * Y(n,m) * s;
+          Complex<Real> Fx2p = AYBY * s;
+
+          write_coeff(Fv2r, n, m, 0, 0);
+          write_coeff(Fw2r, n, m, 1, 0);
+          write_coeff(Fx2r, n, m, 2, 0);
+
+          write_coeff(Fv2t, n, m, 0, 1);
+          write_coeff(Fw2t, n, m, 1, 1);
+          write_coeff(Fx2t, n, m, 2, 1);
+
+          write_coeff(Fv2p, n, m, 0, 2);
+          write_coeff(Fw2p, n, m, 1, 2);
+          write_coeff(Fx2p, n, m, 2, 2);
+        }
+      }
+    }
+  }
+  assert(SHBasis.Dim(0) == N * COORD_DIM);
+  assert(SHBasis.Dim(1) == COORD_DIM * M);
+}
+
+
 template <class Real> const std::vector<Matrix<Real>>& SphericalHarmonics<Real>::MatRotate(Long p0){
   std::vector<std::vector<Long>> coeff_perm(p0+1);
   { // Set coeff_perm
@@ -1225,7 +1785,7 @@ template <class Real> const std::vector<Matrix<Real>>& SphericalHarmonics<Real>:
 
       Vector<Real> theta(Ngrid);
       for(Long i=0;i<theta.Dim();i++){ // Set theta
-        theta[i]=atan2(Mcoord1[1][i],Mcoord1[2][i]);
+        theta[i]=atan2(Mcoord1[1][i],Mcoord1[2][i]); // TODO: works only for float and double
       }
 
       Matrix<Real> Mcoef2grid(Ncoef, Ngrid);
@@ -1578,7 +2138,7 @@ template <class Real> template <bool SLayer, bool DLayer> void SphericalHarmonic
 
   Profile::Tic("Upsample");
   Vector<Real> X, X_theta, X_phi, trg;
-  SphericalHarmonics<Real>::SHC2Grid(S, SHCArrange::COL_MAJOR_NONZERO, p0, p1+1, 2*p1, &X, &X_phi, &X_theta);
+  SphericalHarmonics<Real>::SHC2Grid(S, SHCArrange::COL_MAJOR_NONZERO, p0, p1+1, 2*p1, &X, &X_theta, &X_phi);
   SphericalHarmonics<Real>::SHC2Pole(S, SHCArrange::COL_MAJOR_NONZERO, p0, trg);
   Profile::Toc();
 

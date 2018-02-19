@@ -31,43 +31,204 @@ template <class Real> class SphericalHarmonics{
 
   public:
 
-    static void Grid2SHC(const Vector<Real>& X_in, Long Nt_in, Long Np_in, Long p_out, Vector<Real>& S_out, SHCArrange arrange_out);
+    // Scalar Spherical Harmonics
 
-    static void SHC2Grid(const Vector<Real>& S_in, SHCArrange arrange_in, Long p_in, Long Nt_out, Long Np_out, Vector<Real>* X_out, Vector<Real>* X_theta_out=nullptr, Vector<Real>* X_phi_out=nullptr);
+    /**
+     * \brief Compute spherical harmonic coefficients from grid values.
+     * \param[in] X Grid values {X(t0,p0), X(t0,p1), ... , X(t1,p0), X(t1,p1), ... }, where, {cos(t0), cos(t1), ... } are the Gauss-Legendre nodes of order (Nt-1) in the interval [-1,1] and {p0, p1, ... } are equispaced in [0, 2*pi].
+     * \param[in] Nt Number of grid points \theta \in (1,pi).
+     * \param[in] Np Number of grid points \phi \in (1,2*pi).
+     * \param[in] p Order of spherical harmonic expansion.
+     * \param[in] arrange Arrangement of the coefficients.
+     * \param[out] S Spherical harmonic coefficients.
+     */
+    static void Grid2SHC(const Vector<Real>& X, Long Nt, Long Np, Long p, Vector<Real>& S, SHCArrange arrange);
 
-    static void SHC2Pole(const Vector<Real>& S_in, SHCArrange arrange_in, Long p_in, Vector<Real>& P_out);
+    /**
+     * \brief Evaluate grid values from spherical harmonic coefficients.
+     * \param[in] S Spherical harmonic coefficients.
+     * \param[in] arrange Arrangement of the coefficients.
+     * \param[in] p Order of spherical harmonic expansion.
+     * \param[in] Nt Number of grid points \theta \in (1,pi).
+     * \param[in] Np Number of grid points \phi \in (1,2*pi).
+     * \param[out] X Grid values {X(t0,p0), X(t0,p1), ... , X(t1,p0), X(t1,p1), ... }, where, {cos(t0), cos(t1), ... } are the Gauss-Legendre nodes of order (Nt-1) in the interval [-1,1] and {p0, p1, ... } are equispaced in [0, 2*pi].
+     * \param[out] X_theta \theta derivative of X evaluated at grid points.
+     * \param[out] X_phi \phi derivative of X evaluated at grid points.
+     */
+    static void SHC2Grid(const Vector<Real>& S, SHCArrange arrange, Long p, Long Nt, Long Np, Vector<Real>* X, Vector<Real>* X_theta=nullptr, Vector<Real>* X_phi=nullptr);
+
+    /**
+     * \brief Evaluate point values from spherical harmonic coefficients.
+     * \param[in] S Spherical harmonic coefficients.
+     * \param[in] arrange Arrangement of the coefficients.
+     * \param[in] p Order of spherical harmonic expansion.
+     * \param[in] cos_theta_phi Evaluation coordinates given as {cos(t0),p0, cos(t1),p1, ... }.
+     * \param[out] X Evaluated values {X0, X1, ... }.
+     */
+    static void SHCEval(const Vector<Real>& S, SHCArrange arrange, Long p, const Vector<Real>& cos_theta_phi, Vector<Real>& X);
+
+    static void SHC2Pole(const Vector<Real>& S, SHCArrange arrange, Long p, Vector<Real>& P);
 
     static void WriteVTK(const char* fname, const Vector<Real>* S, const Vector<Real>* f_val, SHCArrange arrange, Long p_in, Long p_out, Real period=0, const Comm& comm = Comm::World());
 
-    static void Grid2VecSHC(const Vector<Real>& X_in, Long Nt_in, Long Np_in, Long p_out, Vector<Real>& S_out, SHCArrange arrange_out);
 
-    static void VecSHC2Grid(const Vector<Real>& S_in, SHCArrange arrange_in, Long p_in, Long Nt_out, Long Np_out, Vector<Real>& X_out);
+    // Vector Spherical Harmonics
+
+    /**
+     * \brief Compute vector spherical harmonic coefficients from grid values.
+     * \param[in] X Grid values {X(t0,p0), X(t0,p1), ... , X(t1,p0), ... , Y(t0,p0), ... , Z(t0,p0), ... }, where, {cos(t0), cos(t1), ... } are the Gauss-Legendre nodes of order (Nt-1) in the interval [-1,1] and {p0, p1, ... } are equispaced in [0, 2*pi].
+     * \param[in] Nt Number of grid points \theta \in (1,pi).
+     * \param[in] Np Number of grid points \phi \in (1,2*pi).
+     * \param[in] p Order of spherical harmonic expansion.
+     * \param[in] arrange Arrangement of the coefficients.
+     * \param[out] S Vector spherical harmonic coefficients.
+     */
+    static void Grid2VecSHC(const Vector<Real>& X, Long Nt, Long Np, Long p, Vector<Real>& S, SHCArrange arrange);
+
+    /**
+     * \brief Evaluate grid values from vector spherical harmonic coefficients.
+     * \param[in] S Vector spherical harmonic coefficients.
+     * \param[in] arrange Arrangement of the coefficients.
+     * \param[in] p Order of spherical harmonic expansion.
+     * \param[in] Nt Number of grid points \theta \in (1,pi).
+     * \param[in] Np Number of grid points \phi \in (1,2*pi).
+     * \param[out] X Grid values {X(t0,p0), X(t0,p1), ... , X(t1,p0), X(t1,p1), ... , Y(t0,p0), ... , Z(t0,p0), ... }, where, {cos(t0), cos(t1), ... } are the Gauss-Legendre nodes of order (Nt-1) in the interval [-1,1] and {p0, p1, ... } are equispaced in [0, 2*pi].
+     */
+    static void VecSHC2Grid(const Vector<Real>& S, SHCArrange arrange, Long p, Long Nt, Long Np, Vector<Real>& X);
+
+    /**
+     * \brief Evaluate point values from vector spherical harmonic coefficients.
+     * \param[in] S Vector spherical harmonic coefficients.
+     * \param[in] arrange Arrangement of the coefficients.
+     * \param[in] p Order of spherical harmonic expansion.
+     * \param[in] cos_theta_phi Evaluation coordinates given as {cos(t0),p0, cos(t1),p1, ... }.
+     * \param[out] X Evaluated values {X0,Y0,Z0, X1,Y1,Z1, ... }.
+     */
+    static void VecSHCEval(const Vector<Real>& S, SHCArrange arrange, Long p, const Vector<Real>& cos_theta_phi, Vector<Real>& X);
+
+    /**
+     * \brief Evaluate Stokes single-layer operator at point values from the vector spherical harmonic coefficients for the density.
+     * \param[in] S Vector spherical harmonic coefficients.
+     * \param[in] arrange Arrangement of the coefficients.
+     * \param[in] p Order of spherical harmonic expansion.
+     * \param[in] Evaluation coordinates given as {x0,y0,z0, x1,y1,z1, ... }.
+     * \param[out] U Evaluated values {Ux0,Uy0,Uz0, Ux1,Uy1,Uz1, ... }.
+     */
+    static void StokesEvalSL(const Vector<Real>& S, SHCArrange arrange, Long p, const Vector<Real>& coord, Vector<Real>& U);
+
+    /**
+     * \brief Evaluate Stokes double-layer operator at point values from the vector spherical harmonic coefficients for the density.
+     * \param[in] S Vector spherical harmonic coefficients.
+     * \param[in] arrange Arrangement of the coefficients.
+     * \param[in] p Order of spherical harmonic expansion.
+     * \param[in] Evaluation coordinates given as {x0,y0,z0, x1,y1,z1, ... }.
+     * \param[out] U Evaluated values {Ux0,Uy0,Uz0, Ux1,Uy1,Uz1, ... }.
+     */
+    static void StokesEvalDL(const Vector<Real>& S, SHCArrange arrange, Long p, const Vector<Real>& coord, Vector<Real>& U);
 
 
-    static void test() {
-      int p = 3;
-      int dof = 2;
-
-      int Ncoeff = (p + 1) * (p + 1);
-      Vector<Real> Xcoeff(dof * Ncoeff);
-      for (int i=0;i<Xcoeff.Dim();i++) Xcoeff[i]=i;
-
-      Vector<Real> Xgrid;
+    static void test_stokes() {
+      int p = 4;
+      int dof = 3;
       int Nt = p+1, Np = 2*p+1;
-      SHC2Grid(Xcoeff, sctl::SHCArrange::COL_MAJOR_NONZERO, p, Nt, Np, &Xgrid);
-      Grid2SHC(Xgrid, Nt, Np, p, Xcoeff, sctl::SHCArrange::ROW_MAJOR);
 
-      int indx=0;
-      for (int i=0;i<dof;i++) {
-        for (int n=0;n<=p;n++){
-          std::cout<<Vector<Real>(2*n+2,Xcoeff.begin()+indx);
-          indx+=2*n+2;
+      auto print_coeff = [&](Vector<Real> S) {
+        Long idx=0;
+        for (Long k=0;k<dof;k++) {
+          for (Long n=0;n<=p;n++) {
+            std::cout<<Vector<Real>(2*n+2, S.begin()+idx);
+            idx+=2*n+2;
+          }
+        }
+        std::cout<<'\n';
+      };
+
+      Vector<Real> f(dof * Nt * Np);
+      { // Set f
+        for (Long i = 0; i < Nt; i++) {
+          for (Long j = 0; j < Np; j++) {
+            f[(0 * Nt + i) * Np + j] = 3;
+            f[(1 * Nt + i) * Np + j] = 2;
+            f[(2 * Nt + i) * Np + j] = 1;
+          }
         }
       }
 
-      SphericalHarmonics<Real>::WriteVTK("test", nullptr, &Xcoeff, sctl::SHCArrange::ROW_MAJOR, p, 32);
+      Vector<Real> f_coeff;
+      Grid2VecSHC(f, Nt, Np, p, f_coeff, sctl::SHCArrange::ROW_MAJOR);
+      print_coeff(f_coeff);
+
+      for (Long i = 0; i < 20; i++) { // Evaluate
+        Vector<Real> Df;
+        Vector<Real> x(3);
+        x[0] = drand48();
+        x[1] = drand48();
+        x[2] = drand48();
+        Real R = sqrt<Real>(x[0]*x[0]+x[1]*x[1]+x[2]*x[2]);
+        x[0]/=R*(i+0.5)/10;
+        x[1]/=R*(i+0.5)/10;
+        x[2]/=R*(i+0.5)/10;
+
+        StokesEvalDL(f_coeff, sctl::SHCArrange::ROW_MAJOR, p, x, Df);
+        std::cout<<Df+1e-10;
+      }
+      Clear();
     }
 
+    static void test() {
+      int p = 3;
+      int dof = 1;
+      int Nt = p+1, Np = 2*p+1;
+
+      auto print_coeff = [&](Vector<Real> S) {
+        Long idx=0;
+        for (Long k=0;k<dof;k++) {
+          for (Long n=0;n<=p;n++) {
+            std::cout<<Vector<Real>(2*n+2, S.begin()+idx);
+            idx+=2*n+2;
+          }
+        }
+        std::cout<<'\n';
+      };
+
+      Vector<Real> r_theta_phi, theta_phi;
+      { // Set r_theta_phi, theta_phi
+        Vector<Real> leg_nodes = LegendreNodes(Nt-1);
+        for (Long i=0;i<Nt;i++) {
+          for (Long j=0;j<Np;j++) {
+            r_theta_phi.PushBack(1);
+            r_theta_phi.PushBack(leg_nodes[i]);
+            r_theta_phi.PushBack(j * 2 * const_pi<Real>() / Np);
+            theta_phi.PushBack(leg_nodes[i]);
+            theta_phi.PushBack(j * 2 * const_pi<Real>() / Np);
+          }
+        }
+      }
+
+      int Ncoeff = (p + 1) * (p + 1);
+      Vector<Real> Xcoeff(dof * Ncoeff), Xgrid;
+      for (int i=0;i<Xcoeff.Dim();i++) Xcoeff[i]=i+1;
+
+      SHC2Grid(Xcoeff, sctl::SHCArrange::COL_MAJOR_NONZERO, p, Nt, Np, &Xgrid);
+      std::cout<<Matrix<Real>(Nt*dof, Np, Xgrid.begin())<<'\n';
+
+      {
+        Vector<Real> val;
+        SHCEval(Xcoeff, sctl::SHCArrange::COL_MAJOR_NONZERO, p, theta_phi, val);
+        Matrix<Real>(dof, val.Dim()/dof, val.begin(), false) = Matrix<Real>(val.Dim()/dof, dof, val.begin()).Transpose();
+        std::cout<<Matrix<Real>(val.Dim()/Np, Np, val.begin()) - Matrix<Real>(Nt*dof, Np, Xgrid.begin())+1e-10<<'\n';
+      }
+
+      Grid2SHC(Xgrid, Nt, Np, p, Xcoeff, sctl::SHCArrange::ROW_MAJOR);
+      print_coeff(Xcoeff);
+
+      //SphericalHarmonics<Real>::WriteVTK("test", nullptr, &Xcoeff, sctl::SHCArrange::ROW_MAJOR, p, 32);
+      Clear();
+    }
+
+    /**
+     * \brief Clear all precomputed data. This must be done before the program exits to avoid memory leaks.
+     */
     static void Clear() { MatrixStore().Resize(0); }
 
   private:
@@ -111,6 +272,10 @@ template <class Real> class SphericalHarmonics{
     static const std::vector<Matrix<Real>>& MatLegendre(Long p0, Long p1);
     static const std::vector<Matrix<Real>>& MatLegendreInv(Long p0, Long p1);
     static const std::vector<Matrix<Real>>& MatLegendreGrad(Long p0, Long p1);
+
+    // Evaluate all Spherical Harmonic basis functions up to order p at (theta, phi) coordinates.
+    static void SHBasisEval(Long p, const Vector<Real>& cos_theta_phi, Matrix<Real>& M);
+    static void VecSHBasisEval(Long p, const Vector<Real>& cos_theta_phi, Matrix<Real>& M);
 
     static const std::vector<Matrix<Real>>& MatRotate(Long p0);
 
