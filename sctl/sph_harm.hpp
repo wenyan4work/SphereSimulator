@@ -231,8 +231,8 @@ template <class Real> class SphericalHarmonics{
         }
       };
 
-      for (Long i = 0; i < 20; i++) { // Evaluate
-        Real R0 = (1.01 + i/20.0);
+      for (Long i = 0; i < 40; i++) { // Evaluate
+        Real R0 = (0.01 + i/20.0);
 
         Vector<Real> x(3);
         x[0] = drand48()-0.5;
