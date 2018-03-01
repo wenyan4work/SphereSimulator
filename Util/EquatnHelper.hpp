@@ -5,6 +5,10 @@
 #include <cmath>
 
 #include "EigenDef.hpp"
+
+// WARNING: use w,x,y,z of a quaternion, do not use [0,1,2,3], since the mapping order is different in eigen and in most papers.
+// eigen: w->[3], for scalar. x,y,z->[0,1,2] for vector
+
 // https://eigen.tuxfamily.org/dox/group__TutorialGeometry.html
 
 // Equatn: This class represents a quaternion $ w+xi+yj+zk $
@@ -31,10 +35,10 @@ class EquatnHelper {
         const double cu2 = cos(2 * pi * u2);
         const double su3 = sin(2 * pi * u3);
         const double cu3 = cos(2 * pi * u3);
-        q.w = a * su2;
-        q.x = a * cu2;
-        q.y = b * su3;
-        q.z = b * cu3;
+        q.w() = a * su2;
+        q.x() = a * cu2;
+        q.y() = b * su3;
+        q.z() = b * cu3;
     }
 
     static void rotateQuatn(Equatn &q, const Evec3 &omega, const double &dt) {
@@ -43,13 +47,13 @@ class EquatnHelper {
         const double winv = 1 / w;
         const double sw = sin(w * dt / 2);
         const double cw = cos(w * dt / 2);
-        const double s = q.w;
-        const EAvec3 p(q.x, q.y, q.z);
+        const double s = q.w();
+        const EAvec3 p(q.x(), q.y(), q.z());
         const EAvec3 xyz = s * sw * omega * winv + cw * p + sw * winv * (omega.cross(p));
-        q.w = s * cw - (p.dot(omega)) * sw * winv;
-        q.x = xyz.x;
-        q.y = xyz.y;
-        q.z = xyz.z;
+        q.w() = s * cw - (p.dot(omega)) * sw * winv;
+        q.x() = xyz.x();
+        q.y() = xyz.y();
+        q.z() = xyz.z();
         q.normalize();
     }
 
@@ -67,8 +71,8 @@ class EquatnHelper {
     }
 
     static void getPsiMatFromQuatn(const Equatn &q, EmatPsi &psi) {
-        const double s = q.w;
-        const EAvec3 p(q.x, q.y, q.z);
+        const double s = q.w();
+        const EAvec3 p(q.x(), q.y(), q.z());
         psi.block<1, 3>(0, 0) = 0.5 * (-p.transpose());
         psi(1, 0) = 0.5 * s;
         psi(1, 1) = 0.5 * p[2];
