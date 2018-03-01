@@ -3,6 +3,7 @@
 // working functions
 void CollisionSolver::setup(CollisionBlockPool &collision_, Teuchos::RCP<TMAP> &objMobMapRcp_, double dt_,
                             double bufferGap_) {
+    reset();
     commRcp = getMPIWORLDTCOMM();
 
     setupCollisionBlockQueThreadIndex(collision_);
@@ -36,7 +37,7 @@ void CollisionSolver::solveCollision(Teuchos::RCP<TOP> &matMobilityRcp_, Teuchos
     if (negNumber == 0) {
         // no collision. set all as zero
         forceColRcp = Teuchos::rcp(new TV(objMobMapRcp, true));
-        velocityRcp = Teuchos::rcp(new TV(objMobMapRcp, true));
+        velocityColRcp = Teuchos::rcp(new TV(objMobMapRcp, true));
         gammaRcp->putScalar(0);
         return;
     }
@@ -60,7 +61,7 @@ void CollisionSolver::solveCollision(Teuchos::RCP<TOP> &matMobilityRcp_, Teuchos
 
     // save the solution
     forceColRcp = AmatRcp->forceVecRcp;
-    velocityRcp = AmatRcp->velVecRcp;
+    velocityColRcp = AmatRcp->velVecRcp;
 
 #ifdef DEBUGLCPCOL
     if (commRcp->getRank() == 0) {

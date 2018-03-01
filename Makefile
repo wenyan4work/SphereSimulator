@@ -2,9 +2,9 @@ include ./MakefileInc.mk
 
 # set of libraries to correctly link to the target
 
-INCLUDE_DIRS = $(Trilinos_INCLUDE_DIRS) $(Trilinos_TPL_INCLUDE_DIRS) $(USERINCLUDE)
-LIBRARY_DIRS = $(Trilinos_LIBRARY_DIRS) $(Trilinos_TPL_LIBRARY_DIRS) 
-LIBRARIES = $(Trilinos_LIBRARIES) $(Trilinos_TPL_LIBRARIES) $(USERLIB)
+INCLUDE_DIRS = $(Trilinos_INCLUDE_DIRS) $(Trilinos_TPL_INCLUDE_DIRS) $(USERINCLUDE) -I$(CURDIR) 
+LIBRARY_DIRS = $(Trilinos_LIBRARY_DIRS) $(Trilinos_TPL_LIBRARY_DIRS) $(USERLIB_DIRS)
+LIBRARIES = $(Trilinos_LIBRARIES) $(Trilinos_TPL_LIBRARIES) $(USERLIBS)
 
 # System-specific settings
 SHELL = /bin/sh
@@ -13,8 +13,16 @@ SIZE =	size
 
 
 # Files
+SRC = Config.cpp main.cpp SphereSystem.cpp \
+	./Collision/CollisionSolver.cpp \
+	./Collision/CPSolver.cpp \
+	./Sphere/Sphere.cpp \
+	./Sphere/SPHExp.cpp \
+	./Trilinos/TpetraUtil.cpp \
+	./Util/Base64.cpp \
+	./sctl/legendre_rule.cpp \
+	# ./STKFMM/STKFMM.cpp \
 
-SRC =   main.cpp config.cpp SphereSystem.cpp TpetraUtil.cpp CPSolver.cpp HydroSphere.cpp FMMWrapper.cpp
 # Definitions
 EXE :=   SphereSimulator.X
 OBJ :=   $(SRC:.cpp=.o)
@@ -25,12 +33,11 @@ all: $(EXE)
 -include $(OBJ:.o=.d)
 
 LFLAG = $(LINKFLAGS) $(SYSLIB) $(LIBRARY_DIRS) $(LIBRARIES)
-# remove "-fopenmp" from link flag
 
 # Link rule
 $(EXE):	$(OBJ)
-#	$(LINK) $(OBJ)  -o $(EXE) $(subst -fopenmp, ,$(LFLAG))
-	$(LINK) $(OBJ)  -o $(EXE) $(LINKFLAGS) $(SYSLIB) $(LIBRARY_DIRS) $(LIBRARIES)
+	$(LINK) $(OBJ)  -o $(EXE) $(subst -ipo, ,$(LFLAG))
+	# $(LINK) $(OBJ)  -o $(EXE) $(LINKFLAGS) $(SYSLIB) $(LIBRARY_DIRS) $(LIBRARIES)
 	$(SIZE) $(EXE)
 
 
@@ -56,6 +63,7 @@ $(EXE):	$(OBJ)
 
 # remove compilation products
 clean: 
-	rm ./$(OBJ)
-	rm ./$(EXE)
-	rm ./*.d
+	rm -f ./$(OBJ)
+	rm -f ./$(EXE)
+	rm -f ./*.d
+	rm -f ./*~

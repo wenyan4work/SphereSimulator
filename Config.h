@@ -1,3 +1,6 @@
+#ifndef CONFIG_H
+#define CONFIG_H
+
 #include <string>
 
 class Config {
@@ -39,3 +42,5 @@ class Config {
     explicit Config(std::string);
     ~Config() = default;
 };
+
+#endif

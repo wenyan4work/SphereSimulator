@@ -8,6 +8,9 @@
 #include <type_traits>
 #include <vector>
 
+// for filesystem
+// #include <boost/filesystem.hpp>
+#include <errno.h>
 #include <sys/stat.h>
 
 #include "Base64.hpp"
@@ -36,13 +39,22 @@ class IOHelper {
         return name;
     }
 
-    static void makeSubFolder(const std::string &folder) {
-        char *foldername = new char[folder.length() + 1];
-        std::strcpy(foldername, folder.c_str());
+    static void makeSubFolder(const std::string folder) {
 
-        const int err = mkdir(foldername, 0755); // make one folder at a time. parent folder must exist
+        // boost::filesystem::create_directories(folder);
+        // if (!boost::filesystem::is_directory(folder)) {
+        //     printf("Error creating directory!n");
+        //     exit(1);
+        // }
+
+        const int err = mkdir(folder.c_str(), 0755); // make one folder at a time. parent folder must exist
+        if (errno == EEXIST) {
+            printf("Directory already exists.\n");
+            return;
+        }
         if (err != 0) {
-            printf("Error creating directory!n");
+            printf("errno: %d \n", errno);
+            printf("Error creating directory!\n");
             exit(1);
         }
     }

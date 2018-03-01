@@ -10,25 +10,22 @@
 #ifndef TIMER_HPP_
 #define TIMER_HPP_
 
-#include <cstdio>
 #include <chrono>
-#include <sstream>
+#include <cstdio>
 #include <iostream>
+#include <sstream>
 
 class Timer {
-private:
+  private:
     std::chrono::high_resolution_clock::time_point startTime;
     std::chrono::high_resolution_clock::time_point stopTime;
     std::stringstream logfile;
     bool work = true;
 
-public:
+  public:
     explicit Timer() = default;
 
-    explicit Timer(bool work_) :
-            Timer() {
-        work = work_;
-    }
+    explicit Timer(bool work_) : Timer() { work = work_; }
 
     ~Timer() = default;
 
@@ -45,6 +42,8 @@ public:
                     << std::endl;
         }
     }
+
+    double getTime() { return std::chrono::duration_cast<std::chrono::microseconds>(stopTime - startTime).count() / 1e6; }
 
     void dump() {
         if (work)

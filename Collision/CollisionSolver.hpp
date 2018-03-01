@@ -16,8 +16,8 @@ class CollisionSolver {
 
   public:
     // constructor
-    CollisionSolver();
-    ~CollisionSolver();
+    CollisionSolver() = default;
+    ~CollisionSolver() = default;
 
     // forbid copy
     CollisionSolver(const CollisionSolver &) = delete;
@@ -26,6 +26,28 @@ class CollisionSolver {
     const CollisionSolver &operator=(CollisionSolver &&) = delete;
 
     // working functions
+    void reset() {
+        res = 1e-5;
+        maxIte = 2000;
+        newton = false;
+
+        objMobMapRcp.reset(); // distributed map for obj mobility. 6 dof per obj
+        forceColRcp.reset();    // force vec, 6 dof per obj
+        velocityColRcp.reset(); // velocity vec, 6 dof per obj. velocity = mobity * forceCol
+
+        gammaMapRcp.reset(); // distributed map for collision magnitude gamma
+        gammaRcp.reset();    // the unknown
+
+        phi0Rcp.reset();
+        vnRcp.reset();
+        bRcp.reset(); // the constant piece of LCP problem
+
+        matMobilityRcp.reset(); // mobility operator, 6 dof per obj to 6 dof per obj
+        matFcTransRcp.reset();  // FcTrans matrix, 6 dof per obj to gamma dof
+
+        queueThreadIndex.clear();
+    }
+
     void setControlLCP(double res_, int maxIte_, bool newton_) {
         res = res_;
         maxIte = maxIte_;
@@ -43,20 +65,22 @@ class CollisionSolver {
 
     // return results
     Teuchos::RCP<TV> getForceCol() const { return forceColRcp; }
-    Teuchos::RCP<TV> getVelocityCol() const { return velocityRcp; }
-    Teuchos::RCP<TV> getGammaCol() const { return gammaRcp; }
+    Teuchos::RCP<TV> getVelocityCol() const { return velocityColRcp; }
+    Teuchos::RCP<TV> getForceColMagnitude() const { return gammaRcp; }
+    Teuchos::RCP<TV> getVelocityKnown() const { return vnRcp; }
+    Teuchos::RCP<TV> getPhi0() const { return phi0Rcp; }
 
   private:
-    double res = 1e-5;
-    int maxIte = 2000;
-    bool newton = false;
+    double res;
+    int maxIte;
+    bool newton;
 
     Teuchos::RCP<TCOMM> commRcp;
 
     // mobility
     Teuchos::RCP<TMAP> objMobMapRcp; // distributed map for obj mobility. 6 dof per obj
     Teuchos::RCP<TV> forceColRcp;    // force vec, 6 dof per obj
-    Teuchos::RCP<TV> velocityRcp;    // velocity vec, 6 dof per obj. velocity = mobity * forceCol
+    Teuchos::RCP<TV> velocityColRcp; // velocity vec, 6 dof per obj. velocity = mobity * forceCol
 
     // unknown collision force magnitude
     Teuchos::RCP<TMAP> gammaMapRcp; // distributed map for collision magnitude gamma
