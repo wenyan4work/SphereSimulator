@@ -68,10 +68,10 @@ void SphereSystem::setInitial(const std::string &initPosFile) {
     const int nSphereGlobal = runConfig.sphereNumber;
 
     for (int i = 0; i < nSphereGlobal; i++) {
-        double radius = rngPoolPtr->getLN();
-        double px = rngPoolPtr->getU01() * (runConfig.simBoxHigh[0] - runConfig.simBoxLow[0]) + runConfig.simBoxLow[0];
-        double py = rngPoolPtr->getU01() * (runConfig.simBoxHigh[1] - runConfig.simBoxLow[1]) + runConfig.simBoxLow[1];
-        double pz = rngPoolPtr->getU01() * (runConfig.simBoxHigh[2] - runConfig.simBoxLow[2]) + runConfig.simBoxLow[2];
+        double radius = runConfig.sphereRadiusSigmaHydro > 0 ? rngPoolPtr->getLN(0) : runConfig.sphereRadiusHydro;
+        double px = rngPoolPtr->getU01(0) * (runConfig.simBoxHigh[0] - runConfig.simBoxLow[0]) + runConfig.simBoxLow[0];
+        double py = rngPoolPtr->getU01(0) * (runConfig.simBoxHigh[1] - runConfig.simBoxLow[1]) + runConfig.simBoxLow[1];
+        double pz = rngPoolPtr->getU01(0) * (runConfig.simBoxHigh[2] - runConfig.simBoxLow[2]) + runConfig.simBoxLow[2];
         Equatn orientation;
         EquatnHelper::setUnitRandomEquatn(orientation, rngPoolPtr->getU01(0), rngPoolPtr->getU01(0),
                                           rngPoolPtr->getU01(0));
@@ -165,7 +165,7 @@ void SphereSystem::output() {
     int k = snapID / num;
     int low = k * num, high = k * num + num - 1;
     std::string baseFolder =
-        "result/" + std::to_string(low) + std::string("-") + std::to_string(high) + std::string("/");
+        "./result/" + std::to_string(low) + std::string("-") + std::to_string(high) + std::string("/");
     IOHelper::makeSubFolder(baseFolder);
     writeXYZ(baseFolder);
     writeVTK(baseFolder);

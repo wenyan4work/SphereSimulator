@@ -5,8 +5,8 @@
 
 #include <mpi.h>
 
-#include "Util/EigenDef.hpp"
 #include "SphereSystem.hpp"
+#include "Util/EigenDef.hpp"
 
 int main(int argc, char **argv) {
     Eigen::initParallel();
@@ -24,10 +24,11 @@ int main(int argc, char **argv) {
         int iStep = 0;
 
         while (t < mySystem.runConfig.timeTotal + mySystem.runConfig.dt / 2) {
+            mySystem.output();
             mySystem.step();
             t += mySystem.runConfig.dt;
             iStep++;
-            if(iStep%10 == 0){
+            if (iStep % 10 == 0) {
                 mySystem.partition();
             }
         }

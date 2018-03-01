@@ -9,7 +9,7 @@
 #include "Collision/CollisionSolver.hpp"
 #include "Collision/CollisionSphere.hpp"
 #include "MPI/InteractionManager.hpp"
-#include "STKFMM/STKFMM.h"
+// #include "STKFMM/STKFMM.h"
 #include "Sphere/Sphere.hpp"
 #include "Trilinos/TpetraUtil.hpp"
 #include "Util/TRngPool.hpp"

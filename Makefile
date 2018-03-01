@@ -18,10 +18,10 @@ SRC = Config.cpp main.cpp SphereSystem.cpp \
 	./Collision/CPSolver.cpp \
 	./Sphere/Sphere.cpp \
 	./Sphere/SPHExp.cpp \
-	./STKFMM/STKFMM.cpp \
 	./Trilinos/TpetraUtil.cpp \
 	./Util/Base64.cpp \
-	./sctl/legendre_rule.cpp
+	./sctl/legendre_rule.cpp \
+	# ./STKFMM/STKFMM.cpp \
 
 # Definitions
 EXE :=   SphereSimulator.X
@@ -36,8 +36,8 @@ LFLAG = $(LINKFLAGS) $(SYSLIB) $(LIBRARY_DIRS) $(LIBRARIES)
 
 # Link rule
 $(EXE):	$(OBJ)
-#	$(LINK) $(OBJ)  -o $(EXE) $(subst -fopenmp, ,$(LFLAG))
-	$(LINK) $(OBJ)  -o $(EXE) $(LINKFLAGS) $(SYSLIB) $(LIBRARY_DIRS) $(LIBRARIES)
+	$(LINK) $(OBJ)  -o $(EXE) $(subst -ipo, ,$(LFLAG))
+	# $(LINK) $(OBJ)  -o $(EXE) $(LINKFLAGS) $(SYSLIB) $(LIBRARY_DIRS) $(LIBRARIES)
 	$(SIZE) $(EXE)
 
 
