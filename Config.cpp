@@ -93,12 +93,13 @@ Config::Config(std::string fileName) {
 
     getline(myfile, line);
     pFMM = 0;
+    std::cout << line;
     myfile >> pFMM >> line;
     if (pFMM % 2 != 0) {
-        printf("P for FMM must be an even number.\n");
+        printf("P for FMM must be an even number: p=%d\n", pFMM);
         exit(1);
     } else if (pFMM < 6 || pFMM > 16) {
-        printf("P for FMM must be between [6,16] \n");
+        printf("P for FMM must be between [6,16]: p=%d\n", pFMM);
         exit(1);
     } else {
         printf("using pFMM %d\n", pFMM);
