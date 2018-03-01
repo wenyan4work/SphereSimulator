@@ -12,8 +12,9 @@ void testVTK() {
     const int num = 200;
     int k = 200 / num;
     int low = k * num, high = k * num + num - 1;
+    IOHelper::makeSubFolder("./result");
     std::string baseFolder =
-        "result/" + std::to_string(low) + std::string("-") + std::to_string(high) + std::string("/");
+        "./result/" + std::to_string(low) + std::string("-") + std::to_string(high) + std::string("/");
     IOHelper::makeSubFolder(baseFolder);
 
     std::vector<Sphere> sphere(10);
@@ -24,22 +25,22 @@ void testVTK() {
         s.globalIndex = i;
         s.radius = drand48();
         s.radiusCollision = drand48();
-        Emap3(s.pos).setRandom();
-        Emap3(s.vel).setRandom();
-        Emap3(s.omega).setRandom();
+        s.pos.setRandom();
+        s.vel.setRandom();
+        s.omega.setRandom();
         s.orientation = Equatn::UnitRandom();
         s.addLayer("lap", SPHExp::KIND::LAP, 6, Equatn::UnitRandom());
         s.addLayer("stk", SPHExp::KIND::STK, 8, Equatn::UnitRandom());
     }
-    Sphere::writeVTP(sphere,baseFolder, "000", 0);
-    Sphere::writeVTU(sphere, baseFolder,"000", 0);
-    Sphere::writePVTP(baseFolder,"000", 1);
+    Sphere::writeVTP(sphere, baseFolder, "000", 0);
+    Sphere::writeVTU(sphere, baseFolder, "000", 0);
+    Sphere::writePVTP(baseFolder, "000", 1);
     std::vector<std::pair<int, std::string>> dataFields;
     std::vector<IOHelper::IOTYPE> types = {IOHelper::IOTYPE::Float64, IOHelper::IOTYPE::Float64,
                                            IOHelper::IOTYPE::Float64};
     dataFields.emplace_back(std::pair<int, std::string>(1, "lap"));
     dataFields.emplace_back(std::pair<int, std::string>(3, "stk"));
-    Sphere::writePVTU(dataFields, types,baseFolder, "000", 1);
+    Sphere::writePVTU(dataFields, types, baseFolder, "000", 1);
 }
 
 int main() {
