@@ -65,7 +65,7 @@ class CollisionCollector {
     }
 
     template <class Trg, class Src>
-    void operator(Trg &trg, Src &src) {
+    void operator()(Trg &trg, Src &src) {
         const int threadId = omp_get_thread_num();
         auto &colque = (*collisionPoolPtr)[threadId];
         // construct a collision block to threadId

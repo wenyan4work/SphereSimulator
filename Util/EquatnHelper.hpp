@@ -1,5 +1,6 @@
-#ifndef QUATERNION_HPP
-#define QUATERNION_HPP
+#ifndef EQUATNHELPER_HPP
+#define EQUATNHELPER_HPP
+
 // add a few functions to eigen quaternion
 
 #include <cmath>
@@ -25,7 +26,7 @@
 
 class EquatnHelper {
   public:
-    static void setUnitRandomQuatn(Equatn &q, const double &u1, const double &u2, const double &u3) {
+    static void setUnitRandomEquatn(Equatn &q, const double &u1, const double &u2, const double &u3) {
         // a random unit quaternion following a uniform distribution law on SO(3)
         // from three U[0,1] random numbers
         constexpr double pi = 3.14159265358979323846;
@@ -41,7 +42,7 @@ class EquatnHelper {
         q.z() = b * cu3;
     }
 
-    static void rotateQuatn(Equatn &q, const Evec3 &omega, const double &dt) {
+    static void rotateEquatn(Equatn &q, const Evec3 &omega, const double &dt) {
         // Delong, JCP, 2015, Appendix A eq1, not linearized
         const double w = omega.norm();
         const double winv = 1 / w;
@@ -70,7 +71,7 @@ class EquatnHelper {
         return;
     }
 
-    static void getPsiMatFromQuatn(const Equatn &q, EmatPsi &psi) {
+    static void getPsiMatFromEquatn(const Equatn &q, EmatPsi &psi) {
         const double s = q.w();
         const EAvec3 p(q.x(), q.y(), q.z());
         psi.block<1, 3>(0, 0) = 0.5 * (-p.transpose());

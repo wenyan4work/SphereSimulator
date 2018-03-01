@@ -15,7 +15,8 @@ class CollisionSphere {
     int gid = INVALID;
     int globalIndex = INVALID;
     double radiusCollision;
-    double pos[3];
+    // double pos[3];
+    Evec3 pos;
 
     void CopyFromFull(const Sphere &s) {
         gid = s.gid;
@@ -27,7 +28,8 @@ class CollisionSphere {
     }
 
     // necessary interface for Near Interaction
-    const double *Coord() const { return pos; }
+    const double *Coord() const { return pos.data(); }
+
     double Rad() const { return radiusCollision * 2; }
 
     void Pack(std::vector<char> &buff) const {
@@ -82,17 +84,18 @@ class CollisionSphere {
         }
     }
 
-    friend void swap(CollisionSphere &, CollisionSphere &);
+    // friend void swap(CollisionSphere &, CollisionSphere &);
 };
 
-void swap(CollisionSphere &A, CollisionSphere &B) {
-    using std::swap;
-    swap(A.gid, B.gid);
-    swap(A.globalIndex, B.globalIndex);
-    swap(A.radiusCollision, B.radiusCollision);
-    swap(A.pos[0], B.pos[0]);
-    swap(A.pos[1], B.pos[1]);
-    swap(A.pos[2], B.pos[2]);
-}
+// void swap(CollisionSphere &A, CollisionSphere &B) {
+//     using std::swap;
+//     swap(A.gid, B.gid);
+//     swap(A.globalIndex, B.globalIndex);
+//     swap(A.radiusCollision, B.radiusCollision);
+//     A.pos.swap(B.pos);
+//     // swap(A.pos[0], B.pos[0]);
+//     // swap(A.pos[1], B.pos[1]);
+//     // swap(A.pos[2], B.pos[2]);
+// }
 
 #endif

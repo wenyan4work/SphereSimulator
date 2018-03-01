@@ -6,8 +6,8 @@
 #include <omp.h>
 
 #include "SphereSystem.hpp"
+#include "Util/EquatnHelper.hpp"
 #include "Util/IOHelper.hpp"
-#include "Util/QuaternionHelper.hpp"
 
 SphereSystem::SphereSystem(const std::string &configFile, const std::string &posFile, int argc, char **argv)
     : runConfig(configFile) {
@@ -23,6 +23,8 @@ SphereSystem::SphereSystem(const std::string &configFile, const std::string &pos
 
     // TRNG pool must be initialized after mpi is initialized
     rngPoolPtr = std::make_shared<TRngPool>(runConfig.rngSeed);
+    collisionSolverPtr = std::make_shared<CollisionSolver>();
+    collisionCollectorPtr = std::make_shared<CollisionCollector>();
 
     if (commRcp->getRank() == 0) {
         // prepare the output directory
@@ -71,7 +73,8 @@ void SphereSystem::setInitial(const std::string &initPosFile) {
         double py = rngPoolPtr->getU01() * (runConfig.simBoxHigh[1] - runConfig.simBoxLow[1]) + runConfig.simBoxLow[1];
         double pz = rngPoolPtr->getU01() * (runConfig.simBoxHigh[2] - runConfig.simBoxLow[2]) + runConfig.simBoxLow[2];
         Equatn orientation;
-        EquatnHelper::setUnitRandomQuatn(orientation, rngPoolPtr->getU01(), rngPoolPtr->getU01(), rngPoolPtr->getU01());
+        EquatnHelper::setUnitRandomEquatn(orientation, rngPoolPtr->getU01(0), rngPoolPtr->getU01(0),
+                                          rngPoolPtr->getU01(0));
         sphere.emplace_back(i, radius, radius * runConfig.sphereRadiusCollisionRatio, Evec3(px, py, pz), orientation);
     }
 
@@ -177,5 +180,208 @@ void SphereSystem::partition() {
     // create a nearInteractor for full particle
     auto nearInteractFullParPtr = interactManagerPtr->getNewNearInteraction();
     interactManagerPtr->partitionObject(nearInteractFullParPtr);
+
+    // setup the new sphereMap
+    sphereMapRcp = getTMAPFromLocalSize(sphere.size(), commRcp);
+    sphereMobilityMapRcp = getTMAPFromLocalSize(sphere.size() * 6, commRcp);
+
     return;
+}
+
+Teuchos::RCP<TOP> SphereSystem::getMobOperator(bool manybody) const {
+    Teuchos::RCP<TOP> mobOpRcp;
+    if (manybody) {
+        // get full mobility operator
+    } else {
+        Teuchos::RCP<TCMAT> mobMatRcp;
+        // get mobility matrix for local drag only
+        const double mu = runConfig.viscosity;
+        const int nSphereLocal = sphere.size();
+
+        // diagonal hydro mobility operator, with rotation
+        const int localSize = nSphereLocal * 6;
+        Kokkos::View<size_t *> rowPointers("rowPointers", localSize + 1);
+        rowPointers[0] = 0;
+        for (int i = 1; i <= localSize; i++) {
+            rowPointers[i] = rowPointers[i - 1] + 1;
+        }
+        Kokkos::View<int *> columnIndices("columnIndices", rowPointers[localSize]);
+        Kokkos::View<double *> values("values", rowPointers[localSize]);
+        for (int i = 0; i < rowPointers[localSize]; i++) {
+            columnIndices[i] = i;
+        }
+
+#pragma omp parallel for
+        for (int i = 0; i < nSphereLocal; i++) {
+            const auto &s = sphere[i];
+            const double radius = s.radius;
+            const double invDragTrans = 1.0 / (6 * Pi * radius * mu);
+            const double invDragRot = 1.0 / (8 * Pi * radius * radius * radius * mu);
+            values[6 * i] = invDragTrans;
+            values[6 * i + 1] = invDragTrans;
+            values[6 * i + 2] = invDragTrans;
+            values[6 * i + 3] = invDragRot;
+            values[6 * i + 4] = invDragRot;
+            values[6 * i + 5] = invDragRot;
+        }
+
+        mobMatRcp =
+            Teuchos::rcp(new TCMAT(sphereMobilityMapRcp, sphereMobilityMapRcp, rowPointers, columnIndices, values));
+        mobMatRcp->fillComplete(sphereMobilityMapRcp, sphereMobilityMapRcp); // domainMap, rangeMa
+        mobOpRcp = mobMatRcp;
+    }
+
+    return mobOpRcp;
+}
+
+Teuchos::RCP<TV> SphereSystem::getVelocityKnown(Teuchos::RCP<TOP> &mobilityOpRcp, Teuchos::RCP<TV> &forceRcp) const {
+    // velocity from known forcing
+    Teuchos::RCP<TV> velocityKnownRcp = Teuchos::rcp<TV>(new TV(sphereMobilityMapRcp, true));
+    mobilityOpRcp->apply(*forceRcp, *velocityKnownRcp);
+
+    // extra velocity, e.g., Brownian noise
+    if (runConfig.scaleBrown > 0) {
+        Teuchos::RCP<TV> velocityBrownRcp = getVelocityBrown();
+        velocityKnownRcp->update(1.0, *velocityBrownRcp, 1.0);
+    }
+
+    return velocityKnownRcp;
+}
+
+Teuchos::RCP<TV> SphereSystem::getForceKnown() const {
+    // 6 dof per sphere, force+torque
+    Teuchos::RCP<TV> forceKnownRcp = Teuchos::rcp<TV>(new TV(sphereMobilityMapRcp, true));
+
+    auto forcePtr = forceKnownRcp->getLocalView<Kokkos::HostSpace>();
+    forceKnownRcp->modify<Kokkos::HostSpace>();
+
+    const int sphereLocalNumber = sphere.size();
+    assert(forcePtr.dimension_0() == sphereLocalNumber * 6);
+    assert(forcePtr.dimension_1() == 1);
+
+    for (int c = 0; c < forcePtr.dimension_1(); c++) {
+#pragma omp parallel for schedule(dynamic, 1024)
+        for (int i = 0; i < sphereLocalNumber; i++) {
+            // force
+            forcePtr(6 * i, c) = 0;
+            forcePtr(6 * i + 1, c) = 0;
+            forcePtr(6 * i + 2, c) = 0;
+            // torque
+            forcePtr(6 * i + 3, c) = 0;
+            forcePtr(6 * i + 4, c) = 0;
+            forcePtr(6 * i + 5, c) = 0;
+        }
+    }
+    commRcp->barrier();
+
+    return forceKnownRcp;
+}
+
+Teuchos::RCP<TV> SphereSystem::getVelocityBrown() const {
+    Teuchos::RCP<TV> velocityBrownRcp = Teuchos::rcp<TV>(new TV(sphereMobilityMapRcp, false));
+
+    // extra velocity, e.g., Brownian noise
+    auto velocityPtr = velocityBrownRcp->getLocalView<Kokkos::HostSpace>();
+    velocityBrownRcp->modify<Kokkos::HostSpace>();
+
+    const int sphereLocalNumber = sphere.size();
+    assert(velocityPtr.dimension_0() == sphereLocalNumber * 6);
+    assert(velocityPtr.dimension_1() == 1);
+
+    const double mu = runConfig.viscosity;
+    const double fackBT = sqrt(2 * runConfig.kBT / runConfig.dt) * runConfig.scaleBrown;
+
+    for (int c = 0; c < velocityPtr.dimension_1(); c++) {
+#pragma omp parallel for schedule(dynamic, 1024)
+        for (int i = 0; i < sphereLocalNumber; i++) {
+            const int threadId = omp_get_thread_num();
+            const auto &s = sphere[i];
+            const double radius = s.radius;
+            const double invDragTrans = 1.0 / (6 * Pi * radius * mu);
+            const double invDragRot = 1.0 / (8 * Pi * radius * radius * radius * mu);
+            const double dx = sqrt(invDragTrans) * fackBT;
+            const double dr = sqrt(invDragRot) * fackBT;
+            // translation
+            velocityPtr(6 * i, c) = dx * rngPoolPtr->getN01(threadId);
+            velocityPtr(6 * i + 1, c) = dx * rngPoolPtr->getN01(threadId);
+            velocityPtr(6 * i + 2, c) = dx * rngPoolPtr->getN01(threadId);
+            // rotation
+            velocityPtr(6 * i + 3, c) = dr * rngPoolPtr->getN01(threadId);
+            velocityPtr(6 * i + 4, c) = dr * rngPoolPtr->getN01(threadId);
+            velocityPtr(6 * i + 5, c) = dr * rngPoolPtr->getN01(threadId);
+        }
+    }
+
+    return velocityBrownRcp;
+}
+
+void SphereSystem::moveEuler(Teuchos::RCP<TV> &velocityRcp) {
+
+    assert(velocityRcp->getMap()->getNodeNumElements() == sphere.size() * 6);
+    auto velocityPtr = velocityRcp->getLocalView<Kokkos::HostSpace>();
+    velocityRcp->modify<Kokkos::HostSpace>();
+
+    const int sphereLocalNumber = sphere.size();
+    assert(velocityPtr.dimension_0() == sphereLocalNumber * 6);
+    assert(velocityPtr.dimension_1() == 1);
+
+    const int c = 0; // only 1 column in the TV
+    const double dt = runConfig.dt;
+
+#pragma omp parallel for schedule(dynamic, 1024)
+    for (int i = 0; i < sphereLocalNumber; i++) {
+        // translation
+        const auto vx = velocityPtr(6 * i, c);
+        const auto vy = velocityPtr(6 * i + 1, c);
+        const auto vz = velocityPtr(6 * i + 2, c);
+        // rotation
+        const auto wx = velocityPtr(6 * i + 3, c);
+        const auto wy = velocityPtr(6 * i + 4, c);
+        const auto wz = velocityPtr(6 * i + 5, c);
+        // update
+        auto &s = sphere[i];
+        s.vel = Evec3(vx, vy, vz);
+        s.omega = Evec3(wx, wy, wz);
+
+        s.stepEuler(dt);
+    }
+
+    return;
+}
+
+void SphereSystem::resolveCollision(bool manybody, double buffer) {
+    // positive buffer value means sphere collision radius is effectively smaller
+    // i.e., less likely to collide
+
+    // generate known velocity
+    Teuchos::RCP<TV> forceKnownRcp = getForceKnown();
+    Teuchos::RCP<TOP> mobOpRcp = getMobOperator(manybody && runConfig.hydro);
+    Teuchos::RCP<TV> velocityKnownRcp = getVelocityKnown(mobOpRcp, forceKnownRcp);
+
+    // Collect collision pair blocks
+    std::vector<CollisionSphere> collisionSphereSrc;
+    std::vector<CollisionSphere> collisionSphereTrg;
+    auto &collector = *collisionCollectorPtr;
+    collector.clear();
+
+    interactManagerPtr->setupEssVec(collisionSphereSrc, collisionSphereTrg);
+    auto nearInteractorPtr = interactManagerPtr->getNewNearInteraction();
+    interactManagerPtr->setupNearInteractor(nearInteractorPtr, collisionSphereSrc, collisionSphereTrg);
+    interactManagerPtr->calcNearInteraction(nearInteractorPtr, collisionSphereSrc, collisionSphereTrg, collector);
+
+    // construct collision stepper
+    collisionSolverPtr->setup(*(collector.collisionPoolPtr), sphereMobilityMapRcp, runConfig.dt, buffer);
+    collisionSolverPtr->setControlLCP(1e-5, 200, false); // res, maxIte, NWTN refine
+    collisionSolverPtr->solveCollision(mobOpRcp, velocityKnownRcp);
+
+    return;
+}
+
+void SphereSystem::step() {
+    resolveCollision(true, 0);
+    // move forward
+    Teuchos::RCP<TV> velocityRcp = Teuchos::rcp(new TV(*(collisionSolverPtr->getVelocityCol()), Teuchos::Copy));
+    Teuchos::RCP<TV> velocityKnownRcp = collisionSolverPtr->getVelocityKnown();
+    velocityRcp->update(1.0, *velocityKnownRcp, 1.0);
+    moveEuler(velocityRcp);
 }

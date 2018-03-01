@@ -24,15 +24,14 @@ int main(int argc, char **argv) {
         int iStep = 0;
 
         while (t < mySystem.runConfig.timeTotal + mySystem.runConfig.dt / 2) {
-            MPI_Barrier(MPI_COMM_WORLD); // barrier before destructing mySystem;
-            mySystem.stepEuler();
+            mySystem.step();
             t += mySystem.runConfig.dt;
             iStep++;
+            if(iStep%10 == 0){
+                mySystem.partition();
+            }
         }
-        MPI_Barrier(MPI_COMM_WORLD); // barrier before destructing mySystem;
-        printf("mySystem destroyed");
     }
-
     // mpi finalize
     // let the root rank wait for other
     MPI_Finalize();

@@ -1,4 +1,3 @@
-
 #ifndef TRNGPOOL_H_
 #define TRNGPOOL_H_
 
@@ -15,15 +14,16 @@
 #include <trng/normal_dist.hpp>
 #include <trng/uniform01_dist.hpp>
 
-
 class TRngPool {
+    using myEngineType=trng::mrg5;
+
   private:
     int myRank;
     int nProcs;
     int nThreads;
 
     // typedef trng::lcg64_shift myEngineType;
-    typedef trng::mrg5 myEngineType;
+
     std::vector<std::unique_ptr<myEngineType>> rngEngineThreadsPtr;
 
     trng::uniform01_dist<double> u01;

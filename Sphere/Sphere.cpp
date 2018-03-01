@@ -3,6 +3,7 @@
 
 #include "Sphere.hpp"
 #include "Util/Base64.hpp"
+#include "Util/EquatnHelper.hpp"
 #include "Util/IOHelper.hpp"
 
 /*****************************************************
@@ -15,9 +16,9 @@ void swap(Sphere &sphA, Sphere &sphB) {
     swap(sphA.radius, sphB.radius);
     swap(sphA.radiusCollision, sphB.radiusCollision);
 
-    Eigen::Map<Evec3>(sphA.pos).swap(Eigen::Map<Evec3>(sphB.pos));
-    Eigen::Map<Evec3>(sphA.vel).swap(Eigen::Map<Evec3>(sphB.vel));
-    Eigen::Map<Evec3>(sphA.omega).swap(Eigen::Map<Evec3>(sphB.omega));
+    sphA.pos.swap(sphB.pos);
+    sphA.vel.swap(sphB.vel);
+    sphA.omega.swap(sphB.omega);
 
     Equatn otemp = sphB.orientation;
     sphB.orientation = sphA.orientation;
@@ -30,17 +31,17 @@ void swap(Sphere &sphA, Sphere &sphB) {
     return;
 }
 
-void SphereIO::dumpSphere() const {
-    printf("gid %8d, r %8f, rCol %8f, pos %8f, %8f, %8f\n", gid, radius, radiusCollision, pos[0], pos[1], pos[2]);
-    printf("vel %8f, %8f, %8f; omega %8f, %8f, %8f\n", vel[0], vel[1], vel[2], omega[0], omega[1], omega[2]);
-    printf("orient %8f, %8f, %8f, %8f\n", orientation.w(), orientation.x(), orientation.y(), orientation.z());
-    return;
-}
+// void SphereIO::dumpSphere() const {
+//     printf("gid %8d, r %8f, rCol %8f, pos %8f, %8f, %8f\n", gid, radius, radiusCollision, pos[0], pos[1], pos[2]);
+//     printf("vel %8f, %8f, %8f; omega %8f, %8f, %8f\n", vel[0], vel[1], vel[2], omega[0], omega[1], omega[2]);
+//     printf("orient %8f, %8f, %8f, %8f\n", orientation.w(), orientation.x(), orientation.y(), orientation.z());
+//     return;
+// }
 
-Sphere::Sphere(const SphereIO &sphere)
-    : Sphere::Sphere(sphere.gid, sphere.radius, sphere.radiusCollision, sphere.pos, sphere.orientation) {
-    return;
-}
+// Sphere::Sphere(const SphereIO &sphere)
+//     : Sphere::Sphere(sphere.gid, sphere.radius, sphere.radiusCollision, sphere.pos, sphere.orientation) {
+//     return;
+// }
 
 Sphere::Sphere(const int &gid_, const double &radius_, const double &radiusCollision_, const Evec3 &pos_,
                const Equatn &orientation_) noexcept
@@ -48,8 +49,8 @@ Sphere::Sphere(const int &gid_, const double &radius_, const double &radiusColli
     pos[0] = pos_[0];
     pos[1] = pos_[1];
     pos[2] = pos_[2];
-    Emap3(vel).setZero();
-    Emap3(omega).setZero();
+    vel.setZero();
+    omega.setZero();
     sphNeighbor.reserve(10);
     return;
 }
@@ -220,7 +221,7 @@ void Sphere::writeVTP(const std::vector<Sphere> &sphere, const std::string &pref
                       int rank) {
     // for each sphere:
     /*
-    TODO: Procedure for dumping spheres in the system:
+     Procedure for dumping spheres in the system:
 
     1 basic data (x,y,z), r, rcol, v, omega, etc output as VTK POLY_DATA file (*.vtp), each partiel is a VTK_VERTEX
     2 each sph with the same name, output as UnstructuredGrid (*.vtu). each sph belongs to one particle is an
@@ -347,4 +348,9 @@ void Sphere::writePVTU(const std::vector<std::pair<int, std::string>> &dataField
         IOHelper::writePVTUFile(prefix + "Sphere_" + dataFields[j].second + "_" + postfix + ".pvtu", names, t,
                                 pieceNames);
     }
+}
+
+void Sphere::stepEuler(double dt) {
+    pos += vel * dt;
+    EquatnHelper::rotateEquatn(orientation, omega, dt);
 }

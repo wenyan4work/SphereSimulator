@@ -1,4 +1,5 @@
-#include "config.h"
+#include "Config.h"
+
 #include <fstream>
 #include <iostream>
 #include <omp.h>
