@@ -45,7 +45,7 @@ class Buffer {
         for (auto &v : *contentPtr) {
             printf("%c", v);
         }
-        printf("\nreadPos %d\n", readPos);
+        printf("\nreadPos %zu\n", readPos);
     }
 
     // buffer should not resize itself, because after resize the data in content are not valid msgpack obj data

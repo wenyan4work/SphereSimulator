@@ -20,7 +20,7 @@ class NeighborSphere {
     Evec3 pos;
     Evec3 posRelative;
     Equatn orientation;
-    NeighborSphere() noexcept = default;
+    NeighborSphere() = default;
     NeighborSphere(const int &gid_, const Evec3 &posRelative_) noexcept : gid(gid_), posRelative(posRelative_) {}
 };
 

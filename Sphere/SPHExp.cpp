@@ -91,7 +91,7 @@ int SPHExp::dumpVTK(std::ofstream &file, const double &radius, const Evec3 &coor
     assert(gridPoints.size() == nPts * 3);
 
     // for debug
-    printf("%d,%d,%d\n", gridPoints.size(), gridWeights.size(), gridValues.size());
+    printf("%lu,%lu,%lu\n", gridPoints.size(), gridWeights.size(), gridValues.size());
     for (const auto &v : gridPoints) {
         std::cout << v << " ";
     }
