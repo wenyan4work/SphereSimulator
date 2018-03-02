@@ -1,5 +1,5 @@
 omp threads
--1
+1
 simBox xlow ylow zlow  xhigh yhigh zhigh
 0.0 0.0 0.0 100.0 100.0 100.0
 xyz periodic
@@ -17,9 +17,9 @@ sphereNumber
 dt (s)
 0.001
 timeTotal (s)
-0.1
-timeSnap (s)
-0.01
+0.002
+snapFreq (int)
+1
 RngSeed
 6
 Monolayer (>0 for true, <=0 for false, default to be true)

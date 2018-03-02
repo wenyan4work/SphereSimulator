@@ -48,6 +48,10 @@ class CollisionCollector {
         const int totalThreads = omp_get_max_threads();
         collisionPoolPtr = std::make_shared<CollisionBlockPool>();
         collisionPoolPtr->resize(totalThreads);
+        for(auto & queue:*collisionPoolPtr){
+            queue.resize(0);
+            queue.reserve(50);
+        }
         std::cout << "stress recoder size:" << collisionPoolPtr->size() << std::endl;
     }
 

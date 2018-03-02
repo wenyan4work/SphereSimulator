@@ -2,13 +2,12 @@
 
 void CollisionSolver::setup(CollisionBlockPool &collision_, Teuchos::RCP<TMAP> &objMobMapRcp_, double dt_,
                             double bufferGap_) {
-    objMobMapRcp = objMobMapRcp_; // domainmap = rangemap for mobility matrix
-
     reset();
 
     setupCollisionBlockQueThreadIndex(collision_);
 
     // step 1 setup maps
+    objMobMapRcp = objMobMapRcp_; // domainmap = rangemap for mobility matrix
     auto commRcp = objMobMapRcp->getComm();
     gammaMapRcp = getTMAPFromLocalSize(queueThreadIndex.back(), commRcp);
 
@@ -16,6 +15,9 @@ void CollisionSolver::setup(CollisionBlockPool &collision_, Teuchos::RCP<TMAP> &
     const int nObjGlobal = objMobMapRcp->getGlobalNumElements() / 6;
     assert(nObjLocal * 6 == objMobMapRcp->getNodeNumElements());
     assert(nObjGlobal * 6 == objMobMapRcp->getGlobalNumElements());
+
+    // setup vecs
+    gammaRcp = Teuchos::rcp(new TV(gammaMapRcp, true));
 
     // step 2 setup FcTrans
     // assert(velocity.size() == nObjLocal * 6);
@@ -28,20 +30,18 @@ void CollisionSolver::setup(CollisionBlockPool &collision_, Teuchos::RCP<TMAP> &
 
 void CollisionSolver::solveCollision(Teuchos::RCP<TOP> &matMobilityRcp_, Teuchos::RCP<TV> &velocityKnownRcp_) {
     // should return valid (0) results for no collisions
-
     this->matMobilityRcp = matMobilityRcp_;
     this->vnRcp = velocityKnownRcp_;
 
     // set the const b
     setupBVec();
 
-    // count negtive number, return with zero out solution if b>0. No collision
-    const int negNumber = getNumNegElements(bRcp);
-    if (negNumber == 0) {
-        // no collision. set all as zero
+    if (matFcTransRcp->getGlobalNumEntries() == 0) {
+        // no entry in FcTrans Mat means no collision. set all as zero
         forceColRcp = Teuchos::rcp(new TV(objMobMapRcp, true));
         velocityColRcp = Teuchos::rcp(new TV(objMobMapRcp, true));
         gammaRcp->putScalar(0);
+        objMobMapRcp->getComm()->barrier();
         return;
     }
 
@@ -73,8 +73,8 @@ void CollisionSolver::solveCollision(Teuchos::RCP<TOP> &matMobilityRcp_, Teuchos
             std::cout << p[0] << " " << p[1] << " " << p[2] << " " << p[3] << " " << p[4] << std::endl;
         }
     }
-    dumpTMV(forceColRcp, "forceCol.mtx");
-    dumpTMV(gammaRcp, "gammaSolLCP.mtx");
+    dumpTV(forceColRcp, "forceCol.mtx");
+    dumpTV(gammaRcp, "gammaSolLCP.mtx");
 #endif
 }
 
@@ -165,13 +165,12 @@ void CollisionSolver::setupFcTrans(CollisionBlockPool &collision_) {
     auto commRcp = objMobMapRcp->getComm();
     Teuchos::RCP<TMAP> colMapRcp = getFullCopyTMAPFromGlobalSize(objMobMapRcp->getGlobalNumElements(), commRcp);
 
-    Teuchos::RCP<TCMAT> fcTransMatRcp =
-        Teuchos::rcp(new TCMAT(gammaMapRcp, colMapRcp, rowPointers, columnIndices, values));
-    fcTransMatRcp->fillComplete(objMobMapRcp, gammaMapRcp); // domainMap, rangeMap
+    matFcTransRcp = Teuchos::rcp(new TCMAT(gammaMapRcp, colMapRcp, rowPointers, columnIndices, values));
+    matFcTransRcp->fillComplete(objMobMapRcp, gammaMapRcp); // domainMap, rangeMap
 
 #ifdef DEBUGLCPCOL
-    std::cout << "FcTransConstructed: " << fcTransMatRcp->description() << std::endl;
-    dumpTCMAT(fcTransMatRcp, "fcTransMat.mtx");
+    std::cout << "FcTransConstructed: " << matFcTransRcp->description() << std::endl;
+    dumpTCMAT(matFcTransRcp, "matFcTrans.mtx");
 #endif
 
     return;
@@ -181,7 +180,7 @@ void CollisionSolver::setupCollisionBlockQueThreadIndex(CollisionBlockPool &coll
     const int poolSize = collision_.size();
     queueThreadIndex.resize(poolSize + 1, 0);
     for (int i = 1; i <= poolSize; i++) {
-        queueThreadIndex[i] = queueThreadIndex[i - 1] + collision_[i].size();
+        queueThreadIndex[i] = queueThreadIndex[i - 1] + collision_[i-1].size();
     }
 }
 
@@ -271,8 +270,12 @@ int CollisionSolver::getNumNegElements(Teuchos::RCP<TV> &vecRcp_) const {
     for (int j = 0; j < vec_2d.dimension_0(); j++) {
         negNumber += (vec_2d(j, 0) < 0 ? 1 : 0);
     }
-    MPI_Allreduce(MPI_IN_PLACE, &negNumber, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
-    return negNumber;
+    // MPI_Allreduce(MPI_IN_PLACE, &negNumber, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+    // return negNumber;
+    int negNumberAll = 0;
+    Teuchos::reduceAll(*(objMobMapRcp->getComm()), Teuchos::REDUCE_SUM, 1, &negNumber, &negNumberAll);
+
+    return negNumberAll;
 }
 
 void CollisionSolver::setupBVec() {

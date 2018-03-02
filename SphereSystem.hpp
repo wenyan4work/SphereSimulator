@@ -22,9 +22,8 @@ class SphereSystem {
 
   public:
     const Config runConfig;
-    double sysTime;
-    double snapTime;
     int snapID; // id of snap shot
+    int stepCount;
 
     SphereSystem(const std::string &configFile, const std::string &posFile, int argc, char **argv);
     ~SphereSystem() = default;

@@ -257,7 +257,8 @@ void Sphere::writeVTP(const std::vector<Sphere> &sphere, const std::string &pref
         }
     }
 
-    std::ofstream file(prefix + std::string("Sphere_") + postfix + "_r" + std::to_string(rank) + std::string(".vtp"),
+    std::ofstream file(prefix + std::string("Sphere_") + "r" + std::to_string(rank) + std::string("_") + postfix +
+                           std::string(".vtp"),
                        std::ios::out);
 
     IOHelper::writeHeadVTP(file);
@@ -292,8 +293,8 @@ void Sphere::writeVTU(const std::vector<Sphere> &sphere, const std::string &pref
     // dump one vtu file for each sph
     for (const auto &layer : sphere[0].sphLayer) {
         const std::string &name = layer.first;
-        std::ofstream file(prefix + std::string("Sphere_") + name + "_" + postfix + "_r" + std::to_string(rank) +
-                               std::string(".vtu"),
+        std::ofstream file(prefix + std::string("Sphere_") + std::string("r") + std::to_string(rank) +
+                               std::string("_") + name + "_" + postfix + std::string(".vtu"),
                            std::ios::out);
         IOHelper::writeHeadVTU(file);
         for (auto &s : sphere) {
@@ -323,7 +324,7 @@ void Sphere::writePVTP(const std::string &prefix, const std::string &postfix, co
         IOHelper::IOTYPE::Float64, IOHelper::IOTYPE::Float32, IOHelper::IOTYPE::Float32};
 
     for (int i = 0; i < nProcs; i++) {
-        pieceNames.emplace_back("Sphere_" + postfix + "_r" + std::to_string(i) + ".vtp");
+        pieceNames.emplace_back(std::string("Sphere_") + std::string("r") + std::to_string(i) + "_" + postfix + ".vtp");
     }
 
     IOHelper::writePVTPFile(prefix + "Sphere_" + postfix + ".pvtp", dataFields, types, pieceNames);
@@ -342,8 +343,8 @@ void Sphere::writePVTU(const std::vector<std::pair<int, std::string>> &dataField
         t.emplace_back(IOHelper::IOTYPE::Float64);
         t.emplace_back(IOHelper::IOTYPE::Float64);
         for (int i = 0; i < nProcs; i++) {
-            pieceNames.emplace_back("Sphere_" + dataFields[j].second + "_" + postfix + "_r" + std::to_string(i) +
-                                    ".vtu");
+            pieceNames.emplace_back("Sphere_" + std::string("r") + std::to_string(i) + "_" + dataFields[j].second +
+                                    "_" + postfix + ".vtu");
         }
         IOHelper::writePVTUFile(prefix + "Sphere_" + dataFields[j].second + "_" + postfix + ".pvtu", names, t,
                                 pieceNames);

@@ -22,9 +22,7 @@ int main(int argc, char **argv) {
         // main time loop
         double t = 0;
         int iStep = 0;
-
         while (t < mySystem.runConfig.timeTotal + mySystem.runConfig.dt / 2) {
-            mySystem.output();
             mySystem.step();
             t += mySystem.runConfig.dt;
             iStep++;

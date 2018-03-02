@@ -37,7 +37,7 @@ class Config {
     // time stepping
     double dt;
     double timeTotal;
-    double timeSnap;
+    int snapFreq;
 
     explicit Config(std::string);
     ~Config() = default;

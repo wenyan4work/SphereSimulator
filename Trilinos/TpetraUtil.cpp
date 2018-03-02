@@ -3,32 +3,26 @@
 #include <limits>
 
 void dumpTCMAT(const Teuchos::RCP<const TCMAT> &A, std::string filename) {
-#ifdef DUMPTPETRA
     filename = std::string("TCMAT_") + filename;
     std::cout << "dumping" << filename << std::endl;
     Tpetra::MatrixMarket::Writer<TCMAT> matDumper;
     matDumper.writeSparseFile(filename, A, filename, filename, true);
-#endif
 }
 
 void dumpTMV(const Teuchos::RCP<const TMV> &A, std::string filename) {
-#ifdef DUMPTPETRA
     filename = std::string("TMV_") + filename;
     std::cout << "dumping" << filename << std::endl;
     A->print(std::cout);
     Tpetra::MatrixMarket::Writer<TMV> matDumper;
     matDumper.writeDenseFile(filename, A, filename, filename);
-#endif
 }
 
 void dumpTV(const Teuchos::RCP<const TV> &A, std::string filename) {
-#ifdef DUMPTPETRA
     filename = std::string("TV_") + filename;
     std::cout << "dumping" << filename << std::endl;
     A->print(std::cout);
     Tpetra::MatrixMarket::Writer<TV> matDumper;
     matDumper.writeDenseFile(filename, A, filename, filename);
-#endif
 }
 
 Teuchos::RCP<const TCOMM> getMPIWORLDTCOMM() { return Teuchos::rcp(new Teuchos::MpiComm<int>(MPI_COMM_WORLD)); }

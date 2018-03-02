@@ -72,8 +72,8 @@ Config::Config(std::string fileName) {
     myfile >> timeTotal >> line;
 
     getline(myfile, line);
-    timeSnap = 0;
-    myfile >> timeSnap >> line;
+    snapFreq = 0;
+    myfile >> snapFreq >> line;
 
     getline(myfile, line);
     rngSeed = 0;
@@ -174,7 +174,7 @@ Config::Config(std::string fileName) {
         printf("Sphere number: %d\n", sphereNumber);
         printf("Time step size: %lf\n", dt);
         printf("Total Time: %lf\n", timeTotal);
-        printf("Snap Time: %lf\n", timeSnap);
+        printf("Snap Freq: %d\n", snapFreq);
     }
 
     return;

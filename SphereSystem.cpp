@@ -17,8 +17,7 @@ SphereSystem::SphereSystem(const std::string &configFile, const std::string &pos
 
     commRcp = getMPIWORLDTCOMM();
 
-    sysTime = 0;
-    snapTime = 0;
+    stepCount = 0;
     snapID = 0;
 
     // TRNG pool must be initialized after mpi is initialized
@@ -41,6 +40,7 @@ SphereSystem::SphereSystem(const std::string &configFile, const std::string &pos
     MPI_Barrier(MPI_COMM_WORLD);
 
     printf("local: %d spheres on process %d\n", sphere.size(), commRcp->getRank());
+    output();
 
     // initialize force calculate tree
     // initial resolve and reset move to zero
@@ -122,8 +122,8 @@ bool SphereSystem::readXYZ(const std::string &filename) {
 
 void SphereSystem::writeXYZ(const std::string &baseFolder) {
     // each rank write a xyz file separately. rank 0 write the two lines of header
-    std::string name = baseFolder + std::string("SphereXYZ_") + std::to_string(snapID) + std::string("_r") +
-                       std::to_string(commRcp->getRank()) + "_.xyz";
+    std::string name = baseFolder + std::string("SphereXYZ_") + std::string("r") + std::to_string(commRcp->getRank()) +
+                       "_" + std::to_string(snapID) + ".xyz";
     FILE *fptr = fopen(name.c_str(), "w");
     const int nSphereLocal = sphere.size();
     int nSphere = nSphereLocal;
@@ -133,7 +133,7 @@ void SphereSystem::writeXYZ(const std::string &baseFolder) {
 
     if (commRcp->getRank() == 0) {
         fprintf(fptr, "%d\n", nSphere);
-        fprintf(fptr, "SphereNumber: %d, time: %lf\n", nSphere, sysTime);
+        fprintf(fptr, "SphereNumber: %d, time: %lf\n", nSphere, stepCount * runConfig.dt);
     }
 
     for (const auto &s : sphere) {
@@ -165,10 +165,11 @@ void SphereSystem::output() {
     int k = snapID / num;
     int low = k * num, high = k * num + num - 1;
     std::string baseFolder =
-        "./result/" + std::to_string(low) + std::string("-") + std::to_string(high) + std::string("/");
+        "./result/result" + std::to_string(low) + std::string("-") + std::to_string(high) + std::string("/");
     IOHelper::makeSubFolder(baseFolder);
     writeXYZ(baseFolder);
     writeVTK(baseFolder);
+    snapID++;
 }
 
 void SphereSystem::partition() {
@@ -184,6 +185,14 @@ void SphereSystem::partition() {
     // setup the new sphereMap
     sphereMapRcp = getTMAPFromLocalSize(sphere.size(), commRcp);
     sphereMobilityMapRcp = getTMAPFromLocalSize(sphere.size() * 6, commRcp);
+
+    // setup the globalIndex
+    int globalIndexBase = sphereMapRcp->getMinGlobalIndex(); // this is a contiguous map
+    const int nsphere = sphere.size();
+#pragma omp parallel for
+    for (int i = 0; i < nsphere; i++) {
+        sphere[i].globalIndex = i + globalIndexBase;
+    }
 
     return;
 }
@@ -388,4 +397,9 @@ void SphereSystem::step() {
     Teuchos::RCP<TV> velocityKnownRcp = collisionSolverPtr->getVelocityKnown();
     velocityRcp->update(1.0, *velocityKnownRcp, 1.0);
     moveEuler(velocityRcp);
+
+    stepCount++;
+    if (stepCount % runConfig.snapFreq == 0) {
+        output();
+    }
 }

@@ -1,2 +1,1 @@
-rm ./*.vtk
-rm ./*.xyz
+rm -rf ./result*-*
