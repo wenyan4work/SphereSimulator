@@ -39,7 +39,7 @@ SphereSystem::SphereSystem(const std::string &configFile, const std::string &pos
     partition();
     MPI_Barrier(MPI_COMM_WORLD);
 
-    printf("local: %u spheres on process %d\n", sphere.size(), commRcp->getRank());
+    printf("local: %lu spheres on process %d\n", sphere.size(), commRcp->getRank());
     output();
 
     // initialize force calculate tree
