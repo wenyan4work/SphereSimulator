@@ -31,10 +31,10 @@ void dumpTV(const Teuchos::RCP<const TV> &A, std::string filename) {
 #endif
 }
 
-Teuchos::RCP<TCOMM> getMPIWORLDTCOMM() { return Teuchos::rcp(new Teuchos::MpiComm<int>(MPI_COMM_WORLD)); }
+Teuchos::RCP<const TCOMM> getMPIWORLDTCOMM() { return Teuchos::rcp(new Teuchos::MpiComm<int>(MPI_COMM_WORLD)); }
 
 // return a fully copied TMAP with a given global size
-Teuchos::RCP<TMAP> getFullCopyTMAPFromGlobalSize(const int &globalSize, Teuchos::RCP<TCOMM> &commRcp) {
+Teuchos::RCP<TMAP> getFullCopyTMAPFromGlobalSize(const int &globalSize, Teuchos::RCP<const TCOMM> &commRcp) {
     std::vector<int> globalIndexOnLocal(globalSize);
 #pragma omp parallel for schedule(dynamic, 2048)
     // define the matrix with col map = full cols on every node
@@ -45,13 +45,13 @@ Teuchos::RCP<TMAP> getFullCopyTMAPFromGlobalSize(const int &globalSize, Teuchos:
 }
 
 // return a contiguous TMAP from local Size
-Teuchos::RCP<TMAP> getTMAPFromLocalSize(const int &localSize, Teuchos::RCP<TCOMM> &commRcp) {
+Teuchos::RCP<TMAP> getTMAPFromLocalSize(const int &localSize, Teuchos::RCP<const TCOMM> &commRcp) {
     int globalSize = localSize;
     MPI_Allreduce(MPI_IN_PLACE, &globalSize, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
     return Teuchos::rcp(new TMAP(globalSize, localSize, 0, commRcp));
 }
 
-Teuchos::RCP<TV> getTVFromVector(const std::vector<double> &in, Teuchos::RCP<TCOMM> &commRcp) {
+Teuchos::RCP<TV> getTVFromVector(const std::vector<double> &in, Teuchos::RCP<const TCOMM> &commRcp) {
 
     const int localSize = in.size();
 
@@ -73,7 +73,7 @@ Teuchos::RCP<TV> getTVFromVector(const std::vector<double> &in, Teuchos::RCP<TCO
     return out;
 }
 
-Teuchos::RCP<TMV> getTMVFromVector(const std::vector<std::vector<double>> &in, Teuchos::RCP<TCOMM> &commRcp) {
+Teuchos::RCP<TMV> getTMVFromVector(const std::vector<std::vector<double>> &in, Teuchos::RCP<const TCOMM> &commRcp) {
     const int nCol = in.size();
     // look for the minimal local size of in vecs
     int localSize = std::numeric_limits<int>::max();

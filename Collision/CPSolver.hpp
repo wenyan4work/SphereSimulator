@@ -56,8 +56,9 @@ class CPMatOp : public TOP {
 
 class CPSolver {
   public:
-    CPSolver(const Teuchos::RCP<const TOP> &, const Teuchos::RCP<const TV> &, const Teuchos::RCP<const TMAP> &,
-             const Teuchos::RCP<const TCOMM> &);
+    // CPSolver(const Teuchos::RCP<const TOP> &, const Teuchos::RCP<const TV> &, const Teuchos::RCP<const TMAP> &,
+            //  const Teuchos::RCP<const TCOMM> &);
+    CPSolver(const Teuchos::RCP<const TOP> &, const Teuchos::RCP<const TV> &);
     CPSolver(int);
 
     // Nesterov Acceleration

@@ -64,6 +64,14 @@ class CollisionCollector {
         }
     }
 
+    int getLocalCollisionNumber() {
+        int sum = 0;
+        for (int i = 0; i < collisionPoolPtr->size(); i++) {
+            sum += (*collisionPoolPtr)[i].size();
+        }
+        return sum;
+    }
+
     template <class Trg, class Src>
     void operator()(Trg &trg, Src &src) {
         const int threadId = omp_get_thread_num();

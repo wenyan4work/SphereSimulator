@@ -166,20 +166,35 @@ void CPSolver::hMinMap(const Teuchos::RCP<const TV> &xRcp, const Teuchos::RCP<co
 }
 
 // constructor with known A and b
-CPSolver::CPSolver(const Teuchos::RCP<const TOP> &A_, const Teuchos::RCP<const TV> &b_,
-                   const Teuchos::RCP<const TMAP> &map_, const Teuchos::RCP<const TCOMM> &comm_)
-    : ARcp(A_), bRcp(b_), mapRcp(map_), commRcp(comm_), myRank(comm_->getRank()), numProcs(comm_->getSize()),
-      globalSize(map_->getGlobalNumElements()), localSize(map_->getNodeNumElements()),
-      globalIndexMinOnLocal(map_->getMinGlobalIndex()), globalIndexMaxOnLocal(map_->getMaxGlobalIndex()) {
-// make sure A and b match the map and comm specified
-#ifdef DEBUGCOLLCP
+// CPSolver::CPSolver(const Teuchos::RCP<const TOP> &A_, const Teuchos::RCP<const TV> &b_,
+//                    const Teuchos::RCP<const TMAP> &map_, const Teuchos::RCP<const TCOMM> &comm_)
+//     : ARcp(A_), bRcp(b_), mapRcp(map_), commRcp(comm_), myRank(comm_->getRank()), numProcs(comm_->getSize()),
+//       globalSize(map_->getGlobalNumElements()), localSize(map_->getNodeNumElements()),
+//       globalIndexMinOnLocal(map_->getMinGlobalIndex()), globalIndexMaxOnLocal(map_->getMaxGlobalIndex()) {
+// // make sure A and b match the map and comm specified
+// #ifdef DEBUGCOLLCP
+//     TEUCHOS_TEST_FOR_EXCEPTION(!(ARcp->getDomainMap()->isSameAs(*(bRcp->getMap()))), std::invalid_argument,
+//                                "A and b do not have the same Map.");
+//     TEUCHOS_TEST_FOR_EXCEPTION(!(mapRcp->isSameAs(*(bRcp->getMap()))), std::invalid_argument,
+//                                "map and b do not have the same Map.");
+//     TEUCHOS_TEST_FOR_EXCEPTION(!(mapRcp->isSameAs(*(ARcp->getDomainMap()))), std::invalid_argument,
+//                                "map and b do not have the same Map.");
+// #endif
+// }
+
+CPSolver::CPSolver(const Teuchos::RCP<const TOP> &A_, const Teuchos::RCP<const TV> &b_)
+    : ARcp(A_), bRcp(b_), mapRcp(b_->getMap()), commRcp(b_->getMap()->getComm()),
+      myRank(b_->getMap()->getComm()->getRank()), numProcs(b_->getMap()->getComm()->getSize()),
+      globalSize(b_->getMap()->getGlobalNumElements()), localSize(b_->getMap()->getNodeNumElements()),
+      globalIndexMinOnLocal(b_->getMap()->getMinGlobalIndex()),
+      globalIndexMaxOnLocal(b_->getMap()->getMaxGlobalIndex()) {
+    // make sure A and b match the map and comm specified
     TEUCHOS_TEST_FOR_EXCEPTION(!(ARcp->getDomainMap()->isSameAs(*(bRcp->getMap()))), std::invalid_argument,
-                               "A and b do not have the same Map.");
+                               "A (domain) and b do not have the same Map.");
     TEUCHOS_TEST_FOR_EXCEPTION(!(mapRcp->isSameAs(*(bRcp->getMap()))), std::invalid_argument,
                                "map and b do not have the same Map.");
     TEUCHOS_TEST_FOR_EXCEPTION(!(mapRcp->isSameAs(*(ARcp->getDomainMap()))), std::invalid_argument,
                                "map and b do not have the same Map.");
-#endif
 }
 
 // constructor to set random A and b with given size

@@ -365,9 +365,13 @@ void SphereSystem::resolveCollision(bool manybody, double buffer) {
     collector.clear();
 
     interactManagerPtr->setupEssVec(collisionSphereSrc, collisionSphereTrg);
+    printf("ESS vec created\n");
     auto nearInteractorPtr = interactManagerPtr->getNewNearInteraction();
+    printf("nearInteractorPtr created\n");
     interactManagerPtr->setupNearInteractor(nearInteractorPtr, collisionSphereSrc, collisionSphereTrg);
+    printf("setupNear\n");
     interactManagerPtr->calcNearInteraction(nearInteractorPtr, collisionSphereSrc, collisionSphereTrg, collector);
+    printf("calcNear\n");
 
     // construct collision stepper
     collisionSolverPtr->setup(*(collector.collisionPoolPtr), sphereMobilityMapRcp, runConfig.dt, buffer);

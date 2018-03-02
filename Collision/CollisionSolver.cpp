@@ -1,14 +1,15 @@
 #include "CollisionSolver.hpp"
 
-// working functions
 void CollisionSolver::setup(CollisionBlockPool &collision_, Teuchos::RCP<TMAP> &objMobMapRcp_, double dt_,
                             double bufferGap_) {
+    objMobMapRcp = objMobMapRcp_; // domainmap = rangemap for mobility matrix
+
     reset();
-    commRcp = getMPIWORLDTCOMM();
 
     setupCollisionBlockQueThreadIndex(collision_);
+
     // step 1 setup maps
-    this->objMobMapRcp = objMobMapRcp; // domainmap = rangemap for mobility matrix
+    auto commRcp = objMobMapRcp->getComm();
     gammaMapRcp = getTMAPFromLocalSize(queueThreadIndex.back(), commRcp);
 
     const int nObjLocal = objMobMapRcp->getNodeNumElements() / 6;
@@ -26,6 +27,8 @@ void CollisionSolver::setup(CollisionBlockPool &collision_, Teuchos::RCP<TMAP> &
 }
 
 void CollisionSolver::solveCollision(Teuchos::RCP<TOP> &matMobilityRcp_, Teuchos::RCP<TV> &velocityKnownRcp_) {
+    // should return valid (0) results for no collisions
+
     this->matMobilityRcp = matMobilityRcp_;
     this->vnRcp = velocityKnownRcp_;
 
@@ -46,7 +49,8 @@ void CollisionSolver::solveCollision(Teuchos::RCP<TOP> &matMobilityRcp_, Teuchos
     IteHistory history;
     // the operator A in LCP
     Teuchos::RCP<CPMatOp> AmatRcp = Teuchos::rcp(new CPMatOp(matMobilityRcp, matFcTransRcp));
-    CPSolver myLCPSolver(AmatRcp, bRcp, matFcTransRcp->getRangeMap(), commRcp);
+    auto commRcp = objMobMapRcp->getComm();
+    CPSolver myLCPSolver(AmatRcp, bRcp);
 
     myLCPSolver.LCP_BBPGD(gammaRcp, res, maxIte, history);
 
@@ -158,6 +162,7 @@ void CollisionSolver::setupFcTrans(CollisionBlockPool &collision_) {
         }
     }
 
+    auto commRcp = objMobMapRcp->getComm();
     Teuchos::RCP<TMAP> colMapRcp = getFullCopyTMAPFromGlobalSize(objMobMapRcp->getGlobalNumElements(), commRcp);
 
     Teuchos::RCP<TCMAT> fcTransMatRcp =
@@ -250,6 +255,7 @@ void CollisionSolver::setupGammaVec(CollisionBlockPool &collision_) {
 
 // known velocity
 void CollisionSolver::setupVnVec(CollisionBlockPool &collision_, std::vector<double> &velocity_) {
+    auto commRcp = objMobMapRcp->getComm();
     vnRcp = getTVFromVector(velocity_, commRcp);
 #ifdef DEBUGLCPCOL
     std::cout << "Vn vector Constructed: " << vnRcp->description() << std::endl;
@@ -274,6 +280,6 @@ void CollisionSolver::setupBVec() {
     // the vec b in LCP stored in phi0
     // b = phi0
     // b = b + Fc^T * Vn
-    MPI_Barrier(MPI_COMM_WORLD);
+    bRcp->getMap()->getComm()->barrier();
     matFcTransRcp->apply(*vnRcp, *bRcp, Teuchos::NO_TRANS, 1.0, 1.0);
 }

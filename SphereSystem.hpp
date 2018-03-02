@@ -47,7 +47,7 @@ class SphereSystem {
     std::shared_ptr<CollisionCollector> collisionCollectorPtr;
 
     // MPI stuff
-    Teuchos::RCP<TCOMM> commRcp;             // mpi communicator
+    Teuchos::RCP<const TCOMM> commRcp;             // mpi communicator
     Teuchos::RCP<TMAP> sphereMapRcp;         // 1 dof per sphere
     Teuchos::RCP<TMAP> sphereMobilityMapRcp; // 6 dof per sphere
 

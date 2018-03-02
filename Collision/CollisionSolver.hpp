@@ -75,8 +75,6 @@ class CollisionSolver {
     int maxIte;
     bool newton;
 
-    Teuchos::RCP<TCOMM> commRcp;
-
     // mobility
     Teuchos::RCP<TMAP> objMobMapRcp; // distributed map for obj mobility. 6 dof per obj
     Teuchos::RCP<TV> forceColRcp;    // force vec, 6 dof per obj

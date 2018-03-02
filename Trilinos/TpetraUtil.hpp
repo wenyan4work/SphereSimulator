@@ -10,9 +10,9 @@
 // Utility
 #include <Teuchos_ArrayViewDecl.hpp>
 #include <Teuchos_GlobalMPISession.hpp>
+#include <Teuchos_SerialDenseMatrix.hpp>
 #include <Teuchos_TimeMonitor.hpp>
 #include <Teuchos_oblackholestream.hpp>
-#include <Teuchos_SerialDenseMatrix.hpp>
 
 // Container
 #include <MatrixMarket_Tpetra.hpp>
@@ -75,17 +75,17 @@ void dumpTMV(const Teuchos::RCP<const TMV> &A, std::string filename);
 void dumpTV(const Teuchos::RCP<const TV> &A, std::string filename);
 
 // the default TCOMM corresponding to MPI_COMM_WORLD
-Teuchos::RCP<TCOMM> getMPIWORLDTCOMM();
+Teuchos::RCP<const TCOMM> getMPIWORLDTCOMM();
 
 // return a fully copied TMAP with a given global size
-Teuchos::RCP<TMAP> getFullCopyTMAPFromGlobalSize(const int &globalSize, Teuchos::RCP<TCOMM> &commRcp);
+Teuchos::RCP<TMAP> getFullCopyTMAPFromGlobalSize(const int &globalSize, Teuchos::RCP<const TCOMM> &commRcp);
 // return a contiguous TMAP from local Size
-Teuchos::RCP<TMAP> getTMAPFromLocalSize(const int &localSize, Teuchos::RCP<TCOMM> &commRcp);
+Teuchos::RCP<TMAP> getTMAPFromLocalSize(const int &localSize, Teuchos::RCP<const TCOMM> &commRcp);
 
 // contiguous TV init from a vector
-Teuchos::RCP<TV> getTVFromVector(const std::vector<double> &in, Teuchos::RCP<TCOMM> &commRcp);
+Teuchos::RCP<TV> getTVFromVector(const std::vector<double> &in, Teuchos::RCP<const TCOMM> &commRcp);
 
 // contiguous TMV init from a vector of vector. localsize= min_k in[k].size()
-Teuchos::RCP<TMV> getTMVFromVector(const std::vector<std::vector<double>> &in, Teuchos::RCP<TCOMM> &commRcp);
+Teuchos::RCP<TMV> getTMVFromVector(const std::vector<std::vector<double>> &in, Teuchos::RCP<const TCOMM> &commRcp);
 
 #endif /* TPETRAUTIL_HPP_ */
