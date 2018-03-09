@@ -12,12 +12,13 @@ namespace pvfmm {
 
 /*********************************************************
  *                                                        *
- *     Stokes P Vel kernel, source: 3, target: 4          *
+ *     Stokes P Vel kernel, source: 4, target: 4          *
  *                                                        *
  **********************************************************/
 template <class Real_t, class Vec_t = Real_t, Vec_t (*RSQRT_INTRIN)(Vec_t) = rsqrt_intrin0<Vec_t>>
 void stokes_pvel_uKernel(Matrix<Real_t> &src_coord, Matrix<Real_t> &src_value, Matrix<Real_t> &trg_coord,
                          Matrix<Real_t> &trg_value) {
+
 #define SRC_BLK 500
     size_t VecLen = sizeof(Vec_t) / sizeof(Real_t);
 
@@ -40,6 +41,7 @@ void stokes_pvel_uKernel(Matrix<Real_t> &src_coord, Matrix<Real_t> &src_value, M
     const Vec_t facv = set_intrin<Vec_t, Real_t>(FACV);
     const Vec_t facp = set_intrin<Vec_t, Real_t>(2 * FACV);
     // p = (1/4pi) rk Fk /r^3
+    // const Vec_t n23 = set_intrin<Vec_t, Real_t>(static_cast<Real_t>(-2.0 / 3.0));
 
     size_t src_cnt_ = src_coord.Dim(1);
     size_t trg_cnt_ = trg_coord.Dim(1);
@@ -66,6 +68,7 @@ void stokes_pvel_uKernel(Matrix<Real_t> &src_coord, Matrix<Real_t> &src_value, M
                 const Vec_t fx = bcast_intrin<Vec_t>(&src_value[0][s]);
                 const Vec_t fy = bcast_intrin<Vec_t>(&src_value[1][s]);
                 const Vec_t fz = bcast_intrin<Vec_t>(&src_value[2][s]);
+                const Vec_t tr = bcast_intrin<Vec_t>(&src_value[3][s]); // trace of doublet
 
                 Vec_t r2 = mul_intrin(dx, dx);
                 r2 = add_intrin(r2, mul_intrin(dy, dy));
@@ -79,6 +82,7 @@ void stokes_pvel_uKernel(Matrix<Real_t> &src_coord, Matrix<Real_t> &src_value, M
                 commonCoeff = add_intrin(commonCoeff, mul_intrin(fz, dz));
 
                 p = add_intrin(p, mul_intrin(rinv3, commonCoeff));
+                commonCoeff = sub_intrin(commonCoeff, tr);
                 vx = add_intrin(vx, mul_intrin(add_intrin(mul_intrin(r2, fx), mul_intrin(dx, commonCoeff)), rinv3));
                 vy = add_intrin(vy, mul_intrin(add_intrin(mul_intrin(r2, fy), mul_intrin(dy, commonCoeff)), rinv3));
                 vz = add_intrin(vz, mul_intrin(add_intrin(mul_intrin(r2, fz), mul_intrin(dz, commonCoeff)), rinv3));
@@ -104,7 +108,7 @@ void stokes_pvel(T *r_src, int src_cnt, T *v_src, int dof, T *r_trg, int trg_cnt
                  mem::MemoryManager *mem_mgr) {
 #define STK_KER_NWTN(nwtn)                                                                                             \
     if (newton_iter == nwtn)                                                                                           \
-    generic_kernel<Real_t, 3, 4, stokes_pvel_uKernel<Real_t, Vec_t, rsqrt_intrin##nwtn<Vec_t, Real_t>>>(               \
+    generic_kernel<Real_t, 4, 4, stokes_pvel_uKernel<Real_t, Vec_t, rsqrt_intrin##nwtn<Vec_t, Real_t>>>(               \
         (Real_t *)r_src, src_cnt, (Real_t *)v_src, dof, (Real_t *)r_trg, trg_cnt, (Real_t *)v_trg, mem_mgr)
 #define STOKES_KERNEL                                                                                                  \
     STK_KER_NWTN(0);                                                                                                   \
@@ -151,7 +155,7 @@ void stokes_pvel(T *r_src, int src_cnt, T *v_src, int dof, T *r_trg, int trg_cnt
 
 /*********************************************************
  *                                                        *
- *   Stokes P Vel Grad kernel, source: 3, target: 1+3+3+9 *
+ *   Stokes P Vel Grad kernel, source: 4, target: 1+3+3+9 *
  *                                                        *
  **********************************************************/
 template <class Real_t, class Vec_t = Real_t, Vec_t (*RSQRT_INTRIN)(Vec_t) = rsqrt_intrin0<Vec_t>>
@@ -221,6 +225,7 @@ void stokes_pvelgrad_uKernel(Matrix<Real_t> &src_coord, Matrix<Real_t> &src_valu
                 const Vec_t fx = bcast_intrin<Vec_t>(&src_value[0][s]);
                 const Vec_t fy = bcast_intrin<Vec_t>(&src_value[1][s]);
                 const Vec_t fz = bcast_intrin<Vec_t>(&src_value[2][s]);
+                const Vec_t tr = bcast_intrin<Vec_t>(&src_value[3][s]); // trace of doublet
 
                 Vec_t r2 = mul_intrin(dx, dx);
                 r2 = add_intrin(r2, mul_intrin(dy, dy));
@@ -235,6 +240,7 @@ void stokes_pvelgrad_uKernel(Matrix<Real_t> &src_coord, Matrix<Real_t> &src_valu
                 commonCoeff = add_intrin(commonCoeff, mul_intrin(fz, dz));
 
                 p = add_intrin(p, mul_intrin(rinv3, commonCoeff));
+                commonCoeff = sub_intrin(commonCoeff, tr);
                 vx = add_intrin(vx, mul_intrin(add_intrin(mul_intrin(r2, fx), mul_intrin(dx, commonCoeff)), rinv3));
                 vy = add_intrin(vy, mul_intrin(add_intrin(mul_intrin(r2, fy), mul_intrin(dy, commonCoeff)), rinv3));
                 vz = add_intrin(vz, mul_intrin(add_intrin(mul_intrin(r2, fz), mul_intrin(dz, commonCoeff)), rinv3));
@@ -263,11 +269,13 @@ void stokes_pvelgrad_uKernel(Matrix<Real_t> &src_coord, Matrix<Real_t> &src_valu
                 Vec_t qzz = add_intrin(r2, mul_intrin(nthree, mul_intrin(dz, dz)));
 
                 // px dp/dx, etc
+                commonCoeff = add_intrin(commonCoeff, tr);
                 px = add_intrin(mul_intrin(r2, fx), mul_intrin(mul_intrin(nthree, dx), commonCoeff));
                 py = add_intrin(mul_intrin(r2, fy), mul_intrin(mul_intrin(nthree, dy), commonCoeff));
                 pz = add_intrin(mul_intrin(r2, fz), mul_intrin(mul_intrin(nthree, dz), commonCoeff));
 
                 // vxx = dvx/dx , etc
+                commonCoeff = sub_intrin(commonCoeff, tr);
                 vxx = mul_intrin(qxx, commonCoeff);
                 vxy = add_intrin(mul_intrin(qxy, commonCoeff),
                                  mul_intrin(r2, sub_intrin(mul_intrin(dx, fy), mul_intrin(dy, fx))));
@@ -352,7 +360,7 @@ void stokes_pvelgrad(T *r_src, int src_cnt, T *v_src, int dof, T *r_trg, int trg
                      mem::MemoryManager *mem_mgr) {
 #define STK_KER_NWTN(nwtn)                                                                                             \
     if (newton_iter == nwtn)                                                                                           \
-    generic_kernel<Real_t, 3, 16, stokes_pvelgrad_uKernel<Real_t, Vec_t, rsqrt_intrin##nwtn<Vec_t, Real_t>>>(          \
+    generic_kernel<Real_t, 4, 16, stokes_pvelgrad_uKernel<Real_t, Vec_t, rsqrt_intrin##nwtn<Vec_t, Real_t>>>(          \
         (Real_t *)r_src, src_cnt, (Real_t *)v_src, dof, (Real_t *)r_trg, trg_cnt, (Real_t *)v_trg, mem_mgr)
 #define STOKES_KERNEL                                                                                                  \
     STK_KER_NWTN(0);                                                                                                   \
@@ -399,7 +407,7 @@ void stokes_pvelgrad(T *r_src, int src_cnt, T *v_src, int dof, T *r_trg, int trg
 
 /*********************************************************
  *                                                        *
- *      Stokes traction kernel, source: 3, target: 9      *
+ *      Stokes traction kernel, source: 4, target: 9      *
  *                                                        *
  **********************************************************/
 template <class Real_t, class Vec_t = Real_t, Vec_t (*RSQRT_INTRIN)(Vec_t) = rsqrt_intrin0<Vec_t>>
@@ -425,6 +433,7 @@ void stokes_traction_uKernel(Matrix<Real_t> &src_coord, Matrix<Real_t> &src_valu
     }
     const Real_t OOEP = -3.0 / (4 * const_pi<Real_t>());
     Vec_t inv_nwtn_scal5 = set_intrin<Vec_t, Real_t>(1.0 / (nwtn_scal * nwtn_scal * nwtn_scal * nwtn_scal * nwtn_scal));
+    Vec_t invthree = set_intrin<Vec_t, Real_t>(static_cast<Real_t>(1.0 / 3.0));
 
     size_t src_cnt_ = src_coord.Dim(1);
     size_t trg_cnt_ = trg_coord.Dim(1);
@@ -455,6 +464,7 @@ void stokes_traction_uKernel(Matrix<Real_t> &src_coord, Matrix<Real_t> &src_valu
                 Vec_t sv0 = bcast_intrin<Vec_t>(&src_value[0][s]);
                 Vec_t sv1 = bcast_intrin<Vec_t>(&src_value[1][s]);
                 Vec_t sv2 = bcast_intrin<Vec_t>(&src_value[2][s]);
+                Vec_t tr = bcast_intrin<Vec_t>(&src_value[3][s]);
 
                 Vec_t r2 = mul_intrin(dx, dx);
                 r2 = add_intrin(r2, mul_intrin(dy, dy));
@@ -469,16 +479,21 @@ void stokes_traction_uKernel(Matrix<Real_t> &src_coord, Matrix<Real_t> &src_valu
                 Vec_t commonCoeff = mul_intrin(sv0, dx);
                 commonCoeff = add_intrin(commonCoeff, mul_intrin(sv1, dy));
                 commonCoeff = add_intrin(commonCoeff, mul_intrin(sv2, dz));
+                commonCoeff = sub_intrin(commonCoeff, tr);
+                Vec_t diag = mul_intrin(mul_intrin(mul_intrin(tr, r2), rinv5), invthree);
 
                 tv0 = add_intrin(tv0, mul_intrin(rinv5, mul_intrin(mul_intrin(dx, dx), commonCoeff)));
+                tv0 = add_intrin(tv0, diag);
                 tv1 = add_intrin(tv1, mul_intrin(rinv5, mul_intrin(mul_intrin(dx, dy), commonCoeff)));
                 tv2 = add_intrin(tv2, mul_intrin(rinv5, mul_intrin(mul_intrin(dx, dz), commonCoeff)));
                 tv3 = add_intrin(tv3, mul_intrin(rinv5, mul_intrin(mul_intrin(dy, dx), commonCoeff)));
                 tv4 = add_intrin(tv4, mul_intrin(rinv5, mul_intrin(mul_intrin(dy, dy), commonCoeff)));
+                tv4 = add_intrin(tv4, diag);
                 tv5 = add_intrin(tv5, mul_intrin(rinv5, mul_intrin(mul_intrin(dy, dz), commonCoeff)));
                 tv6 = add_intrin(tv6, mul_intrin(rinv5, mul_intrin(mul_intrin(dz, dx), commonCoeff)));
                 tv7 = add_intrin(tv7, mul_intrin(rinv5, mul_intrin(mul_intrin(dz, dy), commonCoeff)));
                 tv8 = add_intrin(tv8, mul_intrin(rinv5, mul_intrin(mul_intrin(dz, dz), commonCoeff)));
+                tv8 = add_intrin(tv8, diag);
             }
             Vec_t ooep = set_intrin<Vec_t, Real_t>(OOEP);
 
@@ -517,7 +532,7 @@ void stokes_traction(T *r_src, int src_cnt, T *v_src, int dof, T *r_trg, int trg
                      mem::MemoryManager *mem_mgr) {
 #define STK_KER_NWTN(nwtn)                                                                                             \
     if (newton_iter == nwtn)                                                                                           \
-    generic_kernel<Real_t, 3, 9, stokes_traction_uKernel<Real_t, Vec_t, rsqrt_intrin##nwtn<Vec_t, Real_t>>>(           \
+    generic_kernel<Real_t, 4, 9, stokes_traction_uKernel<Real_t, Vec_t, rsqrt_intrin##nwtn<Vec_t, Real_t>>>(           \
         (Real_t *)r_src, src_cnt, (Real_t *)v_src, dof, (Real_t *)r_trg, trg_cnt, (Real_t *)v_trg, mem_mgr)
 #define STOKES_KERNEL                                                                                                  \
     STK_KER_NWTN(0);                                                                                                   \
@@ -623,6 +638,7 @@ void stokes_pvellaplacian_uKernel(Matrix<Real_t> &src_coord, Matrix<Real_t> &src
                 const Vec_t fx = bcast_intrin<Vec_t>(&src_value[0][s]);
                 const Vec_t fy = bcast_intrin<Vec_t>(&src_value[1][s]);
                 const Vec_t fz = bcast_intrin<Vec_t>(&src_value[2][s]);
+                const Vec_t tr = bcast_intrin<Vec_t>(&src_value[3][s]);
 
                 Vec_t r2 = mul_intrin(dx, dx);
                 r2 = add_intrin(r2, mul_intrin(dy, dy));
@@ -637,10 +653,12 @@ void stokes_pvellaplacian_uKernel(Matrix<Real_t> &src_coord, Matrix<Real_t> &src
                 commonCoeff = add_intrin(commonCoeff, mul_intrin(fz, dz));
 
                 p = add_intrin(p, mul_intrin(rinv3, commonCoeff));
+                commonCoeff = sub_intrin(commonCoeff, tr);
                 vx = add_intrin(vx, mul_intrin(add_intrin(mul_intrin(r2, fx), mul_intrin(dx, commonCoeff)), rinv3));
                 vy = add_intrin(vy, mul_intrin(add_intrin(mul_intrin(r2, fy), mul_intrin(dy, commonCoeff)), rinv3));
                 vz = add_intrin(vz, mul_intrin(add_intrin(mul_intrin(r2, fz), mul_intrin(dz, commonCoeff)), rinv3));
 
+                commonCoeff = add_intrin(commonCoeff, tr);
                 vxlap = add_intrin(vxlap, mul_intrin(mul_intrin(fx, r2), rinv5));
                 vxlap = add_intrin(vxlap, mul_intrin(mul_intrin(mul_intrin(commonCoeff, nthree), rinv5), dx));
                 vylap = add_intrin(vylap, mul_intrin(mul_intrin(fy, r2), rinv5));
@@ -675,7 +693,7 @@ void stokes_pvellaplacian(T *r_src, int src_cnt, T *v_src, int dof, T *r_trg, in
                           mem::MemoryManager *mem_mgr) {
 #define STK_KER_NWTN(nwtn)                                                                                             \
     if (newton_iter == nwtn)                                                                                           \
-    generic_kernel<Real_t, 3, 7, stokes_pvellaplacian_uKernel<Real_t, Vec_t, rsqrt_intrin##nwtn<Vec_t, Real_t>>>(      \
+    generic_kernel<Real_t, 4, 7, stokes_pvellaplacian_uKernel<Real_t, Vec_t, rsqrt_intrin##nwtn<Vec_t, Real_t>>>(      \
         (Real_t *)r_src, src_cnt, (Real_t *)v_src, dof, (Real_t *)r_trg, trg_cnt, (Real_t *)v_trg, mem_mgr)
 #define STOKES_KERNEL                                                                                                  \
     STK_KER_NWTN(0);                                                                                                   \
@@ -722,10 +740,10 @@ void stokes_pvellaplacian(T *r_src, int src_cnt, T *v_src, int dof, T *r_trg, in
 
 template <class T>
 struct StokesSingleLayerKernel {
-    // TODO: add the following kernels:
-    //  P+Vel
-    //  P+Vel+gradP + grad Vel
-    //  (stress = -p I + gradU + gradU^T), no special kernel needed
+    //  P + Vel
+    //  P + Vel + gradP + grad Vel
+    //  Traction (stress = -p I + gradU + gradU^T)d
+    //  P + Vel + Laplacian Vel
     inline static const Kernel<T> &PVel();          //   3->1+3
     inline static const Kernel<T> &PVelGrad();      //   3->1+3+3+9
     inline static const Kernel<T> &Traction();      //   3->9

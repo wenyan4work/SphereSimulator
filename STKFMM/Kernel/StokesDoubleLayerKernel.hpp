@@ -38,7 +38,7 @@ void stokes_doublepvel_uKernel(Matrix<Real_t> &src_coord, Matrix<Real_t> &src_va
     }
     const Real_t FACV = 1 / (8 * const_pi<Real_t>() * nwtn_scal * nwtn_scal * nwtn_scal * nwtn_scal * nwtn_scal);
     const Vec_t facv = set_intrin<Vec_t, Real_t>(FACV);     // vi = 1/8pi (-3rirjrk/r^5) Djk
-    const Vec_t facp = set_intrin<Vec_t, Real_t>(FACV * 2); // p = 1/4pi (-4 rjrk/r^5 + delta_jk) Djk
+    const Vec_t facp = set_intrin<Vec_t, Real_t>(FACV * 2); // p = 1/4pi (-3 rjrk/r^5 + delta_jk) Djk
     const Vec_t nthree = set_intrin<Vec_t, Real_t>(-3.0);
 
     size_t src_cnt_ = src_coord.Dim(1);
@@ -717,15 +717,12 @@ void stokes_doubletraction_uKernel(Matrix<Real_t> &src_coord, Matrix<Real_t> &sr
     for (int i = 0; i < NWTN_ITER; i++) {
         nwtn_scal = 2 * nwtn_scal * nwtn_scal * nwtn_scal;
     }
-    const Real_t FACV5 = 1 / (8 * const_pi<Real_t>() * nwtn_scal * nwtn_scal * nwtn_scal * nwtn_scal * nwtn_scal);
-    const Vec_t facv5 = set_intrin<Vec_t, Real_t>(FACV5);     // vi = 1/8pi (-3rirjrk/r^5) Djk
-    const Vec_t facp5 = set_intrin<Vec_t, Real_t>(FACV5 * 2); // p = 1/4pi (-4 rjrk/r^5 + delta_jk) Djk
 
     const Real_t FACV7 = 3 / (8 * const_pi<Real_t>() * nwtn_scal * nwtn_scal * nwtn_scal * nwtn_scal * nwtn_scal *
                               nwtn_scal * nwtn_scal);
-    const Vec_t facv7 = set_intrin<Vec_t, Real_t>(-FACV7);    // -3/8pi
-    const Vec_t facp7 = set_intrin<Vec_t, Real_t>(FACV7 * 2); // 3/4pi(5 ... - ...)
+    const Vec_t facv7 = set_intrin<Vec_t, Real_t>(-FACV7); // -3/8pi
 
+    const Vec_t facp = set_intrin<Vec_t, Real_t>((Real_t)(2.0 / 3.0));
     const Vec_t none = set_intrin<Vec_t, Real_t>(-1.0);
     const Vec_t ntwo = set_intrin<Vec_t, Real_t>(-2.0);
     const Vec_t nthree = set_intrin<Vec_t, Real_t>(-3.0);
@@ -784,7 +781,7 @@ void stokes_doubletraction_uKernel(Matrix<Real_t> &src_coord, Matrix<Real_t> &sr
                 Vec_t np = zero_intrin<Vec_t>();
 
                 // commonCoeffn3 = -3 rj rk Djk
-                // commonCoeff5 = rj rk Djk
+                // commonCoeff5 = 5 rj rk Djk
                 Vec_t commonCoeff = mul_intrin(sxx, mul_intrin(dx, dx));
                 commonCoeff = add_intrin(commonCoeff, mul_intrin(sxy, mul_intrin(dx, dy)));
                 commonCoeff = add_intrin(commonCoeff, mul_intrin(sxz, mul_intrin(dx, dz)));
@@ -798,16 +795,11 @@ void stokes_doubletraction_uKernel(Matrix<Real_t> &src_coord, Matrix<Real_t> &sr
                 Vec_t commonCoeffn3 = mul_intrin(commonCoeff, nthree);
 
                 Vec_t trace = add_intrin(add_intrin(sxx, syy), szz);
-                // Vec_t rksxk = add_intrin(mul_intrin(dx, sxx), add_intrin(mul_intrin(dy, sxy), mul_intrin(dz, sxz)));
-                // Vec_t rksyk = add_intrin(mul_intrin(dx, syx), add_intrin(mul_intrin(dy, syy), mul_intrin(dz, syz)));
-                // Vec_t rkszk = add_intrin(mul_intrin(dx, szx), add_intrin(mul_intrin(dy, szy), mul_intrin(dz, szz)));
 
-                // Vec_t rkskx = add_intrin(mul_intrin(dx, sxx), add_intrin(mul_intrin(dy, syx), mul_intrin(dz, szx)));
-                // Vec_t rksky = add_intrin(mul_intrin(dx, sxy), add_intrin(mul_intrin(dy, syy), mul_intrin(dz, szy)));
-                // Vec_t rkskz = add_intrin(mul_intrin(dx, sxz), add_intrin(mul_intrin(dy, syz), mul_intrin(dz, szz)));
-
+                // np = mul_intrin(mul_intrin(mul_intrin(add_intrin(commonCoeffn3, mul_intrin(r2, trace)), rinv7), r2),
+                // none);
                 np = mul_intrin(mul_intrin(mul_intrin(add_intrin(commonCoeffn3, mul_intrin(r2, trace)), rinv7), r2),
-                                none);
+                                facp);
 
                 // vgrad
                 Vec_t commonCoeffn1 = mul_intrin(none, commonCoeff);
@@ -1258,7 +1250,7 @@ void stokes_double_pressure(T *r_src, int src_cnt, T *v_src, int dof, T *r_trg, 
 template <class Real_t, class Vec_t = Real_t, Vec_t (*RSQRT_INTRIN)(Vec_t) = rsqrt_intrin0<Vec_t>>
 void stokes_dgrad_uKernel(Matrix<Real_t> &src_coord, Matrix<Real_t> &src_value, Matrix<Real_t> &trg_coord,
                           Matrix<Real_t> &trg_value) {
-#define SRC_BLK 100
+#define SRC_BLK 500
     size_t VecLen = sizeof(Vec_t) / sizeof(Real_t);
 
     //// Number of newton iterations

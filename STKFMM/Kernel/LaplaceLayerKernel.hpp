@@ -163,7 +163,8 @@ void laplace_dipolepotential_uKernel(Matrix<Real_t> &src_coord, Matrix<Real_t> &
     for (int i = 0; i < NWTN_ITER; i++) {
         nwtn_scal = 2 * nwtn_scal * nwtn_scal * nwtn_scal;
     }
-    const Real_t OOFP = -1.0 / (4 * nwtn_scal * nwtn_scal * nwtn_scal * const_pi<Real_t>());
+    const Real_t OOFP = 1.0 / (4 * nwtn_scal * nwtn_scal * nwtn_scal * const_pi<Real_t>());
+    Vec_t oofp = set_intrin<Vec_t, Real_t>(OOFP);
 
     size_t src_cnt_ = src_coord.Dim(1);
     size_t trg_cnt_ = trg_coord.Dim(1);
@@ -197,7 +198,6 @@ void laplace_dipolepotential_uKernel(Matrix<Real_t> &src_coord, Matrix<Real_t> &
 
                 tv = add_intrin(tv, mul_intrin(r3inv, rdotn));
             }
-            Vec_t oofp = set_intrin<Vec_t, Real_t>(OOFP);
             tv = add_intrin(mul_intrin(tv, oofp), load_intrin<Vec_t>(&trg_value[0][t]));
             store_intrin(&trg_value[0][t], tv);
         }
@@ -284,9 +284,10 @@ void laplace_dipolepgrad_uKernel(Matrix<Real_t> &src_coord, Matrix<Real_t> &src_
     for (int i = 0; i < NWTN_ITER; i++) {
         nwtn_scal = 2 * nwtn_scal * nwtn_scal * nwtn_scal;
     }
-    const Real_t OOFP = -1.0 / (4 * nwtn_scal * nwtn_scal * nwtn_scal * const_pi<Real_t>());
-    const Real_t OOFP2 = -1.0 / (4 * nwtn_scal * nwtn_scal * nwtn_scal * nwtn_scal * nwtn_scal * const_pi<Real_t>());
-
+    const Real_t OOFP = 1.0 / (4 * nwtn_scal * nwtn_scal * nwtn_scal * const_pi<Real_t>());
+    const Real_t OOFP2 = 1.0 / (4 * nwtn_scal * nwtn_scal * nwtn_scal * nwtn_scal * nwtn_scal * const_pi<Real_t>());
+    Vec_t oofp = set_intrin<Vec_t, Real_t>(OOFP);
+    Vec_t oofp2 = set_intrin<Vec_t, Real_t>(OOFP2);
     Vec_t nthree = set_intrin<Vec_t, Real_t>(-3.0);
 
     size_t src_cnt_ = src_coord.Dim(1);
@@ -331,12 +332,10 @@ void laplace_dipolepgrad_uKernel(Matrix<Real_t> &src_coord, Matrix<Real_t> &src_
                 tg2 = add_intrin(tg2, mul_intrin(mul_intrin(s2, r2), r5inv));
                 tg2 = add_intrin(tg2, mul_intrin(mul_intrin(mul_intrin(rdotn, nthree), r5inv), dz));
             }
-            Vec_t oofp = set_intrin<Vec_t, Real_t>(OOFP);
-            Vec_t oofp2 = set_intrin<Vec_t, Real_t>(OOFP2);
-            tv = add_intrin(mul_intrin(tv, -oofp), load_intrin<Vec_t>(&trg_value[0][t]));
-            tg0 = add_intrin(mul_intrin(tg0, -oofp2), load_intrin<Vec_t>(&trg_value[1][t]));
-            tg1 = add_intrin(mul_intrin(tg1, -oofp2), load_intrin<Vec_t>(&trg_value[2][t]));
-            tg2 = add_intrin(mul_intrin(tg2, -oofp2), load_intrin<Vec_t>(&trg_value[3][t]));
+            tv = add_intrin(mul_intrin(tv, oofp), load_intrin<Vec_t>(&trg_value[0][t]));
+            tg0 = add_intrin(mul_intrin(tg0, oofp2), load_intrin<Vec_t>(&trg_value[1][t]));
+            tg1 = add_intrin(mul_intrin(tg1, oofp2), load_intrin<Vec_t>(&trg_value[2][t]));
+            tg2 = add_intrin(mul_intrin(tg2, oofp2), load_intrin<Vec_t>(&trg_value[3][t]));
             store_intrin(&trg_value[0][t], tv);
             store_intrin(&trg_value[1][t], tg0);
             store_intrin(&trg_value[2][t], tg1);
