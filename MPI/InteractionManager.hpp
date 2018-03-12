@@ -133,11 +133,13 @@ class InteractionManager {
         const auto &trg_src_interac = nearInteracPtr->GetInteractionList(); // Get interaction list
 
         // Debug
+#ifdef DEBUGINTERACT
         std::cout << "-----------" << std::endl;
         for (auto &v : trg_src_interac) {
             std::cout << v.first << " " << v.second << std::endl;
         }
         std::cout << "-----------" << std::endl;
+#endif
 
         long N = trg_src_interac.size();
 
@@ -176,7 +178,7 @@ class InteractionManager {
             }
         }
 
-#ifndef DNDEBUG
+#ifdef DEBUGINTERACT
         std::cout << "show pair" << std::endl;
         for (auto &pair : trg_src_interac) {
             std::cout << trgNear[pair.first].gid << " " << srcNear[pair.second].gid << std::endl;
