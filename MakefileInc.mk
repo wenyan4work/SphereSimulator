@@ -18,12 +18,34 @@ CXX= mpicxx
 LINK= $(CXX)
 
 # optimized
-# CXXFLAGS= $(CXXFLAGS_PVFMM) #-DDEBUGLCPCOL
-# LINKFLAGS= $(CXXFLAGS) $(LDLIBS_PVFMM) $(Trilinos_EXTRA_LD_FLAGS) #-lm -ldl
+CXXFLAGS= $(CXXFLAGS_PVFMM)
+LINKFLAGS= $(CXXFLAGS) $(LDLIBS_PVFMM) $(Trilinos_EXTRA_LD_FLAGS) #-lm -ldl
 
-#CXXFLAGS= $(Trilinos_CXX_COMPILER_FLAGS) $(CXXFLAGS_PVFMM) #-DDEBUGLCPCOL
-#LINKFLAGS= $(CXXFLAGS) $(Trilinos_EXTRA_LD_FLAGS)  $(LDLIBS_PVFMM) #-lm -ldl
+# remove some flags for debugging
+# if Trilinos and pvfmm are compiled with ipo, removing this may cause linking failures
 
 # debug
-CXXFLAGS = -std=c++11 -O0 -g -I$(MKLROOT)/include/fftw -qopenmp -qno-offload -DDEBUGLCPCOL
-LINKFLAGS= $(CXXFLAGS) $(Trilinos_EXTRA_LD_FLAGS)  $(LDLIBS_PVFMM) -lm -ldl
+DEBUGMODE:= yes
+
+# debug flags
+# CXXFLAGS += -DFMMTIMING 
+# CXXFLAGS += -DDEBUGLCPCOL 
+# CXXFLAGS += -DZDDDEBUG 
+# CXXFLAGS += -DIFPACKDEBUG 
+# CXXFLAGS += -DMYDEBUGINFO 
+# CXXFLAGS += -DHYRDRODEBUG
+# CXXFLAGS += -DDEBUGLCPCOL
+
+ifeq ($(DEBUGMODE), yes)
+CXXFLAGS:= $(subst -O3, ,$(CXXFLAGS))
+LINKFLAGS:= $(subst -O3, ,$(LINKFLAGS))
+CXXFLAGS := $(CXXFLAGS) -O0 -g
+LINKFLAGS := $(LINKFLAGS) -O0 -g
+endif
+
+# almost always yes
+WITHMPI ?= yes
+
+ifeq ($(WITHMPI), yes)
+CXXFLAGS += -DSCTL_HAVE_MPI
+endif

@@ -13,7 +13,7 @@ viscosity (pN/(um^2) s)
 kBT (pN * um)
 0.00411
 sphereNumber
-10
+100
 dt (s)
 0.001
 timeTotal (s)

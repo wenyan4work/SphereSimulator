@@ -7,8 +7,8 @@
 
 #include "EigenDef.hpp"
 
-// WARNING: use w,x,y,z of a quaternion, do not use [0,1,2,3], since the mapping order is different in eigen and in most papers.
-// eigen: w->[3], for scalar. x,y,z->[0,1,2] for vector
+// WARNING: use w,x,y,z of a quaternion, do not use [0,1,2,3], since the mapping order is different in eigen and in most
+// papers. eigen: w->[3], for scalar. x,y,z->[0,1,2] for vector
 
 // https://eigen.tuxfamily.org/dox/group__TutorialGeometry.html
 
@@ -45,6 +45,9 @@ class EquatnHelper {
     static void rotateEquatn(Equatn &q, const Evec3 &omega, const double &dt) {
         // Delong, JCP, 2015, Appendix A eq1, not linearized
         const double w = omega.norm();
+        if (w < std::numeric_limits<float>::epsilon()) {
+            return;
+        }
         const double winv = 1 / w;
         const double sw = sin(w * dt / 2);
         const double cw = cos(w * dt / 2);

@@ -87,6 +87,9 @@ class CollisionSphere {
     // friend void swap(CollisionSphere &, CollisionSphere &);
 };
 
+#undef COLBUF
+#undef INVALID
+
 // void swap(CollisionSphere &A, CollisionSphere &B) {
 //     using std::swap;
 //     swap(A.gid, B.gid);
