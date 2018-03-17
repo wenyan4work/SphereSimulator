@@ -33,8 +33,6 @@ template <class Real, int DIM> class NearInteraction {
 
     template <class ObjType> void ReverseScatterTrg(const std::vector<ObjType>& in, std::vector<ObjType>& out) const;
 
-    void Barrier(){comm_.Barrier();}
-
   private:
     template <class ObjType> void ForwardScatter(const std::vector<ObjType>& in_vec, std::vector<ObjType>& out_vec, const sctl::Vector<Long>& recv_idx) const;
 

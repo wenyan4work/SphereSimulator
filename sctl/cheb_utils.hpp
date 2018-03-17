@@ -12,8 +12,6 @@
 
 namespace SCTL_NAMESPACE {
 
-template <class ValueType, Integer DIM> class KernelFunction;
-
 template <class ValueType, class Derived> class BasisInterface {
 
  public:
@@ -332,7 +330,7 @@ template <class ValueType, class Derived> class BasisInterface {
     }
   }
 
-  template <Integer DIM, Integer SUBDIM> static void Integ(Matrix<ValueType>& Mcoeff, Integer order, ConstIterator<ValueType> trg_, ValueType side, Integer src_face, const KernelFunction<ValueType, DIM>& ker, ValueType tol = -1, Integer Nq = 0) {
+  template <Integer DIM, Integer SUBDIM, class Kernel> static void Integ(Matrix<ValueType>& Mcoeff, Integer order, ConstIterator<ValueType> trg_, ValueType side, Integer src_face, const Kernel& ker, ValueType tol = -1, Integer Nq = 0) {
     if (!Nq) Nq = order;
     Integ_<DIM, SUBDIM>(Mcoeff, order, trg_, side, src_face, ker, Nq);
     if (tol < 0) tol = 1e-10; //machine_eps() * 256;
@@ -1003,7 +1001,6 @@ template <class ValueType, class Derived> class BasisInterface {
     }
   }
 
-
  private:
   BasisInterface() {
     void (*EvalBasis1D)(Integer, const Vector<ValueType>&, Vector<ValueType>&) = Derived::EvalBasis1D;
@@ -1013,7 +1010,7 @@ template <class ValueType, class Derived> class BasisInterface {
   static void cheb_nodes_1d(Integer order, Vector<ValueType>& nodes) {
     if (nodes.Dim() != order) nodes.ReInit(order);
     for (Integer i = 0; i < order; i++) {
-      nodes[i] = -cos<ValueType>((i + (ValueType)0.5) * const_pi<ValueType>() / order) * 0.5 + 0.5;
+      nodes[i] = -cos<ValueType>((i + (ValueType)0.5) * const_pi<ValueType>() / order) * (ValueType)0.5 + (ValueType)0.5;
     }
   }
 
@@ -1028,7 +1025,7 @@ template <class ValueType, class Derived> class BasisInterface {
     }
     if (order > 1) {
       for (Long i = 0; i < n; i++) {
-        y[i + n] = x[i] * 2.0 - 1.0;
+        y[i + n] = x[i] * 2 - 1;
       }
     }
     for (Integer i = 2; i < order; i++) {
@@ -1045,6 +1042,7 @@ template <class ValueType, class Derived> class BasisInterface {
 
     if (x.Dim() != order) x.ReInit(order);
     if (w.Dim() != order) w.ReInit(order);
+    if (!order) return;
 
     bool done = false;
     #pragma omp critical(QUAD_RULE)
@@ -1068,8 +1066,8 @@ template <class ValueType, class Derived> class BasisInterface {
       double alpha = 0.0, beta = 0.0, a = -1.0, b = 1.0;
       cgqf(order, kind, (double)alpha, (double)beta, (double)a, (double)b, &xd[0], &wd[0]);
       for (Integer i = 0; i < order; i++) {
-        x_[i] = 0.5 * xd[i] + 0.5;
-        w_[i] = 0.5 * wd[i];
+        x_[i] = (ValueType)(0.5 * xd[i] + 0.5);
+        w_[i] = (ValueType)(0.5 * wd[i]);
       }
     } else {  // Chebyshev quadrature nodes and weights
       cheb_nodes_1d(order, x_);
@@ -1077,7 +1075,7 @@ template <class ValueType, class Derived> class BasisInterface {
 
       Vector<ValueType> V_cheb(order * order);
       cheb_basis_1d(order, x_, V_cheb);
-      for (size_t i = 0; i < order; i++) V_cheb[i] /= 2.0;
+      for (Integer i = 0; i < order; i++) V_cheb[i] /= 2.0;
       Matrix<ValueType> M(order, order, V_cheb.begin());
 
       Vector<ValueType> w_sample(order);
@@ -1104,7 +1102,7 @@ template <class ValueType, class Derived> class BasisInterface {
     return eps;
   }
 
-  template <Integer DIM, Integer SUBDIM> static void Integ_(Matrix<ValueType>& Mcoeff, Integer order, ConstIterator<ValueType> trg_, ValueType side, Integer src_face, const KernelFunction<ValueType, DIM>& ker, Integer Nq = 0) {
+  template <Integer DIM, Integer SUBDIM, class Kernel> static void Integ_(Matrix<ValueType>& Mcoeff, Integer order, ConstIterator<ValueType> trg_, ValueType side, Integer src_face, const Kernel& ker, Integer Nq = 0) {
     static const ValueType eps = machine_eps() * 64;
     ValueType side_inv = 1.0 / side;
     if (!Nq) Nq = order;

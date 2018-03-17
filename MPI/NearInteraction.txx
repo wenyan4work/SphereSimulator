@@ -6,8 +6,7 @@ template <class Real, int DIM> template <class SrcObj, class TrgObj> void NearIn
   { // Set Nloc, Rglb
     Nloc[0] = src_vec.size();
     Nloc[1] = trg_vec.size();
-    SCTL_ASSERT(Nloc[0] && Nloc[1]);
-    comm_.Scan(Nloc, Rglb, 2, sctl::Comm::CommOp::SUM);
+    comm_.Scan<Long>(Nloc, Rglb, 2, sctl::Comm::CommOp::SUM);
     Rglb[0] -= Nloc[0];
     Rglb[1] -= Nloc[1];
   }
@@ -37,9 +36,21 @@ template <class Real, int DIM> template <class SrcObj, class TrgObj> void NearIn
     sctl::StaticArray<Real, DIM> X0;
     sctl::StaticArray<Real, DIM> X1;
     { // determine local bounding box
-      for (sctl::Integer k = 0; k < DIM; k++) {
-        X0[k] = SCoord[k];
-        X1[k] = SCoord[k];
+      { // Init X0, X1 <-- Broadcast one source or target point to all processors
+        sctl::Integer src_proc, src_proc_ = (SCoord.Dim() || TCoord.Dim() ? comm_.Rank() : 0);
+        comm_.Allreduce<sctl::Integer>(sctl::Ptr2ConstItr<sctl::Integer>(&src_proc_,1), sctl::Ptr2Itr<sctl::Integer>(&src_proc,1), 1, sctl::Comm::CommOp::MAX);
+
+        if (comm_.Rank() == src_proc) {
+          sctl::Iterator<Real> X_ = SCoord.begin();
+          if (TCoord.Dim()) X_ = TCoord.begin();
+          SCTL_ASSERT(SCoord.Dim() || SCoord.Dim());
+          comm_.Allreduce<Real>(X_, X0, DIM, sctl::Comm::CommOp::SUM);
+        } else {
+          sctl::StaticArray<Real, DIM> X_;
+          for (sctl::Integer k = 0; k < DIM; k++) X_[k] = 0;
+          comm_.Allreduce<Real>(X_, X0, DIM, sctl::Comm::CommOp::SUM);
+        }
+        for (sctl::Integer k = 0; k < DIM; k++) X1[k] = X0[k];
       }
       auto determine_bbox = [&](const sctl::Vector<Real>& coord, sctl::Iterator<Real> X0, sctl::Iterator<Real> X1) {
         Long N = coord.Dim() / DIM;
@@ -58,8 +69,8 @@ template <class Real, int DIM> template <class SrcObj, class TrgObj> void NearIn
     auto& X0glb = BBox.X;
     sctl::StaticArray<Real, DIM> X1glb;
     { // determine global bounding box
-      comm_.Allreduce(X0, X0glb, DIM, sctl::Comm::CommOp::MIN);
-      comm_.Allreduce(X1, X1glb, DIM, sctl::Comm::CommOp::MAX);
+      comm_.Allreduce<Real>(X0, X0glb, DIM, sctl::Comm::CommOp::MIN);
+      comm_.Allreduce<Real>(X1, X1glb, DIM, sctl::Comm::CommOp::MAX);
       for (sctl::Integer k = 0; k < DIM; k++) { // Set BBox.L = bbox length
         BBox.L = std::max(BBox.L, X1glb[k] - X0glb[k]);
       }
@@ -88,7 +99,7 @@ template <class Real, int DIM> template <class SrcObj, class TrgObj> void NearIn
         X[k] = (SCoord[i * DIM + k] - BBox.X[k]) * s;
         SData[i].coord[k] = SCoord[i * DIM + k];
       }
-      SData[i].mid = MID(X, depth);
+      SData[i].mid = MID((sctl::ConstIterator<Real>)X, depth);
       SData[i].Rglb = Rglb[0] + i;
     }
     for (sctl::Long i = 0; i < TData.Dim(); i++) {
@@ -97,7 +108,7 @@ template <class Real, int DIM> template <class SrcObj, class TrgObj> void NearIn
         X[k] = (TCoord[i * DIM + k] - BBox.X[k]) * s;
         TData[i].coord[k] = TCoord[i * DIM + k];
       }
-      TData[i].mid = MID(X, depth);
+      TData[i].mid = MID((sctl::ConstIterator<Real>)X, depth);
       TData[i].Rglb = Rglb[1] + i;
     }
   }

@@ -65,7 +65,8 @@ class InteractionManager {
         // Repartition data
         // Setup for repartition
         nearInteracPtr->template SetupRepartition<SrcObjType, TrgObjType>(*srcVecPtr, *trgVecPtr);
-        nearInteracPtr->Barrier();
+        // nearInteracPtr->Barrier();
+        MPI_Barrier(MPI_COMM_WORLD);
 
         // Distribute source and target vectors
         std::vector<SrcObjType> srcNew;
@@ -104,7 +105,8 @@ class InteractionManager {
         // Compute near interactions
         // Setup for near interaction
         nearInteracPtr->SetupNearInterac(srcEssVec, trgEssVec);
-        nearInteracPtr->Barrier();
+        // nearInteracPtr->Barrier();
+        MPI_Barrier(MPI_COMM_WORLD);
         return;
     }
 
@@ -112,7 +114,8 @@ class InteractionManager {
     void calcNearInteraction(const std::shared_ptr<NearInteraction<Real, DIM>> &nearInteracPtr,
                              std::vector<SrcEssType> &srcEssVec, std::vector<TrgEssType> &trgEssVec,
                              InteractionFunctorType &interactor) const {
-        nearInteracPtr->Barrier();
+        // nearInteracPtr->Barrier();
+        MPI_Barrier(MPI_COMM_WORLD);
 
         // It is the user's duty to make sure that the nearInteracPtr, srcEssVec, and trgEssVec
         // here is equal to the nearInteracPtr used in the setupNear() funciton
@@ -192,7 +195,8 @@ class InteractionManager {
 #endif
 
         // Reverse scatter
-        nearInteracPtr->Barrier();
+        // nearInteracPtr->Barrier();
+        MPI_Barrier(MPI_COMM_WORLD);
         nearInteracPtr->template ReverseScatterTrg<TrgEssType>(trgNear, trgEssVec);
 
         return;
