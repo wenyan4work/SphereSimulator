@@ -82,4 +82,7 @@ class CollisionSphere {
     }
 };
 
+#undef INVALID
+#undef COLBUF
+
 #endif
