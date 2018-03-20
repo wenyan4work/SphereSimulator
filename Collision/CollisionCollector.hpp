@@ -17,6 +17,9 @@ struct CollisionBlock { // the information for each collision
     double gamma; // force magnitude , could be an initial guess
     int gidI, gidJ;
     int globalIndexI, globalIndexJ;
+    bool oneSide =
+        false; // one side collision, e.g. moving obj collide with a boundary, and the boundary does not appear in
+               // the mobility matrix
     Evec3 normI, normJ; // norm vector for each particle. gvecJ = - gvecI
     Evec3 posI, posJ;   // the collision position on I and J. useless for spheres.
 
@@ -26,12 +29,16 @@ struct CollisionBlock { // the information for each collision
         normJ.setZero();
         posI.setZero();
         posJ.setZero();
+        oneSide = false;
     }
 
     CollisionBlock(double phi0_, double gamma_, int gidI_, int gidJ_, int globalIndexI_, int globalIndexJ_,
-                   const Evec3 &normI_, const Evec3 &normJ_, const Evec3 &posI_, const Evec3 &posJ_)
+                   const Evec3 &normI_, const Evec3 &normJ_, const Evec3 &posI_, const Evec3 &posJ_,
+                   bool oneSide_ = false)
         : phi0(phi0_), gamma(gamma_), gidI(gidI_), gidJ(gidJ_), globalIndexI(globalIndexI_),
-          globalIndexJ(globalIndexJ_), normI(normI_), normJ(normJ_), posI(posI_), posJ(posJ_) {}
+          globalIndexJ(globalIndexJ_), normI(normI_), normJ(normJ_), posI(posI_), posJ(posJ_), oneSide(oneSide_) {
+        // if oneside = true, the gidJ, globalIndexJ, normJ, posJ will be ignored
+    }
 };
 
 using CollisionBlockQue = std::vector<CollisionBlock>; // can be changed to other containers, e.g., deque
@@ -48,7 +55,7 @@ class CollisionCollector {
         const int totalThreads = omp_get_max_threads();
         collisionPoolPtr = std::make_shared<CollisionBlockPool>();
         collisionPoolPtr->resize(totalThreads);
-        for(auto & queue:*collisionPoolPtr){
+        for (auto &queue : *collisionPoolPtr) {
             queue.resize(0);
             queue.reserve(50);
         }

@@ -31,19 +31,19 @@ class CollisionSolver {
         maxIte = 2000;
         newton = false;
 
-        objMobMapRcp.reset(); // distributed map for obj mobility. 6 dof per obj
-        forceColRcp.reset();    // force vec, 6 dof per obj
-        velocityColRcp.reset(); // velocity vec, 6 dof per obj. velocity = mobity * forceCol
+        objMobMapRcp = Teuchos::null;
+        forceColRcp = Teuchos::null;    // force vec, 6 dof per obj
+        velocityColRcp = Teuchos::null; // velocity vec, 6 dof per obj. velocity = mobity * forceCol
 
-        gammaMapRcp.reset(); // distributed map for collision magnitude gamma
-        gammaRcp.reset();    // the unknown
+        gammaMapRcp = Teuchos::null; // distributed map for collision magnitude gamma
+        gammaRcp = Teuchos::null;    // the unknown
 
-        phi0Rcp.reset();
-        vnRcp.reset();
-        bRcp.reset(); // the constant piece of LCP problem
+        phi0Rcp = Teuchos::null;
+        vnRcp = Teuchos::null;
+        bRcp = Teuchos::null; // the constant piece of LCP problem
 
-        matMobilityRcp.reset(); // mobility operator, 6 dof per obj to 6 dof per obj
-        matFcTransRcp.reset();  // FcTrans matrix, 6 dof per obj to gamma dof
+        matMobilityRcp = Teuchos::null; // mobility operator, 6 dof per obj to 6 dof per obj
+        matFcTransRcp = Teuchos::null;  // FcTrans matrix, 6 dof per obj to gamma dof
 
         queueThreadIndex.clear();
     }

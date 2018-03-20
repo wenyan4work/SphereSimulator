@@ -51,10 +51,10 @@ void CollisionSolver::solveCollision(Teuchos::RCP<TOP> &matMobilityRcp_, Teuchos
     Teuchos::RCP<CPMatOp> AmatRcp = Teuchos::rcp(new CPMatOp(matMobilityRcp, matFcTransRcp));
     auto commRcp = objMobMapRcp->getComm();
     CPSolver myLCPSolver(AmatRcp, bRcp);
-
+    printf("start solving\n");
     myLCPSolver.LCP_BBPGD(gammaRcp, res, maxIte, history);
 
-    if (commRcp->getRank() == 0) {
+    if (commRcp->getRank() == 0 && history.size() > 0) {
         auto &p = history.back();
         std::cout << "LCP residue: " << p[0] << " " << p[1] << " " << p[2] << " " << p[3] << " " << p[4] << std::endl;
     }
@@ -66,9 +66,10 @@ void CollisionSolver::solveCollision(Teuchos::RCP<TOP> &matMobilityRcp_, Teuchos
     // save the solution
     forceColRcp = AmatRcp->forceVecRcp;
     velocityColRcp = AmatRcp->velVecRcp;
+    std::cout << "col force velocity saved" << std::endl;
 
 #ifdef DEBUGLCPCOL
-    if (commRcp->getRank() == 0) {
+    if (commRcp->getRank() == 0 && history.size() > 0) {
         for (auto &p : history) {
             std::cout << p[0] << " " << p[1] << " " << p[2] << " " << p[3] << " " << p[4] << std::endl;
         }
@@ -96,10 +97,23 @@ void CollisionSolver::setupFcTrans(CollisionBlockPool &collision_) {
     // six entries for each row for spheres (each colBlock), gI[x,y,z], gJ[x,y,z]
     Kokkos::View<size_t *> rowPointers("rowPointers", localGammaSize + 1);
     rowPointers[0] = 0;
-
     // collision blocks
-    for (int i = 1; i < localGammaSize + 1; i++) {
-        rowPointers[i] = rowPointers[i - 1] + 12; // 12 nnz per collision
+    int rowPointerIndex = 0;
+    std::vector<int> colIndexThread(collision_.size());
+    for (int i = 0; i < collision_.size(); i++) {
+        const int jsize = collision_[i].size();
+        int colIndexCount = 0;
+        for (int j = 0; j < jsize; j++) {
+            rowPointerIndex++;
+            const int colBlockNNZ = (collision_[i][j].oneSide ? 6 : 12);
+            rowPointers[rowPointerIndex] = rowPointers[rowPointerIndex - 1] + colBlockNNZ;
+            colIndexCount += colBlockNNZ;
+        }
+        colIndexThread[i] = colIndexCount;
+    }
+    if (rowPointerIndex != localGammaSize) {
+        printf("rowPointerIndexError in collision solver");
+        exit(1);
     }
 
     Kokkos::View<int *> columnIndices("columnIndices", rowPointers[localGammaSize]);
@@ -111,23 +125,21 @@ void CollisionSolver::setupFcTrans(CollisionBlockPool &collision_) {
         const auto &colBlockQue = collision_[threadId];
         const int colBlockNum = colBlockQue.size();
         const int colBlockIndexBase = queueThreadIndex[threadId];
-        // 12 nnz in general, 6 for each
         // obj-obj collision: 12 nnz
-        // obj-boundary collision: set 6 nnz of j to zero
+        // obj-boundary collision: 6 nnz
+        // find proper kk
+        int kk = 0;
+        for (int t = 0; t < threadId; t++) {
+            kk += colIndexThread[t];
+        }
+
         for (int j = 0; j < colBlockNum; j++) {
-            const int kk = 12 * (colBlockIndexBase + j);
             columnIndices[kk] = 6 * colBlockQue[j].globalIndexI;
             columnIndices[kk + 1] = 6 * colBlockQue[j].globalIndexI + 1;
             columnIndices[kk + 2] = 6 * colBlockQue[j].globalIndexI + 2;
             columnIndices[kk + 3] = 6 * colBlockQue[j].globalIndexI + 3;
             columnIndices[kk + 4] = 6 * colBlockQue[j].globalIndexI + 4;
             columnIndices[kk + 5] = 6 * colBlockQue[j].globalIndexI + 5;
-            columnIndices[kk + 6] = 6 * colBlockQue[j].globalIndexJ;
-            columnIndices[kk + 7] = 6 * colBlockQue[j].globalIndexJ + 1;
-            columnIndices[kk + 8] = 6 * colBlockQue[j].globalIndexJ + 2;
-            columnIndices[kk + 9] = 6 * colBlockQue[j].globalIndexJ + 3;
-            columnIndices[kk + 10] = 6 * colBlockQue[j].globalIndexJ + 4;
-            columnIndices[kk + 11] = 6 * colBlockQue[j].globalIndexJ + 5;
             // each 6nnz for an object: gx.ux+gy.uy+gz.uz+(gzpy-gypz)wx+(gxpz-gzpx)wy+(gypx-gxpy)wz
             // 6 nnz for I
             {
@@ -144,20 +156,31 @@ void CollisionSolver::setupFcTrans(CollisionBlockPool &collision_) {
                 values[kk + 4] = (gx * pz - gz * px);
                 values[kk + 5] = (gy * px - gx * py);
             }
-            // 6 nnz for J, should be 0 if is a boundary. set normJ and posJ to zero before calling this
-            {
-                const double &gx = colBlockQue[j].normJ[0];
-                const double &gy = colBlockQue[j].normJ[1];
-                const double &gz = colBlockQue[j].normJ[2];
-                const double &px = colBlockQue[j].posJ[0];
-                const double &py = colBlockQue[j].posJ[1];
-                const double &pz = colBlockQue[j].posJ[2];
-                values[kk + 6] = gx;
-                values[kk + 7] = gy;
-                values[kk + 8] = gz;
-                values[kk + 9] = (gz * py - gy * pz);
-                values[kk + 10] = (gx * pz - gz * px);
-                values[kk + 11] = (gy * px - gx * py);
+            if (!colBlockQue[j].oneSide) {
+                columnIndices[kk + 6] = 6 * colBlockQue[j].globalIndexJ;
+                columnIndices[kk + 7] = 6 * colBlockQue[j].globalIndexJ + 1;
+                columnIndices[kk + 8] = 6 * colBlockQue[j].globalIndexJ + 2;
+                columnIndices[kk + 9] = 6 * colBlockQue[j].globalIndexJ + 3;
+                columnIndices[kk + 10] = 6 * colBlockQue[j].globalIndexJ + 4;
+                columnIndices[kk + 11] = 6 * colBlockQue[j].globalIndexJ + 5;
+                // 6 nnz for J, should be 0 if is a boundary. set normJ and posJ to zero before calling this
+                {
+                    const double &gx = colBlockQue[j].normJ[0];
+                    const double &gy = colBlockQue[j].normJ[1];
+                    const double &gz = colBlockQue[j].normJ[2];
+                    const double &px = colBlockQue[j].posJ[0];
+                    const double &py = colBlockQue[j].posJ[1];
+                    const double &pz = colBlockQue[j].posJ[2];
+                    values[kk + 6] = gx;
+                    values[kk + 7] = gy;
+                    values[kk + 8] = gz;
+                    values[kk + 9] = (gz * py - gy * pz);
+                    values[kk + 10] = (gx * pz - gz * px);
+                    values[kk + 11] = (gy * px - gx * py);
+                }
+                kk += 12;
+            } else {
+                kk += 6;
             }
         }
     }
@@ -180,7 +203,7 @@ void CollisionSolver::setupCollisionBlockQueThreadIndex(CollisionBlockPool &coll
     const int poolSize = collision_.size();
     queueThreadIndex.resize(poolSize + 1, 0);
     for (int i = 1; i <= poolSize; i++) {
-        queueThreadIndex[i] = queueThreadIndex[i - 1] + collision_[i-1].size();
+        queueThreadIndex[i] = queueThreadIndex[i - 1] + collision_[i - 1].size();
     }
 }
 

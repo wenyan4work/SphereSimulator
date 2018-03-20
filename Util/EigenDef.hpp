@@ -65,4 +65,12 @@ using Evec = Eigen::VectorXd;
 using Emat = Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic>; // default to column major
 using Espmat = Eigen::SparseMatrix<double>;
 
+// copy swap
+template <typename T>
+void copySwap(T &a, T &b) {
+    T temp = b;
+    b = a;
+    a = b;
+}
+
 #endif /* EIGENDEF_HPP_ */

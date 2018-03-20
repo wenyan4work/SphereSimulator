@@ -27,7 +27,7 @@ void CPSolver::clipZero(Teuchos::RCP<TV> &vecRcp) const {
 
 void CPSolver::maxXY(const Teuchos::RCP<const TV> &vecXRcp, const Teuchos::RCP<const TV> &vecYRcp,
                      const Teuchos::RCP<TV> &vecZRcp) const {
-#ifdef DEBUGCOLLCP
+#ifdef DEBUGLCPCOL
     TEUCHOS_TEST_FOR_EXCEPTION(!(vecXRcp->getMap()->isSameAs(*(vecZRcp->getMap()))), std::invalid_argument,
                                "X and Z do not have the same Map.");
     TEUCHOS_TEST_FOR_EXCEPTION(!(vecYRcp->getMap()->isSameAs(*(vecZRcp->getMap()))), std::invalid_argument,
@@ -53,7 +53,7 @@ void CPSolver::maxXY(const Teuchos::RCP<const TV> &vecXRcp, const Teuchos::RCP<c
 
 void CPSolver::minXY(const Teuchos::RCP<const TV> &vecXRcp, const Teuchos::RCP<const TV> &vecYRcp,
                      const Teuchos::RCP<TV> &vecZRcp) const {
-#ifdef DEBUGCOLLCP
+#ifdef DEBUGLCPCOL
     TEUCHOS_TEST_FOR_EXCEPTION(!(vecXRcp->getMap()->isSameAs(*(vecZRcp->getMap()))), std::invalid_argument,
                                "X and Z do not have the same Map.");
     TEUCHOS_TEST_FOR_EXCEPTION(!(vecYRcp->getMap()->isSameAs(*(vecZRcp->getMap()))), std::invalid_argument,
@@ -80,7 +80,7 @@ void CPSolver::minXY(const Teuchos::RCP<const TV> &vecXRcp, const Teuchos::RCP<c
 double CPSolver::checkResiduePhi(const Teuchos::RCP<const TV> &vecXRcp, const Teuchos::RCP<const TV> &vecYRcp,
                                  const Teuchos::RCP<const TV> &vecbRcp, const Teuchos::RCP<TV> &vecTempRcp) const {
 // Y=Ax
-#ifdef DEBUGCOLLCP
+#ifdef DEBUGLCPCOL
     TEUCHOS_TEST_FOR_EXCEPTION(!(vecXRcp->getMap()->isSameAs(*(vecTempRcp->getMap()))), std::invalid_argument,
                                "X and Z do not have the same Map.");
     TEUCHOS_TEST_FOR_EXCEPTION(!(vecYRcp->getMap()->isSameAs(*(vecTempRcp->getMap()))), std::invalid_argument,
@@ -107,7 +107,7 @@ double CPSolver::checkResiduePhi(const Teuchos::RCP<const TV> &vecXRcp, const Te
 double CPSolver::checkResiduePhi(const Teuchos::RCP<const TV> &vecXRcp, const Teuchos::RCP<const TV> &vecYRcp,
                                  const Teuchos::RCP<TV> &vecTempRcp) const {
 // Y=Ax+b
-#ifdef DEBUGCOLLCP
+#ifdef DEBUGLCPCOL
     TEUCHOS_TEST_FOR_EXCEPTION(!(vecXRcp->getMap()->isSameAs(*(vecTempRcp->getMap()))), std::invalid_argument,
                                "X and Z do not have the same Map.");
     TEUCHOS_TEST_FOR_EXCEPTION(!(vecYRcp->getMap()->isSameAs(*(vecTempRcp->getMap()))), std::invalid_argument,
@@ -123,7 +123,7 @@ double CPSolver::checkResiduePhi(const Teuchos::RCP<const TV> &vecXRcp, const Te
 
 void CPSolver::hMinMap(const Teuchos::RCP<const TV> &xRcp, const Teuchos::RCP<const TV> &yRcp,
                        const Teuchos::RCP<TV> &hRcp, const Teuchos::RCP<TV> &maskRcp) const {
-#ifdef DEBUGCOLLCP
+#ifdef DEBUGLCPCOL
     TEUCHOS_TEST_FOR_EXCEPTION(!(xRcp->getMap()->isSameAs(*(hRcp->getMap()))), std::invalid_argument,
                                "X and h do not have the same Map.");
     TEUCHOS_TEST_FOR_EXCEPTION(!(yRcp->getMap()->isSameAs(*(hRcp->getMap()))), std::invalid_argument,
@@ -172,7 +172,7 @@ void CPSolver::hMinMap(const Teuchos::RCP<const TV> &xRcp, const Teuchos::RCP<co
 //       globalSize(map_->getGlobalNumElements()), localSize(map_->getNodeNumElements()),
 //       globalIndexMinOnLocal(map_->getMinGlobalIndex()), globalIndexMaxOnLocal(map_->getMaxGlobalIndex()) {
 // // make sure A and b match the map and comm specified
-// #ifdef DEBUGCOLLCP
+// #ifdef DEBUGLCPCOL
 //     TEUCHOS_TEST_FOR_EXCEPTION(!(ARcp->getDomainMap()->isSameAs(*(bRcp->getMap()))), std::invalid_argument,
 //                                "A and b do not have the same Map.");
 //     TEUCHOS_TEST_FOR_EXCEPTION(!(mapRcp->isSameAs(*(bRcp->getMap()))), std::invalid_argument,
@@ -365,14 +365,14 @@ int CPSolver::LCP_BBPGD(Teuchos::RCP<TV> &xsolRcp, const double tol, const int i
         mvCount++;
         ykmykm1Rcp->update(1.0, *ykp1Rcp, -1.0, *ykRcp, 0.0); // yerror
         xkmxkm1Rcp->update(1.0, *xkp1Rcp, -1.0, *xkRcp, 0.0); // xerror
-#ifdef DEBUGCOLLCP
+#ifdef DEBUGLCPCOL
         // detailed tolerance for debug build
         // check convergence
         double resxMax = xkmxkm1Rcp->normInf();
         double resAxbMax = ykmykm1Rcp->normInf();
         double resPhi = checkResiduePhi(xkp1Rcp, ykp1Rcp, bRcp, tempVecRcp);
         history.push_back(std::array<double, 6>{{1.0 * iteCount, resxMax, resAxbMax, alphak, resPhi, 1.0 * mvCount}});
-        if (fabs(resxMax) < tol && fabs(resAxbMax) < tol && fabs(AxbDotx) < tol) {
+        if (fabs(resxMax) < tol && fabs(resAxbMax) < tol && fabs(resPhi) < tol) {
             break;
         }
 #else
@@ -500,7 +500,7 @@ int CPSolver::LCP_APGD(Teuchos::RCP<TV> &xsolRcp, const double tol, const int it
         resxRcp->update(1.0, *xkp1Rcp, -1.0, *xkRcp, 0.0);      // resx=xkp1-xk
         resAxbRcp->update(1.0, *Axbkp1Rcp, -1.0, *AxbRcp, 0.0); // resAxb = A.dot(xkp1) - A.dot(xkp)
         double AxbDotx = Axbkp1Rcp->dot(*xkp1Rcp);
-#ifdef DEBUGCOLLCP
+#ifdef DEBUGLCPCOL
         // detailed tolerance for debug build
         // check convergence
         double resxMax = resxRcp->normInf();
@@ -658,7 +658,7 @@ int CPSolver::LCP_mmNewton(Teuchos::RCP<TV> &xsolRcp, const double tol, const in
     solverParams->set("Num Blocks", 50); // usless for BicgStab. the restart m for GMRES.
     solverParams->set("Maximum Iterations", 100);
     solverParams->set("Convergence Tolerance", tol * 10);
-#ifdef DEBUGCOLLCP
+#ifdef DEBUGLCPCOL
     solverParams->set("Verbosity", Belos::Errors + Belos::Warnings + Belos::TimingDetails + Belos::FinalSummary);
 #else
     solverParams->set("Verbosity", Belos::Errors + Belos::Warnings);
@@ -680,7 +680,7 @@ int CPSolver::LCP_mmNewton(Teuchos::RCP<TV> &xsolRcp, const double tol, const in
     // check convergence
     // xkRcp, ykRcp saves last step
 
-#ifdef DEBUGCOLLCP
+#ifdef DEBUGLCPCOL
         // detailed tolerance for debug build
         // check convergence
         tempVecRcp->update(1.0, *xRcp, -1.0, *xkRcp, 0.0);

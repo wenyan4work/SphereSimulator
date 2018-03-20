@@ -10,27 +10,23 @@
 #define COLBUF 0.3 // record collision block for sep < COLBUF*(rI+RJ)
 
 class CollisionSphere {
-    // this is a POD type, used to generate collision blocks
   public:
     int gid = INVALID;
     int globalIndex = INVALID;
     double radiusCollision;
-    // double pos[3];
     Evec3 pos;
 
     void CopyFromFull(const Sphere &s) {
         gid = s.gid;
         globalIndex = s.globalIndex;
         radiusCollision = s.radiusCollision;
-        pos[0] = s.pos[0];
-        pos[1] = s.pos[1];
-        pos[2] = s.pos[2];
+        pos = s.pos;
     }
 
     // necessary interface for Near Interaction
     const double *Coord() const { return pos.data(); }
 
-    double Rad() const { return radiusCollision * 2; }
+    double Rad() const { return radiusCollision * (1 + COLBUF * 2); }
 
     void Pack(std::vector<char> &buff) const {
         Buffer mybuff(buff);
@@ -53,8 +49,9 @@ class CollisionSphere {
     }
 
     inline bool collide(const CollisionSphere &sphereJ, CollisionBlock &block) {
-        if (gid == sphereJ.gid) {
+        if (gid >= sphereJ.gid) {
             // no self collision
+            // do not record gid > J.gid
             return false;
         }
         EAvec3 posI(pos[0], pos[1], pos[2]);
@@ -65,7 +62,7 @@ class CollisionSphere {
 
         // save collision block
         // save only block gidI < gidJ
-        if (sep < COLBUF * (radiusCollision + sphereJ.radiusCollision) && gid < sphereJ.gid) {
+        if (sep < COLBUF * radiusCollision) {
             // collision
             block.normI = rIJ * (-1.0 / rIJNorm);
             block.normJ = -block.normI;
@@ -83,22 +80,6 @@ class CollisionSphere {
             return false;
         }
     }
-
-    // friend void swap(CollisionSphere &, CollisionSphere &);
 };
-
-#undef COLBUF
-#undef INVALID
-
-// void swap(CollisionSphere &A, CollisionSphere &B) {
-//     using std::swap;
-//     swap(A.gid, B.gid);
-//     swap(A.globalIndex, B.globalIndex);
-//     swap(A.radiusCollision, B.radiusCollision);
-//     A.pos.swap(B.pos);
-//     // swap(A.pos[0], B.pos[0]);
-//     // swap(A.pos[1], B.pos[1]);
-//     // swap(A.pos[2], B.pos[2]);
-// }
 
 #endif
