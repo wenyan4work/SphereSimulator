@@ -17,14 +17,14 @@ void testVTK() {
         "./result/" + std::to_string(low) + std::string("-") + std::to_string(high) + std::string("/");
     IOHelper::makeSubFolder(baseFolder);
 
-    std::vector<Sphere> sphere(10);
-    for (int i = 0; i < 10; i++) {
+    std::vector<Sphere> sphere(1);
+    for (int i = 0; i < sphere.size(); i++) {
         // fill random data
         auto &s = sphere[i];
         s.gid = i;
         s.globalIndex = i;
-        s.radius = drand48();
-        s.radiusCollision = drand48();
+        s.radius = i * 0.5 + 0.5;
+        s.radiusCollision = i * 0.5 + 0.5;
         s.pos.setRandom();
         s.vel.setRandom();
         s.omega.setRandom();
@@ -32,15 +32,16 @@ void testVTK() {
         s.addLayer("lap", SPHExp::KIND::LAP, 6, Equatn::UnitRandom());
         s.addLayer("stk", SPHExp::KIND::STK, 8, Equatn::UnitRandom());
     }
-    Sphere::writeVTP(sphere, baseFolder, "000", 0);
-    Sphere::writeVTU(sphere, baseFolder, "000", 0);
-    Sphere::writePVTP(baseFolder, "000", 1);
-    std::vector<std::pair<int, std::string>> dataFields;
-    std::vector<IOHelper::IOTYPE> types = {IOHelper::IOTYPE::Float64, IOHelper::IOTYPE::Float64,
-                                           IOHelper::IOTYPE::Float64};
-    dataFields.emplace_back(std::pair<int, std::string>(1, "lap"));
-    dataFields.emplace_back(std::pair<int, std::string>(3, "stk"));
-    Sphere::writePVTU(dataFields, types, baseFolder, "000", 1);
+    // VTP files
+    Sphere::writeVTP(sphere, baseFolder, "0", 0);
+    Sphere::writePVTP(baseFolder, "0", 1);
+
+    // VTU files
+    std::vector<IOHelper::FieldVTU> dataFields;
+    dataFields.emplace_back(1, IOHelper::IOTYPE::Float64, std::string("lap"));
+    dataFields.emplace_back(3, IOHelper::IOTYPE::Float64, std::string("stk"));
+    Sphere::writeVTU(sphere, dataFields, baseFolder, "0", 0);
+    Sphere::writePVTU(dataFields, baseFolder, "0", 1);
 }
 
 int main() {

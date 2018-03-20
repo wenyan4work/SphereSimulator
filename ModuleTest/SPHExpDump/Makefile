@@ -19,11 +19,11 @@ $(EXE):	$(OBJ)
 
 # Compilation rules
 %.o: %.cpp
-	$(CXX) $(CXXFLAGS) $(INCLUDE_DIRS) -c $*.cpp -o $*.o
+	$(CXX) $(CXXFLAGS) $(INCLUDE_DIRS) -c $*.cpp -o $*.o -DDEBUGVTU
 
 
 all: $(EXE)
 
 clean: 
-	rm ./$(OBJ)
-	rm ./$(EXE)
+	rm -f ./$(OBJ)
+	rm -f ./$(EXE)

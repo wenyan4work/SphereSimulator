@@ -74,7 +74,8 @@ void SPHExp::dumpSpectralValues(const std::string &filename) const {
     }
 }
 
-int SPHExp::dumpVTK(std::ofstream &file, const double &radius, const Evec3 &coordBase) const {
+// data and weight always in Float64
+int SPHExp::writeVTU(std::ofstream &file, const double &radius, const Evec3 &coordBase) const {
     // indexBase is the index of the first grid point
 
     // this must be called in single thread
@@ -90,7 +91,8 @@ int SPHExp::dumpVTK(std::ofstream &file, const double &radius, const Evec3 &coor
     const int nPts = gridWeights.size();
     assert(gridPoints.size() == nPts * 3);
 
-    // for debug
+// for debug
+#ifdef DEBUGVTU
     printf("%lu,%lu,%lu\n", gridPoints.size(), gridWeights.size(), gridValues.size());
     for (const auto &v : gridPoints) {
         std::cout << v << " ";
@@ -100,28 +102,19 @@ int SPHExp::dumpVTK(std::ofstream &file, const double &radius, const Evec3 &coor
         std::cout << v << " ";
     }
     std::cout << std::endl;
+#endif
 
     std::string contentB64; // data converted to base64 format
     contentB64.reserve(10 * order * order * (kind == KIND::LAP ? 1 : 3));
     contentB64.clear();
-
-    std::vector<char> temp{'a', 'b', 'c', 'd', 'e', 'f'};
-    B64Converter::getBase64FromVector(temp, contentB64);
-    for (const auto &v : contentB64) {
-        std::cout << v << " ";
-    }
-    std::cout << std::endl;
 
     std::vector<int32_t> connect;
     std::vector<int32_t> offset;
     std::vector<uint8_t> type;
     getGridCellConnect(connect, offset, type);
 
-    // for (auto &v : connect) {
-    //     v += indexBase;
-    // }
-
-    // for debug
+// for debug
+#ifdef DEBUGVTU
     for (const auto &v : connect) {
         std::cout << v << " ";
     }
@@ -135,6 +128,7 @@ int SPHExp::dumpVTK(std::ofstream &file, const double &radius, const Evec3 &coor
         std::cout << temp << " ";
     }
     std::cout << std::endl;
+#endif
 
     // write a vtk unstructured grid section
     // assume file in 'append' mode

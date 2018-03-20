@@ -17,12 +17,14 @@
 
 class IOHelper {
   public:
-    enum class IOTYPE {
-        UInt8,
-        Int32,
-        Float32,
-        Float64
+    enum class IOTYPE { UInt8, Int32, Float32, Float64 };
 
+    struct FieldVTU {
+        int dimension;
+        IOTYPE type; // in most cases, choose between Float32 and Float64
+        std::string name;
+
+        FieldVTU(int dimension_, IOTYPE type_, std::string name_) : dimension(dimension_), type(type_), name(name_) {}
     };
 
     static std::string getTypeName(IOTYPE type) {
@@ -75,8 +77,8 @@ class IOHelper {
         vtkfile << "</VTKFile>" << std::endl;
     }
 
-    static void writePVTUFile(std::string filename, const std::vector<std::pair<int, std::string>> &dataFields,
-                              const std::vector<IOTYPE> types, const std::vector<std::string> &pieceNames) {
+    static void writePVTUFile(std::string filename, const std::vector<FieldVTU> &dataFields,
+                              const std::vector<std::string> &pieceNames) {
 
         std::ofstream pvtufile(filename, std::ios::out);
 
@@ -91,12 +93,60 @@ class IOHelper {
             auto &data = dataFields[i];
             // data.first = dimension
             // data.second = name
-            std::string type = getTypeName(types[i]);
-            pvtufile << "<PDataArray Name=\"" << data.second << "\" type=\"" << type << "\" NumberOfComponents=\""
-                     << data.first << "\" format=\"binary\"/>\n";
+            std::string type = getTypeName(data.type);
+            pvtufile << "<PDataArray Name=\"" << data.name << "\" type=\"" << type << "\" NumberOfComponents=\""
+                     << data.dimension << "\" format=\"binary\"/>\n";
         }
 
         pvtufile << "</PPointData>\n";
+
+        pvtufile << "<PPoints> \n";
+        pvtufile << "<PDataArray NumberOfComponents=\"3\" type=\"Float64\" format=\"binary\"/>\n";
+        pvtufile << "</PPoints> \n";
+
+        for (const auto &piece : pieceNames) {
+
+            pvtufile << "<Piece Source=\"" << piece << "\"/>\n";
+        }
+        pvtufile << "</PUnstructuredGrid>\n";
+        pvtufile << "</VTKFile>\n";
+        pvtufile.close();
+    }
+
+    // overload, some are point data, some are cell data
+    static void writePVTUFile(std::string filename, const std::vector<FieldVTU> &pointDataFields,
+                              const std::vector<FieldVTU> &cellDataFields, const std::vector<std::string> &pieceNames) {
+
+        std::ofstream pvtufile(filename, std::ios::out);
+
+        pvtufile << "<?xml version=\"1.0\"?>\n";
+        pvtufile << "<VTKFile type=\"PUnstructuredGrid\" version=\"1.0\" byte_order=\"LittleEndian\" "
+                    "header_type=\"UInt32\"> \n";
+        pvtufile << "<PUnstructuredGrid GhostLevel=\"0\"> \n";
+
+        // point data
+        pvtufile << "<PPointData Scalars=\"scalars\">\n";
+        for (int i = 0; i < pointDataFields.size(); i++) {
+            auto &data = pointDataFields[i];
+            // data.first = dimension
+            // data.second = name
+            std::string type = getTypeName(data.type);
+            pvtufile << "<PDataArray Name=\"" << data.name << "\" type=\"" << type << "\" NumberOfComponents=\""
+                     << data.dimension << "\" format=\"binary\"/>\n";
+        }
+        pvtufile << "</PPointData>\n";
+
+        // cell data
+        pvtufile << "<PCellData Scalars=\"scalars\">\n";
+        for (int i = 0; i < cellDataFields.size(); i++) {
+            auto &data = cellDataFields[i];
+            // data.first = dimension
+            // data.second = name
+            std::string type = getTypeName(data.type);
+            pvtufile << "<PDataArray Name=\"" << data.name << "\" type=\"" << type << "\" NumberOfComponents=\""
+                     << data.dimension << "\" format=\"binary\"/>\n";
+        }
+        pvtufile << "</PCellData>\n";
 
         pvtufile << "<PPoints> \n";
         pvtufile << "<PDataArray NumberOfComponents=\"3\" type=\"Float64\" format=\"binary\"/>\n";
@@ -127,8 +177,9 @@ class IOHelper {
         vtkfile << "</VTKFile>" << std::endl;
     }
 
-    static void writePVTPFile(std::string filename, const std::vector<std::pair<int, std::string>> &dataFields,
-                              const std::vector<IOTYPE> &types, const std::vector<std::string> &pieceNames) {
+    // all data are point data
+    static void writePVTPFile(std::string filename, const std::vector<FieldVTU> &dataFields,
+                              const std::vector<std::string> &pieceNames) {
 
         std::ofstream pvtufile(filename, std::ios::out);
 
@@ -139,13 +190,10 @@ class IOHelper {
 
         pvtufile << "<PPointData Scalars=\"scalars\">\n";
 
-        for (int i = 0; i < dataFields.size(); i++) {
-            auto &data = dataFields[i];
-            // data.first = dimension
-            // data.second = name
-            std::string type = getTypeName(types[i]);
-            pvtufile << "<PDataArray Name=\"" << data.second << "\" type=\"" << type << "\" NumberOfComponents=\""
-                     << data.first << "\" format=\"binary\"/>\n";
+        for (auto &data : dataFields) {
+            std::string type = getTypeName(data.type);
+            pvtufile << "<PDataArray Name=\"" << data.name << "\" type=\"" << type << "\" NumberOfComponents=\""
+                     << data.dimension << "\" format=\"binary\"/>\n";
         }
 
         pvtufile << "</PPointData>\n";
@@ -155,7 +203,45 @@ class IOHelper {
         pvtufile << "</PPoints> \n";
 
         for (const auto &piece : pieceNames) {
+            pvtufile << "<Piece Source=\"" << piece << "\"/>\n";
+        }
+        pvtufile << "</PPolyData>\n";
+        pvtufile << "</VTKFile>\n";
+        pvtufile.close();
+    }
 
+    // overload, some are point data, some are cell data
+    static void writePVTPFile(std::string filename, const std::vector<FieldVTU> &pointDataFields,
+                              const std::vector<FieldVTU> &cellDataFields, const std::vector<std::string> &pieceNames) {
+
+        std::ofstream pvtufile(filename, std::ios::out);
+
+        pvtufile << "<?xml version=\"1.0\"?>\n";
+        pvtufile << "<VTKFile type=\"PPolyData\" version=\"1.0\" byte_order=\"LittleEndian\" "
+                    "header_type=\"UInt32\"> \n";
+        pvtufile << "<PPolyData GhostLevel=\"0\"> \n";
+
+        pvtufile << "<PPointData Scalars=\"scalars\">\n";
+        for (auto &data : pointDataFields) {
+            std::string type = getTypeName(data.type);
+            pvtufile << "<PDataArray Name=\"" << data.name << "\" type=\"" << type << "\" NumberOfComponents=\""
+                     << data.dimension << "\" format=\"binary\"/>\n";
+        }
+        pvtufile << "</PPointData>\n";
+
+        pvtufile << "<PCellData Scalars=\"scalars\">\n";
+        for (auto &data : cellDataFields) {
+            std::string type = getTypeName(data.type);
+            pvtufile << "<PDataArray Name=\"" << data.name << "\" type=\"" << type << "\" NumberOfComponents=\""
+                     << data.dimension << "\" format=\"binary\"/>\n";
+        }
+        pvtufile << "</PCellData>\n";
+
+        pvtufile << "<PPoints> \n";
+        pvtufile << "<PDataArray NumberOfComponents=\"3\" type=\"Float64\" format=\"binary\"/>\n";
+        pvtufile << "</PPoints> \n";
+
+        for (const auto &piece : pieceNames) {
             pvtufile << "<Piece Source=\"" << piece << "\"/>\n";
         }
         pvtufile << "</PPolyData>\n";

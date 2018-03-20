@@ -12,6 +12,7 @@
 // #include "STKFMM/STKFMM.h"
 #include "Sphere/Sphere.hpp"
 #include "Trilinos/TpetraUtil.hpp"
+#include "Util/IOHelper.hpp"
 #include "Util/TRngPool.hpp"
 
 #include "Config.h"
@@ -46,7 +47,7 @@ class SphereSystem {
     std::shared_ptr<CollisionCollector> collisionCollectorPtr;
 
     // MPI stuff
-    Teuchos::RCP<const TCOMM> commRcp;             // mpi communicator
+    Teuchos::RCP<const TCOMM> commRcp;       // mpi communicator
     Teuchos::RCP<TMAP> sphereMapRcp;         // 1 dof per sphere
     Teuchos::RCP<TMAP> sphereMobilityMapRcp; // 6 dof per sphere
 
@@ -59,6 +60,7 @@ class SphereSystem {
     // IO
     void writeVTK(const std::string &baseFolder);
     void writeXYZ(const std::string &baseFolder);
+    std::vector<IOHelper::FieldVTU> dataFieldVTU;
 
     // TODO: implement these two for restart a simulation exactly
     void writeSerialized();

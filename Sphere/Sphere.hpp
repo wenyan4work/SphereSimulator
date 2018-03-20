@@ -12,17 +12,17 @@
 
 #define INVALID -1
 
-class NeighborSphere {
-  public:
-    int gid = INVALID;
-    double radius;
-    double radiusCollision;
-    Evec3 pos;
-    Evec3 posRelative;
-    Equatn orientation;
-    NeighborSphere() = default;
-    NeighborSphere(const int &gid_, const Evec3 &posRelative_) noexcept : gid(gid_), posRelative(posRelative_) {}
-};
+// class NeighborSphere {
+//   public:
+//     int gid = INVALID;
+//     double radius;
+//     double radiusCollision;
+//     Evec3 pos;
+//     Evec3 posRelative;
+//     Equatn orientation;
+//     NeighborSphere() = default;
+//     NeighborSphere(const int &gid_, const Evec3 &posRelative_) noexcept : gid(gid_), posRelative(posRelative_) {}
+// };
 
 class Sphere {
   public:
@@ -35,7 +35,7 @@ class Sphere {
     Evec3 omega;
     Equatn orientation;
 
-    std::vector<NeighborSphere> sphNeighbor;
+    // std::vector<NeighborSphere> sphNeighbor;
     std::unordered_map<std::string, SPHExp *> sphLayer;
 
     Sphere() = default;
@@ -51,8 +51,10 @@ class Sphere {
     void addLayer(const std::string &, SPHExp::KIND, int order = 4, const Equatn orientation = Equatn::Identity());
 
     void dumpSphere() const;
-    void dumpNeighbor() const;
-    void dumpLayer(const std::string &) const;
+    // void dumpNeighbor() const;
+    void dumpLayer(const std::string &name) const;
+
+    SPHExp &getLayer(const std::string &name);
 
     // motion
     void stepEuler(double dt);
@@ -70,11 +72,11 @@ class Sphere {
 
     static void writeVTP(const std::vector<Sphere> &sphere, const std::string &prefix, const std::string &postfix,
                          int rank);
-    static void writeVTU(const std::vector<Sphere> &sphere, const std::string &prefix, const std::string &postfix,
-                         int rank);
     static void writePVTP(const std::string &prefix, const std::string &postfix, const int nProcs);
-    static void writePVTU(const std::vector<std::pair<int, std::string>> &dataFields,
-                          const std::vector<IOHelper::IOTYPE> &types, const std::string &prefix,
+
+    static void writeVTU(const std::vector<Sphere> &sphere, const std::vector<IOHelper::FieldVTU> &dataFields,
+                         const std::string &prefix, const std::string &postfix, int rank);
+    static void writePVTU(const std::vector<IOHelper::FieldVTU> &dataFields, const std::string &prefix,
                           const std::string &postfix, const int nProcs);
 };
 

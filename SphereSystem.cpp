@@ -30,14 +30,24 @@ SphereSystem::SphereSystem(const std::string &configFile, const std::string &pos
         IOHelper::makeSubFolder("./result");
         // initialize on head rank
         setInitial(posFile);
+        // initialize output data fields
+        // used only on rank 0
+
     } else {
         sphere.reserve(runConfig.sphereNumber / commRcp->getSize() * 2);
     }
 
     // initial exchange of particles
-    MPI_Barrier(MPI_COMM_WORLD);
+    commRcp->barrier();
     partition();
-    MPI_Barrier(MPI_COMM_WORLD);
+    commRcp->barrier();
+
+    for (auto &s : sphere) {
+        s.addLayer("stk", SPHExp::KIND::STK, 8, Equatn::UnitRandom());
+    }
+    // manually initialize it on all ranks
+    // VTU data always in Float64 format
+    dataFieldVTU.emplace_back(3, IOHelper::IOTYPE::Float64, "stk");
 
     printf("local: %lu spheres on process %d\n", sphere.size(), commRcp->getRank());
     output();
@@ -144,19 +154,18 @@ void SphereSystem::writeXYZ(const std::string &baseFolder) {
 }
 
 void SphereSystem::writeVTK(const std::string &baseFolder) {
-    Sphere::writeVTP(sphere, baseFolder, std::to_string(snapID), commRcp->getRank());
-    Sphere::writeVTU(sphere, baseFolder, std::to_string(snapID), commRcp->getRank());
     // write parallel head
-    if (commRcp->getSize() > 1 && commRcp->getRank() == 0) {
-        Sphere::writePVTP(baseFolder, "000", commRcp->getSize());
-        std::vector<std::pair<int, std::string>> dataFields;
-        std::vector<IOHelper::IOTYPE> types = {IOHelper::IOTYPE::Float64, IOHelper::IOTYPE::Float64};
-        for (auto &layer : sphere[0].sphLayer) {
-            dataFields.emplace_back(std::pair<int, std::string>(layer.second->dimension, layer.second->name));
+    if (commRcp->getSize() > 1) {
+        if (commRcp->getRank() == 0) {
+            Sphere::writePVTP(baseFolder, "0", commRcp->getSize());
+            // dataFields on all ranks should have been setup during initialization
+            Sphere::writePVTU(dataFieldVTU, baseFolder, std::to_string(snapID), commRcp->getSize());
         }
-        dataFields.emplace_back(std::pair<int, std::string>(3, "stk"));
-        Sphere::writePVTU(dataFields, types, baseFolder, std::to_string(snapID), commRcp->getSize());
     }
+
+    // write files from each rank
+    Sphere::writeVTP(sphere, baseFolder, std::to_string(snapID), commRcp->getRank());
+    Sphere::writeVTU(sphere, dataFieldVTU, baseFolder, std::to_string(snapID), commRcp->getRank());
 }
 
 void SphereSystem::output() {

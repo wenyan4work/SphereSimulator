@@ -8,7 +8,7 @@
 #include <msgpack.hpp>
 
 // pack data to byte array in MsgPack format
-
+// this does not hold any actual buffer data
 class Buffer {
   private:
     size_t readPos = 0;
@@ -47,11 +47,6 @@ class Buffer {
         }
         printf("\nreadPos %zu\n", readPos);
     }
-
-    // buffer should not resize itself, because after resize the data in content are not valid msgpack obj data
-    void reserve(size_t length) { contentPtr->reserve(length); }
-
-    void clear() { contentPtr->clear(); }
 
     char *getPtr() {
         // can be used to read/write the
