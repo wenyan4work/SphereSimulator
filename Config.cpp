@@ -24,6 +24,7 @@ Config::Config(std::string fileName) {
     myfile >> ompThreads >> line;
     if (ompThreads > 0) {
         omp_set_num_threads(ompThreads);
+        omp_set_nested(0);
     }
     std::cout << "using max OpenMP threads: " << omp_get_max_threads() << std::endl;
 
