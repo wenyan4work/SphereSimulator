@@ -28,6 +28,10 @@ class InteractionManager {
     std::vector<SrcObjType> *srcVecPtr;
     std::vector<TrgObjType> *trgVecPtr;
 
+    // WARNING: create or copy this too many times will cause fatal error:
+    //   Too many communicators (0/16384 free on this process; ignore_id=0)
+    sctl::Comm sctlcomm;
+
   public:
     // constructor
     InteractionManager(std::vector<SrcObjType> *srcVecPtr_, std::vector<TrgObjType> *trgVecPtr_) {
@@ -36,6 +40,9 @@ class InteractionManager {
         if (srcVecPtr == trgVecPtr) {
             printf("Working for src == trg\n");
         }
+#ifdef SCTL_HAVE_MPI
+        sctlcomm = MPI_COMM_WORLD;
+#endif
     }
 
     // default copy
@@ -49,11 +56,9 @@ class InteractionManager {
     };
 
     // get a new NearInteraction object to be used for partition or interaction
+
     std::shared_ptr<NearInteraction<Real, DIM>> getNewNearInteraction() {
-        sctl::Comm sctlcomm;
-#ifdef SCTL_HAVE_MPI
-        sctlcomm = MPI_COMM_WORLD;
-#endif
+
         return std::make_shared<NearInteraction<Real, DIM>>(sctlcomm);
     }
 
@@ -65,8 +70,7 @@ class InteractionManager {
         // Repartition data
         // Setup for repartition
         nearInteracPtr->template SetupRepartition<SrcObjType, TrgObjType>(*srcVecPtr, *trgVecPtr);
-        // nearInteracPtr->Barrier();
-        MPI_Barrier(MPI_COMM_WORLD);
+        MPI_Barrier(sctlcomm.GetMPI_Comm());
 
         // Distribute source and target vectors
         std::vector<SrcObjType> srcNew;
@@ -100,22 +104,20 @@ class InteractionManager {
 
     template <class SrcEssType, class TrgEssType>
     void setupNearInteractor(const std::shared_ptr<NearInteraction<Real, DIM>> &nearInteracPtr,
-                             std::vector<SrcEssType> &srcEssVec, std::vector<TrgEssType> &trgEssVec) const {
+                             std::vector<SrcEssType> &srcEssVec, std::vector<TrgEssType> &trgEssVec) {
 
         // Compute near interactions
         // Setup for near interaction
         nearInteracPtr->SetupNearInterac(srcEssVec, trgEssVec);
-        // nearInteracPtr->Barrier();
-        MPI_Barrier(MPI_COMM_WORLD);
+        MPI_Barrier(sctlcomm.GetMPI_Comm());
         return;
     }
 
     template <class SrcEssType, class TrgEssType, class InteractionFunctorType>
     void calcNearInteraction(const std::shared_ptr<NearInteraction<Real, DIM>> &nearInteracPtr,
                              std::vector<SrcEssType> &srcEssVec, std::vector<TrgEssType> &trgEssVec,
-                             InteractionFunctorType &interactor) const {
-        // nearInteracPtr->Barrier();
-        MPI_Barrier(MPI_COMM_WORLD);
+                             InteractionFunctorType &interactor) {
+        MPI_Barrier(sctlcomm.GetMPI_Comm());
 
         // It is the user's duty to make sure that the nearInteracPtr, srcEssVec, and trgEssVec
         // here is equal to the nearInteracPtr used in the setupNear() funciton
@@ -195,8 +197,7 @@ class InteractionManager {
 #endif
 
         // Reverse scatter
-        // nearInteracPtr->Barrier();
-        MPI_Barrier(MPI_COMM_WORLD);
+        MPI_Barrier(sctlcomm.GetMPI_Comm());
         nearInteracPtr->template ReverseScatterTrg<TrgEssType>(trgNear, trgEssVec);
 
         return;
