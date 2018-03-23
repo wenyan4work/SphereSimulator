@@ -11,7 +11,7 @@ using IteHistory = std::deque<std::array<double, 6>>;
 
 class CPMatOp : public TOP {
   public:
-    CPMatOp(Teuchos::RCP<TOP> mobRcp_, Teuchos::RCP<TOP> fcTransRcp_) : mobRcp(mobRcp_), fcTransRcp(fcTransRcp_) {
+    CPMatOp(Teuchos::RCP<TOP> mobRcp_, Teuchos::RCP<TCMAT> fcTransRcp_) : mobRcp(mobRcp_), fcTransRcp(fcTransRcp_) {
         // check map
         TEUCHOS_TEST_FOR_EXCEPTION(!(mobRcp->getRangeMap()->isSameAs(*(fcTransRcp->getDomainMap()))),
                                    std::invalid_argument, "Mob and Fc Maps not compatible.");
@@ -22,20 +22,40 @@ class CPMatOp : public TOP {
     void apply(const TMV &X, TMV &Y, Teuchos::ETransp mode = Teuchos::NO_TRANS,
                scalar_type alpha = Teuchos::ScalarTraits<scalar_type>::one(),
                scalar_type beta = Teuchos::ScalarTraits<scalar_type>::zero()) const {
+#ifdef DEBUGLCPCOL
         TEUCHOS_TEST_FOR_EXCEPTION(X.getNumVectors() != Y.getNumVectors(), std::invalid_argument,
                                    "X and Y do not have the same numbers of vectors (columns).");
         TEUCHOS_TEST_FOR_EXCEPTION(!X.getMap()->isSameAs(*Y.getMap()), std::invalid_argument,
                                    "X and Y do not have the same Map.");
+#endif
         const int numVecs = X.getNumVectors();
         for (int i = 0; i < numVecs; i++) {
             const Teuchos::RCP<const TV> XcolRcp = X.getVector(i);
             Teuchos::RCP<TV> YcolRcp = Y.getVectorNonConst(i);
+#ifdef DEBUGLCPCOL
             // step 1 force=Fc * Xcol
-            fcTransRcp->apply(*XcolRcp, *forceVecRcp, Teuchos::TRANS);
+            Teuchos::RCP<Teuchos::Time> transTimer = Teuchos::TimeMonitor::getNewCounter("BBPGD::OP::FcTrans Apply");
+            {
+                Teuchos::TimeMonitor mon(*transTimer);
+                fcTransRcp->apply(*XcolRcp, *forceVecRcp, Teuchos::TRANS);
+            }
             // step 2 vel = mob * Force
-            mobRcp->apply(*forceVecRcp, *velVecRcp);
+            Teuchos::RCP<Teuchos::Time> mobTimer = Teuchos::TimeMonitor::getNewCounter("BBPGD::OP::Mob Apply");
+            {
+                Teuchos::TimeMonitor mon(*mobTimer);
+                mobRcp->apply(*forceVecRcp, *velVecRcp);
+            }
             // step 3 Ycol = Fc^T * vel
+            Teuchos::RCP<Teuchos::Time> fcTimer = Teuchos::TimeMonitor::getNewCounter("BBPGD::OP::Fc Apply");
+            {
+                Teuchos::TimeMonitor mon(*fcTimer);
+                fcTransRcp->apply(*velVecRcp, *YcolRcp);
+            }
+#else
+            fcTransRcp->apply(*XcolRcp, *forceVecRcp, Teuchos::TRANS);
+            mobRcp->apply(*forceVecRcp, *velVecRcp);
             fcTransRcp->apply(*velVecRcp, *YcolRcp);
+#endif
         }
     }
 
@@ -49,7 +69,7 @@ class CPMatOp : public TOP {
     bool hasTransposeApply() const { return false; }
 
     Teuchos::RCP<TOP> mobRcp;
-    Teuchos::RCP<TOP> fcTransRcp;
+    Teuchos::RCP<TCMAT> fcTransRcp;
     Teuchos::RCP<TV> forceVecRcp;
     Teuchos::RCP<TV> velVecRcp;
 };
@@ -57,7 +77,7 @@ class CPMatOp : public TOP {
 class CPSolver {
   public:
     // CPSolver(const Teuchos::RCP<const TOP> &, const Teuchos::RCP<const TV> &, const Teuchos::RCP<const TMAP> &,
-            //  const Teuchos::RCP<const TCOMM> &);
+    //  const Teuchos::RCP<const TCOMM> &);
     CPSolver(const Teuchos::RCP<const TOP> &, const Teuchos::RCP<const TV> &);
     CPSolver(int);
 

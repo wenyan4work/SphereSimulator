@@ -282,7 +282,6 @@ CPSolver::CPSolver(int globalSize) {
 }
 
 int CPSolver::LCP_BBPGD(Teuchos::RCP<TV> &xsolRcp, const double tol, const int iteMax, IteHistory &history) const {
-    MPI_Barrier(MPI_COMM_WORLD);
     int mvCount = 0; // count matrix-vector multiplications
     if (myRank == 0) {
         std::cout << "solving BBPGD" << std::endl;
@@ -306,7 +305,6 @@ int CPSolver::LCP_BBPGD(Teuchos::RCP<TV> &xsolRcp, const double tol, const int i
 
     ARcp->apply(*xkm1Rcp, *ykm1Rcp); // ykm1=A.dot(xkm1)
     mvCount++;
-    MPI_Barrier(MPI_COMM_WORLD);
     tempVecRcp->update(1.0, *bRcp, 1.0, *ykm1Rcp, 0.0); // tempVec=A.dot(xkm1)+b
     // first step, use the step size (x^T A g + 0.5*b^T g) / (g^T A g), global minimum of line search along g
     // use ykp1 and xkp1 as temporary space
@@ -315,7 +313,9 @@ int CPSolver::LCP_BBPGD(Teuchos::RCP<TV> &xsolRcp, const double tol, const int i
     double xTAg = xkm1Rcp->dot(*ykp1Rcp);
     double bTg = bRcp->dot(*ykp1Rcp);
     double gTAg = tempVecRcp->dot(*ykp1Rcp);
-    std::cout << "             " << xTAg << " " << bTg << "  " << gTAg << std::endl;
+    if (commRcp->getRank() == 0) {
+        std::cout << "             " << xTAg << " " << bTg << "  " << gTAg << std::endl;
+    }
     if (fabs(gTAg) < 1e-14) {
         gTAg += 1e-14; // prevent div 0 error
     }
@@ -324,15 +324,12 @@ int CPSolver::LCP_BBPGD(Teuchos::RCP<TV> &xsolRcp, const double tol, const int i
 
     ARcp->apply(*xkRcp, *ykRcp); // ykm1=A.dot(xkm1)
     mvCount++;
-    MPI_Barrier(MPI_COMM_WORLD);
     ykmykm1Rcp->update(1.0, *ykRcp, -1.0, *ykm1Rcp, 0.0); // ykmykm1=yk-ykm1
     xkmxkm1Rcp->update(1.0, *xkRcp, -1.0, *xkm1Rcp, 0.0); // xkmxkm1=xk-xkm1
 
     int iteCount = 0;
     while (iteCount < iteMax) {
         iteCount++;
-        MPI_Barrier(MPI_COMM_WORLD);
-
         // Barzilai-Borwein step size Choice 2
         // alphak=(xk-xkm1).dot(ykmykm1)/(ykmykm1).dot(ykmykm1)
         // double a = xkmxkm1Rcp->dot(*ykmykm1Rcp);
@@ -340,8 +337,11 @@ int CPSolver::LCP_BBPGD(Teuchos::RCP<TV> &xsolRcp, const double tol, const int i
 
         // Barzilai-Borwein step size Choice 1, converges faster
         // alphak=(xk-xkm1).dot(xkmxkm1)/(xkmxkm1).dot(ykmykm1)
-        double a = xkmxkm1Rcp->dot(*xkmxkm1Rcp);
-        double b = xkmxkm1Rcp->dot(*ykmykm1Rcp);
+        double a = 0, b = 0;
+        {
+            a = xkmxkm1Rcp->dot(*xkmxkm1Rcp);
+            b = xkmxkm1Rcp->dot(*ykmykm1Rcp);
+        }
 
         if (fabs(b) < 1e-14) {
             b = b + 1e-14; // prevent div 0 error
@@ -356,12 +356,16 @@ int CPSolver::LCP_BBPGD(Teuchos::RCP<TV> &xsolRcp, const double tol, const int i
         }
 
         // xkp1=xk-alphak*(yk+b) # gradient descent
-        xkp1Rcp->update(alphak, *ykRcp, alphak, *bRcp, 0.0);
-        xkp1Rcp->update(1.0, *xkRcp, -1.0);
-        clipZero(xkp1Rcp); // Projection xkp1 >= 0
+        {
+            xkp1Rcp->update(alphak, *ykRcp, alphak, *bRcp, 0.0);
+            xkp1Rcp->update(1.0, *xkRcp, -1.0);
+            clipZero(xkp1Rcp); // Projection xkp1 >= 0
+        }
 
         // update
-        ARcp->apply(*xkp1Rcp, *ykp1Rcp); // ykp1=A.dot(xkp1)
+        {
+            ARcp->apply(*xkp1Rcp, *ykp1Rcp); // ykp1=A.dot(xkp1)
+        }
         mvCount++;
         ykmykm1Rcp->update(1.0, *ykp1Rcp, -1.0, *ykRcp, 0.0); // yerror
         xkmxkm1Rcp->update(1.0, *xkp1Rcp, -1.0, *xkRcp, 0.0); // xerror
@@ -386,10 +390,12 @@ int CPSolver::LCP_BBPGD(Teuchos::RCP<TV> &xsolRcp, const double tol, const int i
 
         // prepare next iteration
         // swap the contents of pointers directly, be careful
-        ykm1Rcp.swap(ykRcp); // ykm1=yk
-        xkm1Rcp.swap(xkRcp); // xkm1=xk
-        ykRcp.swap(ykp1Rcp); // yk=ykp1, ykp1 to be updated;
-        xkRcp.swap(xkp1Rcp); // xk=xkp1, xkp1 to be updated;
+        {
+            ykm1Rcp.swap(ykRcp); // ykm1=yk
+            xkm1Rcp.swap(xkRcp); // xkm1=xk
+            ykRcp.swap(ykp1Rcp); // yk=ykp1, ykp1 to be updated;
+            xkRcp.swap(xkp1Rcp); // xk=xkp1, xkp1 to be updated;
+        }
 
         // ykm1Rcp->scale(1.0, *ykRcp);  // ykm1=yk
         // xkm1Rcp->scale(1.0, *xkRcp);  // xkm1=xk
@@ -398,8 +404,10 @@ int CPSolver::LCP_BBPGD(Teuchos::RCP<TV> &xsolRcp, const double tol, const int i
         // xkRcp->scale(1.0, *xkp1Rcp);  // xk=xkp1
     }
     xsolRcp = xkp1Rcp; // return solution
+#ifdef DEBUGLCPCOL
+    Teuchos::TimeMonitor::summarize();
+#endif
 
-    MPI_Barrier(MPI_COMM_WORLD);
     return 0;
 }
 

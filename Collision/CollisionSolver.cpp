@@ -51,7 +51,9 @@ void CollisionSolver::solveCollision(Teuchos::RCP<TOP> &matMobilityRcp_, Teuchos
     Teuchos::RCP<CPMatOp> AmatRcp = Teuchos::rcp(new CPMatOp(matMobilityRcp, matFcTransRcp));
     auto commRcp = objMobMapRcp->getComm();
     CPSolver myLCPSolver(AmatRcp, bRcp);
-    printf("start solving\n");
+    if (commRcp->getRank() == 0) {
+        printf("start solving\n");
+    }
     myLCPSolver.LCP_BBPGD(gammaRcp, res, maxIte, history);
 
     if (commRcp->getRank() == 0 && history.size() > 0) {
@@ -186,7 +188,27 @@ void CollisionSolver::setupFcTrans(CollisionBlockPool &collision_) {
     }
 
     auto commRcp = objMobMapRcp->getComm();
-    Teuchos::RCP<TMAP> colMapRcp = getFullCopyTMAPFromGlobalSize(objMobMapRcp->getGlobalNumElements(), commRcp);
+    // Teuchos::RCP<TMAP> colMapRcp = getFullCopyTMAPFromGlobalSize(objMobMapRcp->getGlobalNumElements(), commRcp);
+    const int colIndexCount = rowPointers[localGammaSize];
+    std::vector<int> colMapIndex(colIndexCount);
+#pragma omp parallel for
+    for (int i = 0; i < colIndexCount; i++) {
+        colMapIndex[i] = columnIndices[i];
+    }
+
+    // sort and unique
+    std::sort(colMapIndex.begin(), colMapIndex.end());
+    colMapIndex.erase(std::unique(colMapIndex.begin(), colMapIndex.end()), colMapIndex.end());
+
+    Teuchos::RCP<TMAP> colMapRcp = Teuchos::rcp(
+        new TMAP(objMobMapRcp->getGlobalNumElements(), colMapIndex.data(), colMapIndex.size(), 0, commRcp));
+
+    // convert columnIndices from global column index to local column index according to colMap
+    auto &colmap = *colMapRcp;
+#pragma omp parallel for
+    for (int i = 0; i < colIndexCount; i++) {
+        columnIndices[i] = colmap.getLocalElement(columnIndices[i]);
+    }
 
     matFcTransRcp = Teuchos::rcp(new TCMAT(gammaMapRcp, colMapRcp, rowPointers, columnIndices, values));
     matFcTransRcp->fillComplete(objMobMapRcp, gammaMapRcp); // domainMap, rangeMap
