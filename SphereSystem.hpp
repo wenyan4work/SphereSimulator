@@ -70,6 +70,8 @@ class SphereSystem {
     Teuchos::RCP<TV> getVelocityKnown(Teuchos::RCP<TOP> &mobilityOpRcp, Teuchos::RCP<TV> &forceRcp) const;
     Teuchos::RCP<TV> getVelocityBrown() const;
     Teuchos::RCP<TV> getForceKnown() const;
+
+    void calcBoundaryCollision();
 };
 
 #endif
