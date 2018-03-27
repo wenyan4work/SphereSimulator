@@ -69,7 +69,7 @@ void SphereSystem::setInitial(const std::string &initPosFile) {
 
     double minBoxEdge =
         std::min(runConfig.simBoxHigh[0] - runConfig.simBoxLow[0], runConfig.simBoxHigh[1] - runConfig.simBoxLow[1]);
-    minBoxEdge = std::min(runConfig.simBoxHigh[0] - runConfig.simBoxLow[0], minBoxEdge);
+    minBoxEdge = std::min(runConfig.simBoxHigh[2] - runConfig.simBoxLow[2], minBoxEdge);
 
     if (runConfig.sphereRadiusSigmaHydro > 0) {
         rngPoolPtr->setLogNormalParameters(runConfig.sphereRadiusHydro, runConfig.sphereRadiusSigmaHydro);
