@@ -68,7 +68,8 @@ void CollisionSolver::solveCollision(Teuchos::RCP<TOP> &matMobilityRcp_, Teuchos
     // save the solution
     forceColRcp = AmatRcp->forceVecRcp;
     velocityColRcp = AmatRcp->velVecRcp;
-    std::cout << "col force velocity saved" << std::endl;
+    if (commRcp->getRank() == 0)
+        printf("col force velocity saved\n");
 
 #ifdef DEBUGLCPCOL
     if (commRcp->getRank() == 0 && history.size() > 0) {
@@ -114,7 +115,7 @@ void CollisionSolver::setupFcTrans(CollisionBlockPool &collision_) {
         colIndexThread[i] = colIndexCount;
     }
     if (rowPointerIndex != localGammaSize) {
-        printf("rowPointerIndexError in collision solver");
+        printf("rowPointerIndexError in collision solver\n");
         exit(1);
     }
 

@@ -17,6 +17,9 @@ class CPMatOp : public TOP {
                                    std::invalid_argument, "Mob and Fc Maps not compatible.");
         this->forceVecRcp = Teuchos::rcp(new TV(mobRcp->getRangeMap().getConst(), true));
         this->velVecRcp = Teuchos::rcp(new TV(mobRcp->getRangeMap().getConst(), true));
+        // explicit transpose
+        // Tpetra::RowMatrixTransposer<TCMAT::scalar_type, TCMAT::local_ordinal_type, TCMAT::global_ordinal_type> transposer(fcTransRcp);
+        // fcRcp = transposer.createTranspose();
     }
 
     void apply(const TMV &X, TMV &Y, Teuchos::ETransp mode = Teuchos::NO_TRANS,
@@ -32,30 +35,28 @@ class CPMatOp : public TOP {
         for (int i = 0; i < numVecs; i++) {
             const Teuchos::RCP<const TV> XcolRcp = X.getVector(i);
             Teuchos::RCP<TV> YcolRcp = Y.getVectorNonConst(i);
-#ifdef DEBUGLCPCOL
             // step 1 force=Fc * Xcol
-            Teuchos::RCP<Teuchos::Time> transTimer = Teuchos::TimeMonitor::getNewCounter("BBPGD::OP::FcTrans Apply");
-            {
-                Teuchos::TimeMonitor mon(*transTimer);
-                fcTransRcp->apply(*XcolRcp, *forceVecRcp, Teuchos::TRANS);
-            }
-            // step 2 vel = mob * Force
-            Teuchos::RCP<Teuchos::Time> mobTimer = Teuchos::TimeMonitor::getNewCounter("BBPGD::OP::Mob Apply");
-            {
-                Teuchos::TimeMonitor mon(*mobTimer);
-                mobRcp->apply(*forceVecRcp, *velVecRcp);
-            }
-            // step 3 Ycol = Fc^T * vel
-            Teuchos::RCP<Teuchos::Time> fcTimer = Teuchos::TimeMonitor::getNewCounter("BBPGD::OP::Fc Apply");
-            {
-                Teuchos::TimeMonitor mon(*fcTimer);
-                fcTransRcp->apply(*velVecRcp, *YcolRcp);
-            }
-#else
+            // Teuchos::RCP<Teuchos::Time> transTimer = Teuchos::TimeMonitor::getNewCounter("BBPGD::OP::FcTrans Apply");
+            // {
+            //     Teuchos::TimeMonitor mon(*transTimer);
+            //     fcTransRcp->apply(*XcolRcp, *forceVecRcp, Teuchos::TRANS);
+            //     // fcRcp->apply(*XcolRcp, *forceVecRcp);
+            // }
+            // // step 2 vel = mob * Force
+            // Teuchos::RCP<Teuchos::Time> mobTimer = Teuchos::TimeMonitor::getNewCounter("BBPGD::OP::Mob Apply");
+            // {
+            //     Teuchos::TimeMonitor mon(*mobTimer);
+            //     mobRcp->apply(*forceVecRcp, *velVecRcp);
+            // }
+            // // step 3 Ycol = Fc^T * vel
+            // Teuchos::RCP<Teuchos::Time> fcTimer = Teuchos::TimeMonitor::getNewCounter("BBPGD::OP::Fc Apply");
+            // {
+            //     Teuchos::TimeMonitor mon(*fcTimer);
+            //     fcTransRcp->apply(*velVecRcp, *YcolRcp);
+            // }
             fcTransRcp->apply(*XcolRcp, *forceVecRcp, Teuchos::TRANS);
             mobRcp->apply(*forceVecRcp, *velVecRcp);
             fcTransRcp->apply(*velVecRcp, *YcolRcp);
-#endif
         }
     }
 
@@ -70,14 +71,13 @@ class CPMatOp : public TOP {
 
     Teuchos::RCP<TOP> mobRcp;
     Teuchos::RCP<TCMAT> fcTransRcp;
+    // Teuchos::RCP<TCMAT> fcRcp;
     Teuchos::RCP<TV> forceVecRcp;
     Teuchos::RCP<TV> velVecRcp;
 };
 
 class CPSolver {
   public:
-    // CPSolver(const Teuchos::RCP<const TOP> &, const Teuchos::RCP<const TV> &, const Teuchos::RCP<const TMAP> &,
-    //  const Teuchos::RCP<const TCOMM> &);
     CPSolver(const Teuchos::RCP<const TOP> &, const Teuchos::RCP<const TV> &);
     CPSolver(int);
 
@@ -98,12 +98,12 @@ class CPSolver {
     Teuchos::RCP<const TV> bRcp;
     Teuchos::RCP<const TMAP> mapRcp;
     Teuchos::RCP<const TCOMM> commRcp;
-    int localSize;
-    int globalSize;
-    int myRank;
-    int numProcs;
-    int globalIndexMinOnLocal;
-    int globalIndexMaxOnLocal;
+    // int localSize;
+    // int globalSize;
+    // int myRank;
+    // int numProcs;
+    // int globalIndexMinOnLocal;
+    // int globalIndexMaxOnLocal;
 
     // functions for internal use
     void clipZero(Teuchos::RCP<TV> &) const;

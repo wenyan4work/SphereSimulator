@@ -12,7 +12,6 @@ void CPSolver::clipZero(Teuchos::RCP<TV> &vecRcp) const {
     // int strides[2];
     // x_2d.stride(strides);
     // std::cout << strides[0] << " " << strides[1] << std::endl;
-
     // std::cout << std::is_same<decltype(x_2d)::array_layout, Kokkos::LayoutLeft>::value << std::endl;
 
     for (int c = 0; c < x_2d.dimension_1(); c++) {
@@ -165,29 +164,8 @@ void CPSolver::hMinMap(const Teuchos::RCP<const TV> &xRcp, const Teuchos::RCP<co
     return;
 }
 
-// constructor with known A and b
-// CPSolver::CPSolver(const Teuchos::RCP<const TOP> &A_, const Teuchos::RCP<const TV> &b_,
-//                    const Teuchos::RCP<const TMAP> &map_, const Teuchos::RCP<const TCOMM> &comm_)
-//     : ARcp(A_), bRcp(b_), mapRcp(map_), commRcp(comm_), myRank(comm_->getRank()), numProcs(comm_->getSize()),
-//       globalSize(map_->getGlobalNumElements()), localSize(map_->getNodeNumElements()),
-//       globalIndexMinOnLocal(map_->getMinGlobalIndex()), globalIndexMaxOnLocal(map_->getMaxGlobalIndex()) {
-// // make sure A and b match the map and comm specified
-// #ifdef DEBUGLCPCOL
-//     TEUCHOS_TEST_FOR_EXCEPTION(!(ARcp->getDomainMap()->isSameAs(*(bRcp->getMap()))), std::invalid_argument,
-//                                "A and b do not have the same Map.");
-//     TEUCHOS_TEST_FOR_EXCEPTION(!(mapRcp->isSameAs(*(bRcp->getMap()))), std::invalid_argument,
-//                                "map and b do not have the same Map.");
-//     TEUCHOS_TEST_FOR_EXCEPTION(!(mapRcp->isSameAs(*(ARcp->getDomainMap()))), std::invalid_argument,
-//                                "map and b do not have the same Map.");
-// #endif
-// }
-
 CPSolver::CPSolver(const Teuchos::RCP<const TOP> &A_, const Teuchos::RCP<const TV> &b_)
-    : ARcp(A_), bRcp(b_), mapRcp(b_->getMap()), commRcp(b_->getMap()->getComm()),
-      myRank(b_->getMap()->getComm()->getRank()), numProcs(b_->getMap()->getComm()->getSize()),
-      globalSize(b_->getMap()->getGlobalNumElements()), localSize(b_->getMap()->getNodeNumElements()),
-      globalIndexMinOnLocal(b_->getMap()->getMinGlobalIndex()),
-      globalIndexMaxOnLocal(b_->getMap()->getMaxGlobalIndex()) {
+    : ARcp(A_), bRcp(b_), mapRcp(b_->getMap()), commRcp(b_->getMap()->getComm()) {
     // make sure A and b match the map and comm specified
     TEUCHOS_TEST_FOR_EXCEPTION(!(ARcp->getDomainMap()->isSameAs(*(bRcp->getMap()))), std::invalid_argument,
                                "A (domain) and b do not have the same Map.");
@@ -201,23 +179,17 @@ CPSolver::CPSolver(const Teuchos::RCP<const TOP> &A_, const Teuchos::RCP<const T
 CPSolver::CPSolver(int globalSize) {
     // set up comm
     Teuchos::RCP<const TCOMM> commRcp = Teuchos::rcp(new Teuchos::MpiComm<int>(MPI_COMM_WORLD));
-    myRank = commRcp->getRank();
-    numProcs = commRcp->getSize();
     // set up row and col maps
     Teuchos::RCP<const TMAP> colMapRcp = Teuchos::rcp(new TMAP(globalSize, 0, commRcp));
     Teuchos::RCP<const TMAP> rowMapRcp = Teuchos::rcp(new TMAP(globalSize, 0, commRcp));
     mapRcp = rowMapRcp;
-    localSize = rowMapRcp->getNodeNumElements();
-    globalIndexMinOnLocal = rowMapRcp->getMinGlobalIndex();
-    globalIndexMaxOnLocal = rowMapRcp->getMaxGlobalIndex();
-    if (myRank == 0) {
-        std::cout << "Total number of processes: " << numProcs << std::endl;
-        std::cout << "rank: " << myRank << std::endl;
-        std::cout << "global size: " << globalSize << std::endl;
-        std::cout << "local size: " << localSize << std::endl;
-        std::cout << "global index min on local: " << globalIndexMinOnLocal << std::endl;
-        std::cout << "global index max on local: " << globalIndexMaxOnLocal << std::endl;
+    if (commRcp->getRank() == 0) {
+        std::cout << "Total number of processes: " << commRcp->getSize() << std::endl;
+        std::cout << "rank: " << commRcp->getRank() << std::endl;
+        std::cout << "global size: " << mapRcp->getGlobalNumElements() << std::endl;
+        std::cout << "local size: " << mapRcp->getNodeNumElements() << std::endl;
     }
+    std::cout << "map: " << mapRcp->description() << std::endl;
 
     // make sure A and b match the map and comm specified
     // set A and b randomly. maintain SPD of A
@@ -227,6 +199,7 @@ CPSolver::CPSolver(int globalSize) {
 
     // generate a local random matrix
     // Create an empty matrix
+    const int localSize = mapRcp->getNodeNumElements();
     Teuchos::SerialDenseMatrix<int, double> ArootLocal(localSize, localSize, true); // zeroOut
     for (int i = 0; i < localSize; i++) {
         for (int j = 0; j < 5; j++) {
@@ -283,7 +256,7 @@ CPSolver::CPSolver(int globalSize) {
 
 int CPSolver::LCP_BBPGD(Teuchos::RCP<TV> &xsolRcp, const double tol, const int iteMax, IteHistory &history) const {
     int mvCount = 0; // count matrix-vector multiplications
-    if (myRank == 0) {
+    if (commRcp->getRank() == 0) {
         std::cout << "solving BBPGD" << std::endl;
         std::cout << "ARcp" << ARcp->description() << std::endl;
     }
@@ -338,10 +311,10 @@ int CPSolver::LCP_BBPGD(Teuchos::RCP<TV> &xsolRcp, const double tol, const int i
         // Barzilai-Borwein step size Choice 1, converges faster
         // alphak=(xk-xkm1).dot(xkmxkm1)/(xkmxkm1).dot(ykmykm1)
         double a = 0, b = 0;
-        {
-            a = xkmxkm1Rcp->dot(*xkmxkm1Rcp);
-            b = xkmxkm1Rcp->dot(*ykmykm1Rcp);
-        }
+
+        commRcp->barrier();
+        a = xkmxkm1Rcp->dot(*xkmxkm1Rcp);
+        b = xkmxkm1Rcp->dot(*ykmykm1Rcp);
 
         if (fabs(b) < 1e-14) {
             b = b + 1e-14; // prevent div 0 error
@@ -349,23 +322,19 @@ int CPSolver::LCP_BBPGD(Teuchos::RCP<TV> &xsolRcp, const double tol, const int i
         double alphak = a / b;
         // for debug
         // std::cout << a << " " << b << " " << alphak << std::endl;
-        if (alphak < 1e-9) {
+        if (alphak < 1e-3 * tol) {
             // step size too small
             history.push_back(std::array<double, 6>{{1.0 * iteCount, 0, 0, alphak, 0}});
             break;
         }
 
         // xkp1=xk-alphak*(yk+b) # gradient descent
-        {
-            xkp1Rcp->update(alphak, *ykRcp, alphak, *bRcp, 0.0);
-            xkp1Rcp->update(1.0, *xkRcp, -1.0);
-            clipZero(xkp1Rcp); // Projection xkp1 >= 0
-        }
+        xkp1Rcp->update(alphak, *ykRcp, alphak, *bRcp, 0.0);
+        xkp1Rcp->update(1.0, *xkRcp, -1.0);
+        clipZero(xkp1Rcp); // Projection xkp1 >= 0
 
         // update
-        {
-            ARcp->apply(*xkp1Rcp, *ykp1Rcp); // ykp1=A.dot(xkp1)
-        }
+        ARcp->apply(*xkp1Rcp, *ykp1Rcp); // ykp1=A.dot(xkp1)
         mvCount++;
         ykmykm1Rcp->update(1.0, *ykp1Rcp, -1.0, *ykRcp, 0.0); // yerror
         xkmxkm1Rcp->update(1.0, *xkp1Rcp, -1.0, *xkRcp, 0.0); // xerror
@@ -390,23 +359,13 @@ int CPSolver::LCP_BBPGD(Teuchos::RCP<TV> &xsolRcp, const double tol, const int i
 
         // prepare next iteration
         // swap the contents of pointers directly, be careful
-        {
-            ykm1Rcp.swap(ykRcp); // ykm1=yk
-            xkm1Rcp.swap(xkRcp); // xkm1=xk
-            ykRcp.swap(ykp1Rcp); // yk=ykp1, ykp1 to be updated;
-            xkRcp.swap(xkp1Rcp); // xk=xkp1, xkp1 to be updated;
-        }
-
-        // ykm1Rcp->scale(1.0, *ykRcp);  // ykm1=yk
-        // xkm1Rcp->scale(1.0, *xkRcp);  // xkm1=xk
-
-        // ykRcp->scale(1.0, *ykp1Rcp);  // yk=ykp1
-        // xkRcp->scale(1.0, *xkp1Rcp);  // xk=xkp1
+        ykm1Rcp.swap(ykRcp); // ykm1=yk
+        xkm1Rcp.swap(xkRcp); // xkm1=xk
+        ykRcp.swap(ykp1Rcp); // yk=ykp1, ykp1 to be updated;
+        xkRcp.swap(xkp1Rcp); // xk=xkp1, xkp1 to be updated;
     }
     xsolRcp = xkp1Rcp; // return solution
-#ifdef DEBUGLCPCOL
-    Teuchos::TimeMonitor::summarize();
-#endif
+    // Teuchos::TimeMonitor::summarize();
 
     return 0;
 }
@@ -414,7 +373,7 @@ int CPSolver::LCP_BBPGD(Teuchos::RCP<TV> &xsolRcp, const double tol, const int i
 int CPSolver::LCP_APGD(Teuchos::RCP<TV> &xsolRcp, const double tol, const int iteMax, IteHistory &history) const {
     MPI_Barrier(MPI_COMM_WORLD);
     int mvCount = 0;
-    if (myRank == 0) {
+    if (commRcp->getRank() == 0) {
         std::cout << "solving APGD" << std::endl;
         std::cout << "ARcp" << ARcp->description() << std::endl;
     }
@@ -430,7 +389,8 @@ int CPSolver::LCP_APGD(Teuchos::RCP<TV> &xsolRcp, const double tol, const int it
     double thetakp1 = 1;
     Teuchos::RCP<TV> xkdiffRcp = Teuchos::rcp(new TV(this->mapRcp.getConst(), false));
     xkdiffRcp->update(1.0, *(xhatkRcp.getConst()), -1.0, *(xkRcp.getConst()), 0.0);
-    std::cout << "initial vector allocated" << std::endl;
+    if (commRcp()->getRank() == 0)
+        std::cout << "initial vector allocated" << std::endl;
 
     Teuchos::RCP<TV> tempVecRcp = Teuchos::rcp(new TV(this->mapRcp.getConst(), false));
 
@@ -463,7 +423,7 @@ int CPSolver::LCP_APGD(Teuchos::RCP<TV> &xsolRcp, const double tol, const int it
     int iteCount = 0;
     while (iteCount < iteMax) {
         iteCount++;
-        MPI_Barrier(MPI_COMM_WORLD);
+        commRcp->barrier();
         ARcp->apply(*ykRcp, *gVecRcp);
         mvCount++;
         gVecRcp->update(1.0, *bRcp, 1.0); // g=A.dot(yk)+b
@@ -547,24 +507,11 @@ int CPSolver::LCP_APGD(Teuchos::RCP<TV> &xsolRcp, const double tol, const int it
         Lk *= 0.9;
         tk = 1 / Lk;
     }
-
-    MPI_Barrier(MPI_COMM_WORLD);
+    commRcp->barrier();
     xsolRcp = xkp1Rcp;
 
     return 0;
 }
-
-// class diagOperator : public TOP {
-//  private:
-//   Teuchos::RCP<TV> diagRcp;
-
-//  public:
-//   diagOperator(const Teuchos::RCP<const TOP> &AopRcp) {
-//     // allocate, fill with identity
-//     diagRcp = Teuchos::rcp(new TV(AopRcp->getDomainMap(), false));
-//     diagRcp.putScalar(1);
-//   }
-// }
 
 class mmNewtonOperator : public TOP {
   private:
@@ -624,7 +571,7 @@ class mmNewtonOperator : public TOP {
 int CPSolver::LCP_mmNewton(Teuchos::RCP<TV> &xsolRcp, const double tol, const int iteMax, IteHistory &history) const {
     MPI_Barrier(MPI_COMM_WORLD);
     int mvCount = 0;
-    if (myRank == 0) {
+    if (commRcp->getRank() == 0) {
         std::cout << "solving mmNewton" << std::endl;
         std::cout << "ARcp" << ARcp->description() << std::endl;
     }
@@ -736,10 +683,9 @@ int CPSolver::LCP_mmNewton(Teuchos::RCP<TV> &xsolRcp, const double tol, const in
         // dxRcp->putScalar(0);
         problemRCP->setProblem(); // necessary to update the solver
         // solverRCP->setProblem(problemRCP);
-        MPI_Barrier(MPI_COMM_WORLD);
+        commRcp->barrier();
         Belos::ReturnType result = solverRCP->solve(); //  maskAOpRcp *dx = -H, solution is at dxRcp
         mvCount += solverRCP->getNumIters();
-        MPI_Barrier(MPI_COMM_WORLD);
         dxRcp->scale(-1.0);
 
         // nabla_H = H.dot(J) # descent direction
@@ -747,21 +693,27 @@ int CPSolver::LCP_mmNewton(Teuchos::RCP<TV> &xsolRcp, const double tol, const in
 
         //    # Tests whether the search direction is below machine precision.
         if (dxRcp->normInf() < tol_abs) {
-            std::cout << "Search direction below machine precision at iteration " << iteCount << std::endl;
-            std::cout << "Using descent direction" << std::endl;
+            if (commRcp->getRank() == 0) {
+                std::cout << "Search direction below machine precision at iteration " << iteCount << std::endl;
+                std::cout << "Using descent direction" << std::endl;
+            }
             dxRcp->update(-1.0, *nablaHRcp, 0.0); // dx = -nabla_H
         }
 
         // # Test whether we are stuck in a local minima
         if (nablaHRcp->norm2() < tol_abs) {
-            std::cout << "local minimum" << std::endl;
+            if (commRcp->getRank() == 0) {
+                std::cout << "local minimum" << std::endl;
+            }
             return 1;
         }
 
         //    # Test whether our direction is a sufficient descent direction
         if (nablaHRcp->dot(*dxRcp) > -rho * pow(dxRcp->norm2(), 2)) {
-            std::cout << "Non descend direction at iteration " << iteCount << ", choosing gradient as search direction"
-                      << std::endl;
+            if (commRcp->getRank() == 0) {
+                std::cout << "Non descend direction at iteration " << iteCount
+                          << ", choosing gradient as search direction" << std::endl;
+            }
             dxRcp->update(-1.0, *nablaHRcp, 0.0);
         }
 
@@ -842,7 +794,7 @@ int CPSolver::test_LCP(double tol, int maxIte, int solverChoice) {
     double xerrormax = 0.0;
     int yerrorN = 0;
     double yerrormax = 0.0;
-    assert(xView.dimension_0() == localSize);
+    assert(xView.dimension_0() == mapRcp->getNodeNumElements());
     for (int c = 0; c < xView.dimension_1(); c++) {
         for (int i = 0; i < xView.dimension_0(); i++) {
             if (xView(i, c) < 0) {
@@ -857,7 +809,7 @@ int CPSolver::test_LCP(double tol, int maxIte, int solverChoice) {
     }
 
     MPI_Barrier(MPI_COMM_WORLD);
-    if (myRank == 0) {
+    if (commRcp->getRank() == 0) {
         // std::cout << myRank << std::endl;
         MPI_Reduce(MPI_IN_PLACE, &xerrorN, 1, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
         MPI_Reduce(MPI_IN_PLACE, &yerrorN, 1, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
@@ -878,13 +830,13 @@ int CPSolver::test_LCP(double tol, int maxIte, int solverChoice) {
         // std::cout << myRank << std::endl;
     }
 
-    if (myRank == 0) {
+    if (commRcp->getRank() == 0) {
         for (auto &p : history) {
             std::cout << p[0] << " " << p[1] << " " << p[2] << " " << p[3] << " " << p[4] << " " << p[5] << std::endl;
         }
     }
 
-    if (myRank == 0) {
+    if (commRcp->getRank() == 0) {
         std::cout << "solution quality: " << std::endl;
         std::cout << "negative x N: " << std::scientific << xerrorN << std::endl;
         std::cout << "xerror max: " << std::scientific << xerrormax << std::endl;
