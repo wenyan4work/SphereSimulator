@@ -51,7 +51,7 @@ class IOHelper {
 
         const int err = mkdir(folder.c_str(), 0755); // make one folder at a time. parent folder must exist
         if (errno == EEXIST) {
-            printf("Directory already exists.\n");
+            // printf("Directory already exists.\n");
             return;
         }
         if (err != 0) {

@@ -137,12 +137,12 @@ void SphereSystem::writeXYZ(const std::string &baseFolder) {
     FILE *fptr = fopen(name.c_str(), "w");
     const int nSphereLocal = sphere.size();
     int nSphere = nSphereLocal;
-    if (commRcp->getSize() > 1) {
-        MPI_Allreduce(MPI_IN_PLACE, &nSphere, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
-    }
+    // if (commRcp->getSize() > 1) {
+    // MPI_Allreduce(MPI_IN_PLACE, &nSphere, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+    // }
 
     if (commRcp->getRank() == 0) {
-        fprintf(fptr, "%d\n", nSphere);
+        fprintf(fptr, "%d\n", sphereMapRcp->getGlobalNumElements());
         fprintf(fptr, "SphereNumber: %d, time: %lf\n", nSphere, stepCount * runConfig.dt);
     }
 
@@ -155,12 +155,10 @@ void SphereSystem::writeXYZ(const std::string &baseFolder) {
 
 void SphereSystem::writeVTK(const std::string &baseFolder) {
     // write parallel head
-    if (commRcp->getSize() > 1) {
-        if (commRcp->getRank() == 0) {
-            Sphere::writePVTP(baseFolder, "0", commRcp->getSize());
-            // dataFields on all ranks should have been setup during initialization
-            Sphere::writePVTU(dataFieldVTU, baseFolder, std::to_string(snapID), commRcp->getSize());
-        }
+    if (commRcp->getRank() == 0) {
+        Sphere::writePVTP(baseFolder, std::to_string(snapID), commRcp->getSize());
+        // dataFields on all ranks should have been setup during initialization
+        Sphere::writePVTU(dataFieldVTU, baseFolder, std::to_string(snapID), commRcp->getSize());
     }
 
     // write files from each rank
@@ -169,8 +167,7 @@ void SphereSystem::writeVTK(const std::string &baseFolder) {
 }
 
 void SphereSystem::output() {
-    // every 200 snaps in a sub folder
-    const int num = 200;
+    const int num = std::max(200 / commRcp->getSize(), 1); // limit max number of files per folder
     int k = snapID / num;
     int low = k * num, high = k * num + num - 1;
     std::string baseFolder =
@@ -383,13 +380,20 @@ void SphereSystem::resolveCollision(bool manybody, double buffer) {
     collector.clear();
 
     interactManagerPtr->setupEssVec(collisionSphereSrc, collisionSphereTrg);
-    printf("ESS vec created\n");
+    if (commRcp->getRank() == 0)
+        printf("ESS vec created\n");
+
     auto nearInteractorPtr = interactManagerPtr->getNewNearInteraction();
-    printf("nearInteractorPtr created\n");
+    if (commRcp->getRank() == 0)
+        printf("nearInteractorPtr created\n");
+
     interactManagerPtr->setupNearInteractor(nearInteractorPtr, collisionSphereSrc, collisionSphereTrg);
-    printf("setupNear\n");
+    if (commRcp->getRank() == 0)
+        printf("setupNear\n");
+
     interactManagerPtr->calcNearInteraction(nearInteractorPtr, collisionSphereSrc, collisionSphereTrg, collector);
-    printf("calcNear\n");
+    if (commRcp->getRank() == 0)
+        printf("calcNear\n");
 
     // construct collision stepper
     collisionSolverPtr->setup(*(collector.collisionPoolPtr), sphereMobilityMapRcp, runConfig.dt, buffer);
