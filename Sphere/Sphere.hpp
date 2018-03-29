@@ -55,6 +55,7 @@ class Sphere {
     void dumpLayer(const std::string &name) const;
 
     SPHExp &getLayer(const std::string &name);
+    const SPHExp &getLayer(const std::string &name) const;
 
     // motion
     void stepEuler(double dt);
@@ -62,7 +63,7 @@ class Sphere {
     // necessary interface for Near Interaction
     const double *Coord() const { return pos.data(); }
 
-    double Rad() const { return radiusCollision * 4; }
+    double Rad() const { return radiusCollision * 2; }
 
     void Pack(std::vector<char> &buff) const;
 

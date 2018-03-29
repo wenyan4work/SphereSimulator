@@ -228,7 +228,7 @@ void Sphere::writeVTP(const std::vector<Sphere> &sphere, const std::string &pref
     std::vector<int> gid(sphereNumber);
     std::vector<float> radius(sphereNumber);
     std::vector<float> radiusCollision(sphereNumber);
-    std::vector<double> pos(3 * sphereNumber);   // position always in Float64 format
+    std::vector<double> pos(3 * sphereNumber); // position always in Float64 format
     std::vector<float> vel(3 * sphereNumber);
     std::vector<float> omega(3 * sphereNumber);
     std::vector<float> xnorm(3 * sphereNumber);
@@ -350,4 +350,6 @@ void Sphere::stepEuler(double dt) {
     EquatnHelper::rotateEquatn(orientation, omega, dt);
 }
 
-SPHExp &getLayer(const std::string &name) {}
+SPHExp &Sphere::getLayer(const std::string &name) { return *(sphLayer.find(name)->second); }
+
+const SPHExp &Sphere::getLayer(const std::string &name) const { return *(sphLayer.find(name)->second); }

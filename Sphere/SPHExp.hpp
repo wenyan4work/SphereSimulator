@@ -21,16 +21,14 @@ class SPHExp {
 
     enum class TRGPOS {
         IN, // target inside, outside, on the sphere
-        OUT,
-        ON,
-        CHECK // check with given r
+        OUT
     };
 
-    const KIND kind;
-    const int order;        // the order of expansion p
-    const int dimension;    // the dimension , =1 for LAPSL, LAPDL, =3 for STKSL and STKDL
-    const std::string name; // the name of this quantity
-    Equatn orientation;     // the orientation represented by an Eigen::quaternion
+    KIND kind;
+    int order; // the order of expansion p
+    // int dimension;      // the dimension , =1 for LAPSL, LAPDL, =3 for STKSL and STKDL
+    std::string name;   // the name of this quantity
+    Equatn orientation; // the orientation represented by an Eigen::quaternion
 
     std::vector<double> spectralCoeff; // coefficients. d* p*(p+1) elements
 
@@ -46,42 +44,25 @@ class SPHExp {
            const Equatn orientation_ = Equatn::Identity());
 
     // copy constructor
-    SPHExp(const SPHExp &);
-    SPHExp(SPHExp &&);
+    SPHExp(const SPHExp &) = default;
+    SPHExp &operator=(const SPHExp &) = default;
 
-    // copy assignment
-    SPHExp &operator=(SPHExp &) = delete;
-    SPHExp &operator=(SPHExp &&) = delete;
+    // move constructor
+    SPHExp(SPHExp &&);
+    SPHExp &operator=(SPHExp &&);
 
     // destructor
     ~SPHExp() = default;
 
     // utility routines
-    //    inline double &operator[](int k) { return spectralCoeff[k]; } // return the located at the given index
-    //    inline double &operator()(int i, int n, int m) { return spectralCoeff[COEFFINDEX(i, n, m)]; }
-
-    // orientation
-    void rotateOrientation(const Evec3 &);
-    void setOrientation(const Equatn &);
+    inline int getDimension() const { return kind == KIND::LAP ? 1 : 3; }
 
     // grid representation
     void getGrid(std::vector<double> &gridPoints, std::vector<double> &gridWeights, std::vector<double> &gridValues,
                  const double &radius = 1, const Evec3 &coordBase = Evec3::Zero()) const;
 
-    void calcGridValues(std::vector<double> &, const std::vector<double> &) const;
-
-    // Spectral representation
-    void calcSpectralValues(std::vector<double> &, const std::vector<double> &) const;
-    void setSpectralValues(const std::vector<double> &);
-    void calcAndSetSpectralValues(const std::vector<double> &);
-
-    // FF routines
-    void evaluateSphCoord(std::vector<double> &, const std::vector<double> &, TRGPOS trgPos);
-    void evaluateCartCoord(std::vector<double> &, const std::vector<double> &, TRGPOS trgPos);
-    void integralSphCoord(std::vector<double> &, const std::vector<double> &, TRGPOS trgPos);
-    void integralCartCoord(std::vector<double> &, const std::vector<double> &, TRGPOS trgPos);
-
-    // NF  routines
+    int getGridDOF() const; // excluding the north and south pole
+    int getSpectralDOF() const;
 
     // output routine
     // each sph dump to a 'piece'.
@@ -94,6 +75,15 @@ class SPHExp {
 
     void getGridCellConnect(std::vector<int32_t> &gridCellConnect, std::vector<int32_t> &offset,
                             std::vector<uint8_t> &type) const;
+
+    // convert G2S and S2G
+    void calcGridValues(double *val, const double *const coeff) const;
+    void calcSpectralValues(double *coeff, const double *const val) const;
+
+    // NF routines
+    void calcSLNF(double *trgValue, const double *const trgGrid, const TRGPOS &trgPos) const;   // both STK and LAP
+    void calcDLNF(double *trgValue, const double *const trgGrid, const TRGPOS &trgPos) const;   // both STK and LAP
+    void calcTracNF(double *trgValue, const double *const trgGrid, const TRGPOS &trgPos) const; // STK Traction
 };
 
 #endif // SPHEXP_HPP

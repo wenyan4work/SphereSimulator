@@ -13,24 +13,28 @@ constexpr double pi = 3.1415926535897932384626433;
 
 // constructor
 SPHExp::SPHExp(const KIND kind_, const std::string &name_, const int order_, const Equatn orientation_)
-    : kind(kind_), order(order_), dimension((kind_ == KIND::LAP) ? 1 : 3), name(name_),
+    : kind(kind_), order(order_), name(name_),
       orientation(orientation_) { // the dimension , =1 for LAPSL, LAPDL, =3 for STKSL and STKDL
-
-    spectralCoeff.resize(dimension * (order + 1) * (order + 1)); // coefficients. d*(p+1)^2 elements
+    spectralCoeff.resize(getDimension() * (order + 1) * (order + 1)); // coefficients. d*(p+1)^2 elements
 }
 
-// copy constructor
-SPHExp::SPHExp(const SPHExp &other)
-    : kind(other.kind), order(other.order), dimension((other.kind == KIND::LAP) ? 1 : 3), name(other.name),
-      orientation(other.orientation) {
-    spectralCoeff = other.spectralCoeff;
-}
-
+// move constructor
 SPHExp::SPHExp(SPHExp &&other)
-    : kind(other.kind), order(other.order), dimension((other.kind == KIND::LAP) ? 1 : 3), name(other.name),
-      orientation(other.orientation) {
+    : kind(other.kind), order(other.order), name(other.name), orientation(other.orientation) {
     spectralCoeff = std::move(other.spectralCoeff);
 }
+
+SPHExp &SPHExp::operator=(SPHExp &&other) {
+    kind = other.kind;
+    order = other.order;
+    name = other.name;
+    orientation = other.orientation;
+    spectralCoeff = std::move(other.spectralCoeff);
+}
+
+int SPHExp::getGridDOF() const { return getDimension() * (order + 1) * (2 * order + 2); }
+
+int SPHExp::getSpectralDOF() const { return getDimension() * (order + 1) * (order + 2); }
 
 void SPHExp::dumpSpectralValues(const std::string &filename) const {
     std::string kindName;
@@ -48,9 +52,9 @@ void SPHExp::dumpSpectralValues(const std::string &filename) const {
         printf("kind %s, p %8d, name %s\n", kindName.c_str(), order, name.c_str());
         for (int n = 0; n <= order; n++) {
             for (int m = -n; m <= n; m++) {
-                if (dimension == 1) {
+                if (getDimension() == 1) {
                     printf("n %3d, m %3d, %8f\n", n, m, spectralCoeff[COEFFINDEX(0, n, m)]);
-                } else if (dimension == 3) {
+                } else if (getDimension() == 3) {
                     printf("n %3d, m %3d, %8f, %8f, %8f\n", n, m, spectralCoeff[COEFFINDEX(0, n, m)],
                            spectralCoeff[COEFFINDEX(1, n, m)], spectralCoeff[COEFFINDEX(2, n, m)]);
                 }
@@ -62,9 +66,9 @@ void SPHExp::dumpSpectralValues(const std::string &filename) const {
         fprintf(fdump, "kind %s, p %8d, name %s\n", kindName.c_str(), order, name.c_str());
         for (int n = 0; n <= order; n++) {
             for (int m = -n; m <= n; m++) {
-                if (dimension == 1) {
+                if (getDimension() == 1) {
                     fprintf(fdump, "n %3d, m %3d, %8f\n", n, m, spectralCoeff[COEFFINDEX(0, n, m)]);
-                } else if (dimension == 3) {
+                } else if (getDimension() == 3) {
                     fprintf(fdump, "n %3d, m %3d, %8f, %8f, %8f\n", n, m, spectralCoeff[COEFFINDEX(0, n, m)],
                             spectralCoeff[COEFFINDEX(1, n, m)], spectralCoeff[COEFFINDEX(2, n, m)]);
                 }
@@ -173,7 +177,6 @@ void SPHExp::getGrid(std::vector<double> &gridPoints, std::vector<double> &gridW
     */
     const int p = order;
     gridPoints.resize((2 * p * p + 4 * p + 4) * 3);
-    gridValues.resize((2 * p * p + 4 * p + 4) * (kind == KIND::LAP ? 1 : 3));
     gridWeights.resize(2 * p * p + 4 * p + 4);
 
     std::vector<double> nodesGL; // cos thetaj = tj
@@ -213,15 +216,22 @@ void SPHExp::getGrid(std::vector<double> &gridPoints, std::vector<double> &gridW
     index++;
     assert(index == 2 * p * p + 4 * p + 4);
 
-    // fill value with zero
-    // TODO: convert spectral values to grid values
-    // TODO: also rotate the values if vector-valued (Stokes)
-    std::fill(gridValues.begin(), gridValues.end(), 0);
-
-    // rotation with quaternion for each point
+    // rotation with quaternion for each point coordinate
     for (int i = 0; i < 2 * p * p + 4 * p + 4; i++) {
         EAvec3 pointVec(gridPoints[3 * i], gridPoints[3 * i + 1], gridPoints[3 * i + 2]); // aligned temporary object
-        Eigen::Map<Eigen::Vector3d>(gridPoints.data() + 3 * i) = radius * (orientation * pointVec) + coordBase;
+        Eigen::Map<Evec3>(gridPoints.data() + 3 * i) = radius * (orientation * pointVec) + coordBase;
+    }
+
+    gridValues.resize((2 * p * p + 4 * p + 4) * (kind == KIND::LAP ? 1 : 3));
+    calcGridValues(gridValues.data() + 1, spectralCoeff.data());
+
+    // rotation with quaternion for each point vectorial value
+    if (kind == KIND::STK) {
+        for (int i = 0; i < 2 * p * p + 4 * p + 4; i++) {
+            EAvec3 pointVec(gridValues[3 * i], gridValues[3 * i + 1],
+                            gridValues[3 * i + 2]); // aligned temporary object
+            Eigen::Map<Evec3>(gridValues.data() + 3 * i) = orientation * pointVec;
+        }
     }
 
     return;
@@ -293,14 +303,12 @@ void SPHExp::getGridCellConnect(std::vector<int32_t> &gridCellConnect, std::vect
     return;
 }
 
-void SPHExp::calcGridValues(std::vector<double> &val, const std::vector<double> &coeff) const {
+void SPHExp::calcGridValues(double *val, const double *const coeff) const {
     typedef double Real;
-    long Ncoeff = (order + 1) * (order + 2);
-    long Ngrid = (order + 1) * (2 * order + 2);
-    long dof = coeff.size() / Ncoeff;
-    assert(coeff.size() == dof * Ncoeff);
-    if (val.size() != dof * Ngrid)
-        val.resize(dof * Ngrid);
+    const int Ncoeff = (order + 1) * (order + 2);
+    const int Ngrid = (order + 1) * (2 * order + 2);
+    const int dof = getDimension();
+
     const sctl::Vector<Real> coeff_(
         coeff.size(), sctl::Ptr2Itr<Real>(coeff.size() ? (Real *)coeff.data() : nullptr, coeff.size()), false);
     sctl::Vector<Real> val_(val.size(), sctl::Ptr2Itr<Real>(val.size() ? val.data() : nullptr, val.size()), false);
@@ -308,14 +316,12 @@ void SPHExp::calcGridValues(std::vector<double> &val, const std::vector<double> 
                                              &val_);
 }
 
-void SPHExp::calcSpectralValues(std::vector<double> &coeff, const std::vector<double> &val) const {
+void SPHExp::calcSpectralValues(double *coeff, const double *const val) const {
     typedef double Real;
-    long Ncoeff = (order + 1) * (order + 2);
-    long Ngrid = (order + 1) * (2 * order + 2);
-    long dof = val.size() / Ngrid;
-    assert(val.size() == dof * Ngrid);
-    if (coeff.size() != dof * Ncoeff)
-        coeff.resize(dof * Ncoeff);
+    const int Ncoeff = (order + 1) * (order + 2);
+    const int Ngrid = (order + 1) * (2 * order + 2);
+    const int dof = getDimension();
+
     sctl::Vector<Real> coeff_(coeff.size(), sctl::Ptr2Itr<Real>(coeff.size() ? coeff.data() : nullptr, coeff.size()),
                               false);
     const sctl::Vector<Real> val_(val.size(),

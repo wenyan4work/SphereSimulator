@@ -88,4 +88,5 @@ Teuchos::RCP<TV> getTVFromVector(const std::vector<double> &in, Teuchos::RCP<con
 // contiguous TMV init from a vector of vector. localsize= min_k in[k].size()
 Teuchos::RCP<TMV> getTMVFromVector(const std::vector<std::vector<double>> &in, Teuchos::RCP<const TCOMM> &commRcp);
 
+
 #endif /* TPETRAUTIL_HPP_ */
