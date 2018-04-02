@@ -15,13 +15,14 @@ constexpr double pi = 3.1415926535897932384626433;
 SPHExp::SPHExp(const KIND kind_, const std::string &name_, const int order_, const Equatn orientation_)
     : kind(kind_), order(order_), name(name_),
       orientation(orientation_) { // the dimension , =1 for LAPSL, LAPDL, =3 for STKSL and STKDL
-    spectralCoeff.resize(getDimension() * (order + 1) * (order + 1)); // coefficients. d*(p+1)^2 elements
+    gridValues.resize(getGridDOF() +
+                      getDimension() * 2); // add extra two points of north and south pole in the beginning and the end
 }
 
 // move constructor
 SPHExp::SPHExp(SPHExp &&other)
     : kind(other.kind), order(other.order), name(other.name), orientation(other.orientation) {
-    spectralCoeff = std::move(other.spectralCoeff);
+    gridValues = std::move(other.gridValues);
 }
 
 SPHExp &SPHExp::operator=(SPHExp &&other) {
@@ -29,14 +30,11 @@ SPHExp &SPHExp::operator=(SPHExp &&other) {
     order = other.order;
     name = other.name;
     orientation = other.orientation;
-    spectralCoeff = std::move(other.spectralCoeff);
+    gridValues = std::move(other.gridValues);
 }
 
-int SPHExp::getGridDOF() const { return getDimension() * (order + 1) * (2 * order + 2); }
-
-int SPHExp::getSpectralDOF() const { return getDimension() * (order + 1) * (order + 2); }
-
-void SPHExp::dumpSpectralValues(const std::string &filename) const {
+void SPHExp::dumpSpectralValues(const double *const spectralCoeff,
+                                const std::string &filename = std::string("")) const {
     std::string kindName;
     switch (kind) {
     case KIND::LAP:
@@ -90,8 +88,7 @@ int SPHExp::writeVTU(std::ofstream &file, const double &radius, const Evec3 &coo
 
     std::vector<double> gridPoints;
     std::vector<double> gridWeights;
-    std::vector<double> gridValues;
-    getGrid(gridPoints, gridWeights, gridValues, radius, coordBase);
+    getGrid(gridPoints, gridWeights, radius, coordBase);
     const int nPts = gridWeights.size();
     assert(gridPoints.size() == nPts * 3);
 
@@ -167,8 +164,8 @@ int SPHExp::writeVTU(std::ofstream &file, const double &radius, const Evec3 &coo
     return nPts;
 }
 
-void SPHExp::getGrid(std::vector<double> &gridPoints, std::vector<double> &gridWeights, std::vector<double> &gridValues,
-                     const double &radius, const Evec3 &coordBase) const {
+void SPHExp::getGrid(std::vector<double> &gridPoints, std::vector<double> &gridWeights, const double &radius,
+                     const Evec3 &coordBase) const {
     /*
         point order: 0 at northpole, then 2p+2 points per circle. the last at south pole
         the north and south pole are not included in the nodesGL of Gauss-Legendre nodes.
@@ -222,15 +219,11 @@ void SPHExp::getGrid(std::vector<double> &gridPoints, std::vector<double> &gridW
         Eigen::Map<Evec3>(gridPoints.data() + 3 * i) = radius * (orientation * pointVec) + coordBase;
     }
 
-    gridValues.resize((2 * p * p + 4 * p + 4) * (kind == KIND::LAP ? 1 : 3));
-    calcGridValues(gridValues.data() + 1, spectralCoeff.data());
-
     // rotation with quaternion for each point vectorial value
     if (kind == KIND::STK) {
         for (int i = 0; i < 2 * p * p + 4 * p + 4; i++) {
             EAvec3 pointVec(gridValues[3 * i], gridValues[3 * i + 1],
                             gridValues[3 * i + 2]); // aligned temporary object
-            Eigen::Map<Evec3>(gridValues.data() + 3 * i) = orientation * pointVec;
         }
     }
 
@@ -303,29 +296,68 @@ void SPHExp::getGridCellConnect(std::vector<int32_t> &gridCellConnect, std::vect
     return;
 }
 
-void SPHExp::calcGridValues(double *val, const double *const coeff) const {
+// not including the poles
+void SPHExp::calcGridValue(double *valPtr, double *coeffPtr) const {
+    typedef double Real;
+    // ROW_MAJOR = (order+1)(order+2)/2 complex numbers, need (order+1)(order+2) doubles per component
+    const int Ncoeff = (order + 1) * (order + 2);
+    // grid values are all real numbers, need (order+1)*(2order+2) doubles, excluding the north and south pole
+    const int Ngrid = (order + 1) * (2 * order + 2);
+
+    const int dimension = getDimension();
+
+    const sctl::Vector<Real> coeff(Ncoeff * dimension,
+                                   sctl::Ptr2Itr<Real>(coeffPtr ? coeffPtr : nullptr, Ncoeff * dimension), false);
+    sctl::Vector<Real> val(Ngrid * dimension, sctl::Ptr2Itr<Real>(valPtr ? valPtr : nullptr, Ngrid * dimension), false);
+
+    if (kind == KIND::LAP) {
+        sctl::SphericalHarmonics<Real>::SHC2Grid(coeff, sctl::SHCArrange::ROW_MAJOR, order, order + 1, 2 * order + 2,
+                                                 &val);
+    } else {
+        sctl::SphericalHarmonics<Real>::VecSHC2Grid(coeff, sctl::SHCArrange::ROW_MAJOR, order, order + 1, 2 * order + 2,
+                                                    val);
+    }
+}
+void SPHExp::calcGridValuePole(double *valPtr, double *coeffPtr) const {
+
     typedef double Real;
     const int Ncoeff = (order + 1) * (order + 2);
-    const int Ngrid = (order + 1) * (2 * order + 2);
-    const int dof = getDimension();
+    const int Ngrid = 2; // north and south pole
+    const int dimension = getDimension();
 
-    const sctl::Vector<Real> coeff_(
-        coeff.size(), sctl::Ptr2Itr<Real>(coeff.size() ? (Real *)coeff.data() : nullptr, coeff.size()), false);
-    sctl::Vector<Real> val_(val.size(), sctl::Ptr2Itr<Real>(val.size() ? val.data() : nullptr, val.size()), false);
-    sctl::SphericalHarmonics<Real>::SHC2Grid(coeff_, sctl::SHCArrange::ROW_MAJOR, order, order + 1, 2 * order + 2,
-                                             &val_);
+    const sctl::Vector<Real> coeff(Ncoeff * dimension,
+                                   sctl::Ptr2Itr<Real>(coeffPtr ? coeffPtr : nullptr, Ncoeff * dimension), false);
+    sctl::Vector<Real> val(Ngrid * dimension, sctl::Ptr2Itr<Real>(valPtr ? valPtr : nullptr, Ngrid * dimension), false);
+
+    sctl::Vector<Real> cos_theta_phi(4);
+    cos_theta_phi[0] = 1;  // north pole, cos theta
+    cos_theta_phi[1] = 0;  // north pole, phi
+    cos_theta_phi[2] = -1; // south pole, cos theta
+    cos_theta_phi[3] = 0;  // south pole, phi
+
+    if (kind == KIND::LAP) {
+        sctl::SphericalHarmonics<Real>::SHCEval(coeff, sctl::SHCArrange::ROW_MAJOR, order, cos_theta_phi, val);
+    } else {
+        sctl::SphericalHarmonics<Real>::VecSHCEval(coeff, sctl::SHCArrange::ROW_MAJOR, order, cos_theta_phi, val);
+    }
 }
 
-void SPHExp::calcSpectralValues(double *coeff, const double *const val) const {
+void SPHExp::calcSpectralValue(double *coeffPtr, double *valPtr) const {
     typedef double Real;
     const int Ncoeff = (order + 1) * (order + 2);
     const int Ngrid = (order + 1) * (2 * order + 2);
-    const int dof = getDimension();
+    const int dimension = getDimension();
 
-    sctl::Vector<Real> coeff_(coeff.size(), sctl::Ptr2Itr<Real>(coeff.size() ? coeff.data() : nullptr, coeff.size()),
-                              false);
-    const sctl::Vector<Real> val_(val.size(),
-                                  sctl::Ptr2Itr<Real>(val.size() ? (Real *)val.data() : nullptr, val.size()), false);
-    sctl::SphericalHarmonics<Real>::Grid2SHC(val_, order + 1, 2 * order + 2, order, coeff_,
-                                             sctl::SHCArrange::ROW_MAJOR);
+    sctl::Vector<Real> coeff(Ncoeff * dimension, sctl::Ptr2Itr<Real>(coeffPtr ? coeffPtr : nullptr, Ncoeff * dimension),
+                             false);
+    const sctl::Vector<Real> val(Ngrid * dimension, sctl::Ptr2Itr<Real>(valPtr ? valPtr : nullptr, Ngrid * dimension),
+                                 false);
+
+    if (kind == KIND::LAP) {
+        sctl::SphericalHarmonics<Real>::Grid2SHC(val, order + 1, 2 * order + 2, order, coeff,
+                                                 sctl::SHCArrange::ROW_MAJOR);
+    } else {
+        sctl::SphericalHarmonics<Real>::Grid2VecSHC(val, order + 1, 2 * order + 2, order, coeff,
+                                                    sctl::SHCArrange::ROW_MAJOR);
+    }
 }

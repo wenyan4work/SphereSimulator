@@ -25,12 +25,12 @@ class SPHExp {
     };
 
     KIND kind;
-    int order; // the order of expansion p
-    // int dimension;      // the dimension , =1 for LAPSL, LAPDL, =3 for STKSL and STKDL
+    int order;          // the order of expansion p
     std::string name;   // the name of this quantity
     Equatn orientation; // the orientation represented by an Eigen::quaternion
 
-    std::vector<double> spectralCoeff; // coefficients. d* p*(p+1) elements
+    std::vector<double>
+        gridValues; // dimension real numbers per point, (p+1) * (2p+2)+2 points, including the north and south pole
 
     // index
     inline int COEFFINDEX(int i, int n, int m) const {
@@ -56,13 +56,12 @@ class SPHExp {
 
     // utility routines
     inline int getDimension() const { return kind == KIND::LAP ? 1 : 3; }
+    inline int getGridDOF() const { return getDimension() * (order + 1) * (2 * order + 2); }
+    inline int getSpectralDOF() const { return getDimension() * (order + 1) * (order + 2); }
 
     // grid representation
-    void getGrid(std::vector<double> &gridPoints, std::vector<double> &gridWeights, std::vector<double> &gridValues,
-                 const double &radius = 1, const Evec3 &coordBase = Evec3::Zero()) const;
-
-    int getGridDOF() const; // excluding the north and south pole
-    int getSpectralDOF() const;
+    void getGrid(std::vector<double> &gridPoints, std::vector<double> &gridWeights, const double &radius = 1,
+                 const Evec3 &coordBase = Evec3::Zero()) const;
 
     // output routine
     // each sph dump to a 'piece'.
@@ -71,19 +70,26 @@ class SPHExp {
     int writeVTU(std::ofstream &file, const double &radius = 1, const Evec3 &coordBase = Evec3::Zero()) const;
 
     // debug routines
-    void dumpSpectralValues(const std::string &filename = std::string("")) const; // default to empty string
-
-    void getGridCellConnect(std::vector<int32_t> &gridCellConnect, std::vector<int32_t> &offset,
-                            std::vector<uint8_t> &type) const;
+    void dumpSpectralValues(const double *constspectralCoeff,
+                            const std::string &filename = std::string("")) const; // default to empty string
 
     // convert G2S and S2G
-    void calcGridValues(double *val, const double *const coeff) const;
-    void calcSpectralValues(double *coeff, const double *const val) const;
+    // User should allocate enough space. No bound check here
+    void calcGridValue(double *valPtr, double *coeffPtr) const;
+    void calcGridValuePole(double *valPtr, double *coeffPtr) const;
+
+    void calcSpectralValue(double *coeffPtr, double *valPtr) const;
 
     // NF routines
+    // User should allocate enough space. No bound check here
     void calcSLNF(double *trgValue, const double *const trgGrid, const TRGPOS &trgPos) const;   // both STK and LAP
     void calcDLNF(double *trgValue, const double *const trgGrid, const TRGPOS &trgPos) const;   // both STK and LAP
     void calcTracNF(double *trgValue, const double *const trgGrid, const TRGPOS &trgPos) const; // STK Traction
+
+  private:
+    // called from dumpVTK()
+    void getGridCellConnect(std::vector<int32_t> &gridCellConnect, std::vector<int32_t> &offset,
+                            std::vector<uint8_t> &type) const;
 };
 
 #endif // SPHEXP_HPP

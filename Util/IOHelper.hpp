@@ -253,7 +253,8 @@ class IOHelper {
      * general VTK helper
      */
     template <class T>
-    static void writeDataArrayBase64(std::vector<T> &data, const std::string &name, int numComp, std::ofstream &file) {
+    static void writeDataArrayBase64(const std::vector<T> &data, const std::string &name, const int numComp,
+                                     std::ofstream &file) {
         // set type name
         std::string vtktype;
         if (std::is_same<T, int>::value) {
