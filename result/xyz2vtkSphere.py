@@ -7,7 +7,7 @@ import glob
 runConfigFile = '../runConfig.txt'
 with open(runConfigFile) as fp:
     for i, line in enumerate(fp):
-        if i == 5:
+        if i == 3:
             temp = np.fromstring(line, dtype='float64', sep=' ')
             box = np.zeros((2, 3))
             box[0, 0] = temp[0]

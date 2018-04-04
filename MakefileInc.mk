@@ -1,16 +1,13 @@
-# CCB014
-SFTPATH=/mnt/home/wyan/local
-
-# Mac 
-#SFTPATH=/Users/wyan/local
+SFTPATH=$(HOME)/local
+PVFMM_DIR=$(SFTPATH)/share/pvfmm
 
 include $(SFTPATH)/include/Makefile.export.Trilinos
 include $(PVFMM_DIR)/MakeVariables
+
 TRNG = $(SFTPATH)/include/trng
 EIGEN= $(SFTPATH)/include/eigen3
-PVFMM= $(SFTPATH)/include/pvfmm
 
-USERINCLUDE = -I$(TRNG)/include -I$(EIGEN) 
+USERINCLUDE = -I$(TRNG) -I$(EIGEN)
 USERLIB_DIRS = -L$(SFTPATH)/lib
 USERLIBS = -ltrng4
 
