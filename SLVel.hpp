@@ -14,9 +14,9 @@ inline Real Power(const Real &a, const int &b) {
 // input: n,m,r, phiVnm, phiWnm, phiXnm
 // output: function values: fVnm,fWnm,fXnm,
 //         function derivatives: fpVnm,fpWnm,fpXnm,
-template <class Real>
-inline void fnExt(const int &n, const int &m, const Real &r, const Real &phiV, const Real &phiW, const Real &phiX,
-                  Real &fVnm, Real &fWnm, Real &fXnm, Real &fpVnm, Real &fpWnm, Real &fpXnm) {
+template <class Real, class Integer>
+inline void fnExt(const Integer &n, const Integer &m, const Real &r, const Real &phiV, const Real &phiW,
+                  const Real &phiX, Real &fVnm, Real &fWnm, Real &fXnm, Real &fpVnm, Real &fpWnm, Real &fpXnm) {
     fVnm = (Power(r, -2 - n) *
             ((2 * n * phiV) / (3 + 4 * n * (2 + n)) - ((1 + n) * phiW * (-1 + Power(r, 2))) / (1 + 2 * n))) /
            2.0;
@@ -33,8 +33,8 @@ inline void fnExt(const int &n, const int &m, const Real &r, const Real &phiV, c
 }
 
 template <class Real>
-inline void fnInt(const int &n, const int &m, const Real &r, const Real &phiV, const Real &phiW, const Real &phiX,
-                  Real &fVnm, Real &fWnm, Real &fXnm, Real &fpVnm, Real &fpWnm, Real &fpXnm) {
+inline void fnInt(const Integer &n, const Integer &m, const Real &r, const Real &phiV, const Real &phiW,
+                  const Real &phiX, Real &fVnm, Real &fWnm, Real &fXnm, Real &fpVnm, Real &fpWnm, Real &fpXnm) {
 
     fVnm = (n * phiV * Power(r, 1 + n)) / (3 + 4 * n * (2 + n));
     fWnm = -((1 + n) * Power(r, -1 + n) * (-2 * phiW + (-1 + 2 * n) * phiV * (-1 + Power(r, 2)))) /
