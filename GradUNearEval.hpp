@@ -10,6 +10,21 @@ inline bool validnm(const Integer &n, const Integer &m) {
     return (m <= n) && (m >= -n);
 }
 
+template <class Real>
+inline Real Csc(const Real &a) {
+    return std::csc(a);
+}
+
+template <class Real>
+inline Real Sqrt(const Real &a) {
+    return std::sqrt(a);
+}
+
+template <class Real>
+inline Real Cot(const Real &a) {
+    return std::cot(a);
+}
+
 // input: n,m ; r,theta,phi; phiV, phiW, phiX
 // output: 3x3 tensor gradVel, must be real
 // TODO: check positive and negative m terms combined together in a single call ?
