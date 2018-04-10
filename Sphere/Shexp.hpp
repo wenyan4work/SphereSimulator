@@ -12,6 +12,14 @@
 
 #include "Util/EigenDef.hpp"
 
+// naming convention:
+// Spectral Coeff
+// Grid Value
+
+// data arrangement:
+// Spectral Coeff SHCArrange::Row_Major
+// Grid Value (x0,y0,z0,x1,y1,z1,x2,y2,z2,....)
+
 class Shexp {
   public:
     enum class KIND {
@@ -29,7 +37,7 @@ class Shexp {
     std::string name;   // the name of this quantity
     Equatn orientation; // the orientation represented by an Eigen::quaternion
 
-    std::vector<double> gridValues;
+    std::vector<double> gridValue;
     // dimension real numbers per point, (p+1) * (2p+2) points, excluding the north and south poles
 
     // index
@@ -69,14 +77,14 @@ class Shexp {
     int writeVTU(std::ofstream &file, const double &radius = 1, const Evec3 &coordBase = Evec3::Zero()) const;
 
     // debug routines
-    void dumpSpectralValues(const double *const spectralCoeff, const std::string &filename = std::string("")) const;
+    void dumpSpectralCoeff(const double *const spectralCoeff, const std::string &filename = std::string("")) const;
 
     // convert G2S and S2G
     // User should allocate enough space. No bound check here
     void calcGridValue(double *coeffPtr, double *valPtr = nullptr);
     void calcPoleValue(double *coeffPtr, double *valPtr) const;
 
-    void calcSpectralValue(double *coeffPtr, double *valPtr = nullptr) const;
+    void calcSpectralCoeff(double *coeffPtr, double *valPtr = nullptr) const;
 
     // NF routines
     // User should allocate enough space. No bound check here
@@ -88,6 +96,9 @@ class Shexp {
     // called from dumpVTK()
     void getGridCellConnect(std::vector<int32_t> &gridCellConnect, std::vector<int32_t> &offset,
                             std::vector<uint8_t> &type) const;
+
+    void rotGridValue(double *valPtr, const int npts) const;    // from default Z axis to oriented Z axis
+    void invrotGridValue(double *valPtr, const int npts) const; // from oriented Z axis to default Z axis
 };
 
 #endif // SPHEXP_HPP

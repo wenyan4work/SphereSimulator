@@ -16,12 +16,12 @@ constexpr double pi = 3.1415926535897932384626433;
 Shexp::Shexp(const KIND kind_, const std::string &name_, const int order_, const Equatn orientation_)
     : kind(kind_), order(order_), name(name_),
       orientation(orientation_) { // the dimension , =1 for LAPSL, LAPDL, =3 for STKSL and STKDL
-    gridValues.resize(getGridDOF());
+    gridValue.resize(getGridDOF());
 }
 
 // move constructor
 Shexp::Shexp(Shexp &&other) : kind(other.kind), order(other.order), name(other.name), orientation(other.orientation) {
-    gridValues = std::move(other.gridValues);
+    gridValue = std::move(other.gridValue);
 }
 
 Shexp &Shexp::operator=(Shexp &&other) {
@@ -29,10 +29,10 @@ Shexp &Shexp::operator=(Shexp &&other) {
     order = other.order;
     name = other.name;
     orientation = other.orientation;
-    gridValues = std::move(other.gridValues);
+    gridValue = std::move(other.gridValue);
 }
 
-void Shexp::dumpSpectralValues(const double *const spectralCoeff, const std::string &filename) const {
+void Shexp::dumpSpectralCoeff(const double *const spectralCoeff, const std::string &filename) const {
     std::string kindName;
     switch (kind) {
     case KIND::LAP:
@@ -112,24 +112,25 @@ int Shexp::writeVTU(std::ofstream &file, const double &radius, const Evec3 &coor
     std::vector<uint8_t> type;
     getGridCellConnect(connect, offset, type);
 
-    std::vector<double> gridValuesWithPoles(getGridDOF() + 2 * getDimension());
+    std::vector<double> gridValueWithPole(getGridDOF() + 2 * getDimension());
     std::vector<double> spectralValues(getSpectralDOF());
-    calcSpectralValue(spectralValues.data());
+
+    calcSpectralCoeff(spectralValues.data());
     double poleValues[6];
     calcPoleValue(spectralValues.data(), poleValues);
     // put the pole values in the beginning and end of the array
     if (kind == KIND::LAP) {
-        gridValuesWithPoles[0] = poleValues[0];
-        std::copy(gridValues.cbegin(), gridValues.cend(), gridValuesWithPoles.begin() + 1);
-        gridValuesWithPoles.back() = poleValues[1];
+        gridValueWithPole[0] = poleValues[0];
+        std::copy(gridValue.cbegin(), gridValue.cend(), gridValueWithPole.begin() + 1);
+        gridValueWithPole.back() = poleValues[1];
     } else {
-        gridValuesWithPoles[0] = poleValues[0];
-        gridValuesWithPoles[1] = poleValues[1];
-        gridValuesWithPoles[2] = poleValues[2];
-        std::copy(gridValues.cbegin(), gridValues.cend(), gridValuesWithPoles.begin() + 3);
-        gridValuesWithPoles[3 + gridValues.size()] = poleValues[3];
-        gridValuesWithPoles[4 + gridValues.size()] = poleValues[4];
-        gridValuesWithPoles[5 + gridValues.size()] = poleValues[5];
+        gridValueWithPole[0] = poleValues[0];
+        gridValueWithPole[1] = poleValues[1];
+        gridValueWithPole[2] = poleValues[2];
+        std::copy(gridValue.cbegin(), gridValue.cend(), gridValueWithPole.begin() + 3);
+        gridValueWithPole[3 + gridValue.size()] = poleValues[3];
+        gridValueWithPole[4 + gridValue.size()] = poleValues[4];
+        gridValueWithPole[5 + gridValue.size()] = poleValues[5];
     }
 
 // for debug
@@ -158,7 +159,7 @@ int Shexp::writeVTU(std::ofstream &file, const double &radius, const Evec3 &coor
 
     // point data
     file << "<PointData Scalars=\"scalars\">\n";
-    IOHelper::writeDataArrayBase64(gridValuesWithPoles, this->name, ((kind == KIND::LAP) ? 1 : 3), file);
+    IOHelper::writeDataArrayBase64(gridValueWithPole, this->name, ((kind == KIND::LAP) ? 1 : 3), file);
     IOHelper::writeDataArrayBase64(gridWeights, "weights", 1, file);
     file << "</PointData>\n";
 
@@ -237,14 +238,6 @@ void Shexp::getGrid(std::vector<double> &gridPoints, std::vector<double> &gridWe
         Eigen::Map<Evec3>(gridPoints.data() + 3 * i) = radius * (orientation * pointVec) + coordBase;
     }
 
-    // rotation with quaternion for each point vectorial value
-    if (kind == KIND::STK) {
-        for (int i = 0; i < 2 * p * p + 4 * p + 4; i++) {
-            EAvec3 pointVec(gridValues[3 * i], gridValues[3 * i + 1],
-                            gridValues[3 * i + 2]); // aligned temporary object
-        }
-    }
-
     return;
 }
 
@@ -317,8 +310,9 @@ void Shexp::getGridCellConnect(std::vector<int32_t> &gridCellConnect, std::vecto
 // excluding the poles
 // if valPtr=nullptr, directly fill the gridValues
 void Shexp::calcGridValue(double *coeffPtr, double *valPtr) {
+
     if (valPtr == nullptr) {
-        valPtr = gridValues.data();
+        valPtr = gridValue.data();
     }
 
     typedef double Real;
@@ -339,6 +333,17 @@ void Shexp::calcGridValue(double *coeffPtr, double *valPtr) {
     } else {
         sctl::SphericalHarmonics<Real>::VecSHC2Grid(coeff, sctl::SHCArrange::ROW_MAJOR, order, order + 1, 2 * order + 2,
                                                     val);
+        // rearrange the grid data from  (x0,x1,...y0,y1,...z0,z1...) to (x0,y0,z0,x1,y1,z1...)
+        std::vector<double> gridValueBuffer(Ngrid * dimension);
+        for (int i = 0; i < Ngrid; i++) {
+            gridValueBuffer[3 * i] = valPtr[i];                 // xi
+            gridValueBuffer[3 * i + 1] = valPtr[Ngrid + i];     // yi
+            gridValueBuffer[3 * i + 2] = valPtr[2 * Ngrid + i]; // zi
+        }
+        rotGridValue(gridValueBuffer.data(), Ngrid);
+        for (int i = 0; i < 3 * Ngrid; i++) {
+            valPtr[i] = gridValueBuffer[i];
+        }
     }
 }
 
@@ -363,14 +368,11 @@ void Shexp::calcPoleValue(double *coeffPtr, double *valPtr) const {
         sctl::SphericalHarmonics<Real>::SHCEval(coeff, sctl::SHCArrange::ROW_MAJOR, order, cos_theta_phi, val);
     } else {
         sctl::SphericalHarmonics<Real>::VecSHCEval(coeff, sctl::SHCArrange::ROW_MAJOR, order, cos_theta_phi, val);
+        rotGridValue(valPtr, 2);
     }
 }
 
-void Shexp::calcSpectralValue(double *coeffPtr, double *valPtr) const {
-
-    if (valPtr == nullptr) {
-        valPtr = const_cast<double *>(gridValues.data());
-    }
+void Shexp::calcSpectralCoeff(double *coeffPtr, double *valPtr) const {
 
     typedef double Real;
     const int Ncoeff = (order + 1) * (order + 2);
@@ -379,14 +381,59 @@ void Shexp::calcSpectralValue(double *coeffPtr, double *valPtr) const {
 
     sctl::Vector<Real> coeff(Ncoeff * dimension, sctl::Ptr2Itr<Real>(coeffPtr ? coeffPtr : nullptr, Ncoeff * dimension),
                              false);
-    const sctl::Vector<Real> val(Ngrid * dimension, sctl::Ptr2Itr<Real>(valPtr ? valPtr : nullptr, Ngrid * dimension),
-                                 false);
+    sctl::Vector<Real> val(Ngrid * dimension);
+
+    std::vector<double> gridValueBuffer;
+    if (valPtr == nullptr) {
+        val = gridValue;
+        gridValueBuffer = gridValue;
+        valPtr = gridValueBuffer.data();
+    } else {
+        for (int i = 0; i < Ngrid * dimension; i++) {
+            val[i] = valPtr[i];
+        }
+    }
+    // at this point, val and valPtr always have same values
 
     if (kind == KIND::LAP) {
         sctl::SphericalHarmonics<Real>::Grid2SHC(val, order + 1, 2 * order + 2, order, coeff,
                                                  sctl::SHCArrange::ROW_MAJOR);
     } else {
+        // rearrange the grid data from (x0,y0,z0,x1,y1,z1...) to  (x0,x1,...y0,y1,...z0,z1...)
+        // use pointer valPtr as buffer
+        invrotGridValue(valPtr, Ngrid);
+        for (int i = 0; i < Ngrid; i++) {
+            val[i] = valPtr[3 * i];
+            val[Ngrid + i] = valPtr[3 * i + 1];
+            val[2 * Ngrid + i] = valPtr[3 * i + 2];
+        }
         sctl::SphericalHarmonics<Real>::Grid2VecSHC(val, order + 1, 2 * order + 2, order, coeff,
                                                     sctl::SHCArrange::ROW_MAJOR);
     }
+}
+
+void Shexp::rotGridValue(double *valPtr, const int npts) const {
+    // from default Z axis to oriented Z axis
+    assert(kind == KIND::STK);
+    // rotation with quaternion for each point vectorial value
+    Equatn q = orientation;
+
+    for (int i = 0; i < npts; i++) {
+        Evec3 vec(valPtr[3 * i], valPtr[3 * i + 1], valPtr[3 * i + 2]);
+        Emap3(valPtr + 3 * i) = q * vec;
+    }
+
+    return;
+}
+void Shexp::invrotGridValue(double *valPtr, const int npts) const {
+    // from oriented Z axis to default Z axis
+    assert(kind == KIND::STK);
+    // rotation with quaternion for each point vectorial value
+    Equatn q = orientation.inverse();
+
+    for (int i = 0; i < npts; i++) {
+        Evec3 vec(valPtr[3 * i], valPtr[3 * i + 1], valPtr[3 * i + 2]);
+        Emap3(valPtr + 3 * i) = q * vec;
+    }
+    return;
 }

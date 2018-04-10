@@ -10,67 +10,67 @@
 
 #include <mpi.h>
 
-void testLAPConvert(const int order = 12) {
-    printf("testing LAP Conversion 1000 times for order=%d\n", order);
-    Shexp sh(Shexp::KIND::LAP, "test", order, Equatn::Identity());
+void testLAPConvert(const int order = 12, const int repeat = 1000) {
+    printf("testing LAP Conversion %d times for order=%d\n", repeat, order);
+    Shexp sh(Shexp::KIND::LAP, "test", order, Equatn::UnitRandom());
 
     // set random grid values
     std::vector<double> gridValueInitial(sh.getGridDOF(), 0);
     randomUniformFill(gridValueInitial, -2, 2);
 
-    sh.gridValues = gridValueInitial;
+    sh.gridValue = gridValueInitial;
 
     std::vector<double> spectralCoeff(sh.getSpectralDOF(), 0);
-    sh.calcSpectralValue(spectralCoeff.data());
+    sh.calcSpectralCoeff(spectralCoeff.data());
     sh.calcGridValue(spectralCoeff.data(), gridValueInitial.data()); // remove the nullspace of random grid value
 
     // transform 1000 times
-    for (int i = 0; i < 1000; i++) {
+    for (int i = 0; i < repeat; i++) {
         // grid to spectral
-        sh.calcSpectralValue(spectralCoeff.data());
+        sh.calcSpectralCoeff(spectralCoeff.data());
         // spectral to grid
         sh.calcGridValue(spectralCoeff.data());
     }
 
     // check error
-    checkError(gridValueInitial, sh.gridValues);
+    checkError(gridValueInitial, sh.gridValue);
 
     for (int i = 0; i < gridValueInitial.size(); i++) {
-        printf("%18.16lf\t\t%18.16lf\t\t%g\n", sh.gridValues[i], gridValueInitial[i],
-               sh.gridValues[i] - gridValueInitial[i]);
+        printf("%18.16lf\t\t%18.16lf\t\t%g\n", sh.gridValue[i], gridValueInitial[i],
+               sh.gridValue[i] - gridValueInitial[i]);
     }
 
     return;
 }
 
-void testSTKConvert(const int order = 12) {
-    printf("testing STK Conversion 1000 times for order=%d\n", order);
-    Shexp sh(Shexp::KIND::STK, "test", 12, Equatn::Identity());
+void testSTKConvert(const int order = 12, const int repeat = 1000) {
+    printf("testing STK Conversion %d times for order=%d\n", repeat, order);
+    Shexp sh(Shexp::KIND::STK, "test", order, Equatn::UnitRandom());
 
     // set random grid values
     std::vector<double> gridValueInitial(sh.getGridDOF(), 0);
     randomUniformFill(gridValueInitial, -2, 2);
 
-    sh.gridValues = gridValueInitial;
+    sh.gridValue = gridValueInitial;
 
     std::vector<double> spectralCoeff(sh.getSpectralDOF(), 0);
-    sh.calcSpectralValue(spectralCoeff.data());
+    sh.calcSpectralCoeff(spectralCoeff.data());
     sh.calcGridValue(spectralCoeff.data(), gridValueInitial.data()); // remove the nullspace of random grid value
 
     // transform 1000 times
-    for (int i = 0; i < 1000; i++) {
+    for (int i = 0; i < repeat; i++) {
         // grid to spectral
-        sh.calcSpectralValue(spectralCoeff.data());
+        sh.calcSpectralCoeff(spectralCoeff.data());
         // spectral to grid
         sh.calcGridValue(spectralCoeff.data());
     }
 
     // check error
-    checkError(gridValueInitial, sh.gridValues);
+    checkError(gridValueInitial, sh.gridValue);
 
     for (int i = 0; i < gridValueInitial.size(); i++) {
-        printf("%18.16lf\t\t%18.16lf\t\t%g\n", sh.gridValues[i], gridValueInitial[i],
-               sh.gridValues[i] - gridValueInitial[i]);
+        printf("%18.16lf\t\t%18.16lf\t\t%g\n", sh.gridValue[i], gridValueInitial[i],
+               sh.gridValue[i] - gridValueInitial[i]);
     }
 
     return;
@@ -85,7 +85,8 @@ void testTrac() {}
 int main(int argc, char **argv) {
     MPI_Init(&argc, &argv);
 
-    testLAPConvert();
+    testLAPConvert(24, 1000);
+    testSTKConvert(24, 1000);
 
     MPI_Finalize();
     return 0;
