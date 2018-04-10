@@ -25,3 +25,4 @@ Test/FMM/randomPoints
 *.pvtk
 *.vtp
 *.pvtp
+*.log

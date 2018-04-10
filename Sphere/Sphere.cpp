@@ -72,7 +72,7 @@ Sphere::Sphere(const Sphere &other) noexcept {
 
     // copy layers
     for (auto &l : other.sphLayer) {
-        sphLayer[l.first] = new SPHExp(*(l.second));
+        sphLayer[l.first] = new Shexp(*(l.second));
     }
 }
 
@@ -98,9 +98,9 @@ Sphere &Sphere::operator=(Sphere other) noexcept {
     return *this;
 }
 
-void Sphere::addLayer(const std::string &name, SPHExp::KIND kind, int order, const Equatn orientation) {
+void Sphere::addLayer(const std::string &name, Shexp::KIND kind, int order, const Equatn orientation) {
     // the orientation of the layer can be different from the orientation of the sphere
-    sphLayer[name] = new SPHExp(kind, name, order, orientation);
+    sphLayer[name] = new Shexp(kind, name, order, orientation);
 }
 
 void Sphere::dumpSphere() const {
@@ -204,7 +204,7 @@ void Sphere::Unpack(const std::vector<char> &buff) {
         orientTemp.y() = array4[2];
         orientTemp.z() = array4[3];
         // allocate
-        sphLayer[strbuf] = new SPHExp(static_cast<SPHExp::KIND>(kind), strbuf2, order, orientTemp);
+        sphLayer[strbuf] = new Shexp(static_cast<Shexp::KIND>(kind), strbuf2, order, orientTemp);
         // unpack the sph values
         buffer.unpack(sphLayer[strbuf]->spectralCoeff, buff);
     }
@@ -350,6 +350,6 @@ void Sphere::stepEuler(double dt) {
     EquatnHelper::rotateEquatn(orientation, omega, dt);
 }
 
-SPHExp &Sphere::getLayer(const std::string &name) { return *(sphLayer.find(name)->second); }
+Shexp &Sphere::getLayer(const std::string &name) { return *(sphLayer.find(name)->second); }
 
-const SPHExp &Sphere::getLayer(const std::string &name) const { return *(sphLayer.find(name)->second); }
+const Shexp &Sphere::getLayer(const std::string &name) const { return *(sphLayer.find(name)->second); }

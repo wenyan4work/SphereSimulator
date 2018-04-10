@@ -6,7 +6,7 @@
 #include <unordered_map>
 #include <vector>
 
-#include "SPHExp.hpp"
+#include "Shexp.hpp"
 #include "Util/Buffer.hpp"
 #include "Util/IOHelper.hpp"
 
@@ -36,7 +36,7 @@ class Sphere {
     Equatn orientation;
 
     // std::vector<NeighborSphere> sphNeighbor;
-    std::unordered_map<std::string, SPHExp *> sphLayer;
+    std::unordered_map<std::string, Shexp *> sphLayer;
 
     Sphere() = default;
     Sphere(const int &gid_, const double &radius_, const double &radiusCollision_, const Evec3 &pos_ = Evec3::Zero(),
@@ -48,14 +48,14 @@ class Sphere {
 
     Sphere &operator=(Sphere) noexcept;
 
-    void addLayer(const std::string &, SPHExp::KIND, int order = 4, const Equatn orientation = Equatn::Identity());
+    void addLayer(const std::string &, Shexp::KIND, int order = 4, const Equatn orientation = Equatn::Identity());
 
     void dumpSphere() const;
     // void dumpNeighbor() const;
     void dumpLayer(const std::string &name) const;
 
-    SPHExp &getLayer(const std::string &name);
-    const SPHExp &getLayer(const std::string &name) const;
+    Shexp &getLayer(const std::string &name);
+    const Shexp &getLayer(const std::string &name) const;
 
     // motion
     void stepEuler(double dt);
