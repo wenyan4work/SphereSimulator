@@ -252,9 +252,9 @@ void testSTKDL(const int order = 12, const int npts = 1000, bool interior = fals
     // check error
     checkError(trgValue, trgValueGrid);
 
-    for (int i = 0; i < 3 * npts; i++) {
-        printf("%18.16lf\t\t%18.16lf\t\t%g\n", trgValue[i], trgValueGrid[i], trgValue[i] - trgValueGrid[i]);
-    }
+    // for (int i = 0; i < 3 * npts; i++) {
+    //     printf("%18.16lf\t\t%18.16lf\t\t%g\n", trgValue[i], trgValueGrid[i], trgValue[i] - trgValueGrid[i]);
+    // }
 
     return;
 }
