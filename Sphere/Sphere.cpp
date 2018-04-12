@@ -146,6 +146,7 @@ void Sphere::Pack(std::vector<char> &buff) const {
         buffer.pack(static_cast<int>(layer.second->kind)); //    const KIND kind;
         buffer.pack(layer.second->order);                  // const int order;        // the order of expansion p
         buffer.pack(layer.second->name);                   //    const std::string name; // the name of this quantity
+        buffer.pack(layer.second->radius);                 //    const std::string name; // the name of this quantity
         const Equatn &orientation = layer.second->orientation;
         buffer.pack(std::array<double, 4>{orientation.w(), orientation.x(), orientation.y(),
                                           orientation.z()}); // Equatn orientation;
@@ -195,17 +196,19 @@ void Sphere::Unpack(const std::vector<char> &buff) {
         buffer.unpack(strbuf, buff); // the name
         // data
         int kind, order;
-        buffer.unpack(kind, buff);    //    const KIND kind;
-        buffer.unpack(order, buff);   // const int order;        // the order of expansion p
-        buffer.unpack(strbuf2, buff); //    const std::string name; // the name of this quantity
-        buffer.unpack(array4, buff);  // Equatn orientation;
+        double radiusLayer;
+        buffer.unpack(kind, buff);        //    const KIND kind;
+        buffer.unpack(order, buff);       // const int order;        // the order of expansion p
+        buffer.unpack(strbuf2, buff);     //    const std::string name; // the name of this quantity
+        buffer.unpack(radiusLayer, buff); // radius
+        buffer.unpack(array4, buff);      // Equatn orientation;
         Equatn orientTemp;
         orientTemp.w() = array4[0];
         orientTemp.x() = array4[1];
         orientTemp.y() = array4[2];
         orientTemp.z() = array4[3];
         // allocate
-        sphLayer[strbuf] = new Shexp(static_cast<Shexp::KIND>(kind), strbuf2, order, radius, orientTemp);
+        sphLayer[strbuf] = new Shexp(static_cast<Shexp::KIND>(kind), strbuf2, order, radiusLayer, orientTemp);
         // unpack the sph values
         buffer.unpack(sphLayer[strbuf]->gridValue, buff);
     }

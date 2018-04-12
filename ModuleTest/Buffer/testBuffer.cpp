@@ -24,8 +24,8 @@ void testSingleSphere() {
     std::vector<char> buf;
     {
         Sphere sphere(5, 1.0, 1.5, Evec3(1, 2, 3), Equatn(1, 0, 0, 0));
-        sphere.addLayer(std::string("testLayer"), SPHExp::KIND::STK, 4);
-        auto &specValue = sphere.sphLayer["testLayer"]->spectralCoeff;
+        sphere.addLayer(std::string("testLayer"), Shexp::KIND::STK, 4);
+        auto &specValue = sphere.sphLayer["testLayer"]->gridValue;
         std::fill(specValue.begin(), specValue.end(), 1.0);
         sphere.Pack(buf);
     }
@@ -40,15 +40,15 @@ void testMultiSphere() {
     std::vector<char> buf2;
     { // pack sphere 1
         Sphere sphere(5, 1.0, 1.5, Evec3(1, 2, 3), Equatn(1, 0, 0, 0));
-        sphere.addLayer(std::string("testLayer"), SPHExp::KIND::STK, 4);
-        auto &specValue = sphere.sphLayer["testLayer"]->spectralCoeff;
+        sphere.addLayer(std::string("testLayer"), Shexp::KIND::STK, 4);
+        auto &specValue = sphere.sphLayer["testLayer"]->gridValue;
         std::fill(specValue.begin(), specValue.end(), 1.0);
         sphere.Pack(buf1);
     }
     { // pack sphere 2
         Sphere sphere(8, 2.0, 3.5, Evec3(3, 2, 1), Equatn(0, 1, 0, 0));
-        sphere.addLayer(std::string("testLayer"), SPHExp::KIND::LAP, 3);
-        auto &specValue = sphere.sphLayer["testLayer"]->spectralCoeff;
+        sphere.addLayer(std::string("testLayer"), Shexp::KIND::LAP, 3);
+        auto &specValue = sphere.sphLayer["testLayer"]->gridValue;
         std::fill(specValue.begin(), specValue.end(), 2.0);
         sphere.Pack(buf2);
     }

@@ -68,6 +68,7 @@ class Shexp {
     // grid representation
     void getGrid(std::vector<double> &gridPoints, std::vector<double> &gridWeights,
                  const Evec3 &coordBase = Evec3::Zero()) const;
+    void getGridNorm(std::vector<double> &gridNormXYZ);
 
     // output routine
     // each sph dump to a 'piece'.
