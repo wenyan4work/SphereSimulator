@@ -98,9 +98,10 @@ Sphere &Sphere::operator=(Sphere other) noexcept {
     return *this;
 }
 
-void Sphere::addLayer(const std::string &name, Shexp::KIND kind, int order, const Equatn orientation) {
+void Sphere::addLayer(const std::string &name_, const Shexp::KIND &kind_, const int &order_, const double &radius_,
+                      const Equatn orientation_) {
     // the orientation of the layer can be different from the orientation of the sphere
-    sphLayer[name] = new Shexp(kind, name, order, orientation);
+    sphLayer[name_] = new Shexp(kind_, name_, order_, radius_ > 0 ? radius_ : radius, orientation_);
 }
 
 void Sphere::dumpSphere() const {
@@ -119,7 +120,7 @@ void Sphere::dumpSphere() const {
 //     }
 // }
 
-void Sphere::dumpLayer(const std::string &name) const { sphLayer.find(name)->second->dumpSpectralValues(); }
+void Sphere::dumpLayer(const std::string &name) const { sphLayer.find(name)->second->dumpGridValue(); }
 
 void Sphere::Pack(std::vector<char> &buff) const {
     Buffer buffer(buff);
@@ -148,7 +149,7 @@ void Sphere::Pack(std::vector<char> &buff) const {
         const Equatn &orientation = layer.second->orientation;
         buffer.pack(std::array<double, 4>{orientation.w(), orientation.x(), orientation.y(),
                                           orientation.z()}); // Equatn orientation;
-        buffer.pack(layer.second->spectralCoeff);
+        buffer.pack(layer.second->gridValue);
     }
 }
 
@@ -204,9 +205,9 @@ void Sphere::Unpack(const std::vector<char> &buff) {
         orientTemp.y() = array4[2];
         orientTemp.z() = array4[3];
         // allocate
-        sphLayer[strbuf] = new Shexp(static_cast<Shexp::KIND>(kind), strbuf2, order, orientTemp);
+        sphLayer[strbuf] = new Shexp(static_cast<Shexp::KIND>(kind), strbuf2, order, radius, orientTemp);
         // unpack the sph values
-        buffer.unpack(sphLayer[strbuf]->spectralCoeff, buff);
+        buffer.unpack(sphLayer[strbuf]->gridValue, buff);
     }
 }
 
@@ -315,13 +316,11 @@ void Sphere::writeVTU(const std::vector<Sphere> &sphere, const std::vector<IOHel
                            std::ios::out);
         IOHelper::writeHeadVTU(file);
         if (sphere.size() > 0) {
-            for (const auto &layer : sphere[0].sphLayer) {
-                for (auto &s : sphere) {
-                    const auto &it = s.sphLayer.find(data.name);
-                    Evec3 coordBase(s.pos[0], s.pos[1], s.pos[2]);
-                    if (it != s.sphLayer.end())
-                        it->second->writeVTU(file, s.radius, coordBase);
-                }
+            for (auto &s : sphere) {
+                const auto &it = s.sphLayer.find(data.name);
+                Evec3 coordBase(s.pos[0], s.pos[1], s.pos[2]);
+                if (it != s.sphLayer.end())
+                    it->second->writeVTU(file, coordBase);
             }
         }
         IOHelper::writeTailVTU(file);

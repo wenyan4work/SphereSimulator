@@ -48,7 +48,8 @@ class Sphere {
 
     Sphere &operator=(Sphere) noexcept;
 
-    void addLayer(const std::string &, Shexp::KIND, int order = 4, const Equatn orientation = Equatn::Identity());
+    void addLayer(const std::string & name_, const Shexp::KIND & kind_, const int &order_ = 4, const double &radius_ = -1,
+                  const Equatn orientation_ = Equatn::Identity());
 
     void dumpSphere() const;
     // void dumpNeighbor() const;
@@ -63,7 +64,7 @@ class Sphere {
     // necessary interface for Near Interaction
     const double *Coord() const { return pos.data(); }
 
-    double Rad() const { return radiusCollision * 2; }
+    double Rad() const { return radiusCollision * 1.2; }
 
     void Pack(std::vector<char> &buff) const;
 

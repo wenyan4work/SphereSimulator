@@ -4,7 +4,7 @@
 #include <iostream>
 #include <vector>
 
-#include "Sphere/SPHExp.hpp"
+#include "Sphere/Shexp.hpp"
 #include "Sphere/Sphere.hpp"
 #include "Util/IOHelper.hpp"
 
@@ -17,20 +17,22 @@ void testVTK() {
         "./result/" + std::to_string(low) + std::string("-") + std::to_string(high) + std::string("/");
     IOHelper::makeSubFolder(baseFolder);
 
-    std::vector<Sphere> sphere(1);
+    std::vector<Sphere> sphere(3);
     for (int i = 0; i < sphere.size(); i++) {
         // fill random data
         auto &s = sphere[i];
         s.gid = i;
         s.globalIndex = i;
-        s.radius = i * 0.5 + 0.5;
-        s.radiusCollision = i * 0.5 + 0.5;
-        s.pos.setRandom();
+        s.radius = 2.0 * (drand48() + 0.4);
+        s.radiusCollision = s.radius * 1.2;
+        s.pos = Evec3::Random() * 5;
         s.vel.setRandom();
         s.omega.setRandom();
         s.orientation = Equatn::UnitRandom();
-        s.addLayer("lap", SPHExp::KIND::LAP, 6, Equatn::UnitRandom());
-        s.addLayer("stk", SPHExp::KIND::STK, 8, Equatn::UnitRandom());
+        s.addLayer("lap", Shexp::KIND::LAP, 16, -1, Equatn::UnitRandom());
+        s.getLayer("lap").randomFill(i);
+        s.addLayer("stk", Shexp::KIND::STK, 22, -1, Equatn::UnitRandom());
+        s.getLayer("stk").randomFill(i);
     }
     // VTP files
     Sphere::writeVTP(sphere, baseFolder, "0", 0);

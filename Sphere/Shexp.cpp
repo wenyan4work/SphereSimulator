@@ -4,6 +4,7 @@
 #include <cstdio>
 #include <fstream>
 #include <iostream>
+#include <random>
 
 #include "Util/Base64.hpp"
 #include "Util/Gauss_Legendre_Nodes_and_Weights.hpp"
@@ -13,8 +14,9 @@
 constexpr double pi = 3.1415926535897932384626433;
 
 // constructor
-Shexp::Shexp(const KIND kind_, const std::string &name_, const int order_, const Equatn orientation_)
-    : kind(kind_), order(order_), name(name_),
+Shexp::Shexp(const KIND kind_, const std::string &name_, const int order_, const double &radius_,
+             const Equatn orientation_)
+    : kind(kind_), order(order_), name(name_), radius(radius_),
       orientation(orientation_) { // the dimension , =1 for LAPSL, LAPDL, =3 for STKSL and STKDL
     gridValue.resize(getGridDOF());
 }
@@ -32,7 +34,7 @@ Shexp &Shexp::operator=(Shexp &&other) {
     gridValue = std::move(other.gridValue);
 }
 
-void Shexp::dumpSpectralCoeff(const double *const spectralCoeff, const std::string &filename) const {
+void Shexp::dumpGridValue(const std::string &filename) const {
     std::string kindName;
     switch (kind) {
     case KIND::LAP:
@@ -43,16 +45,18 @@ void Shexp::dumpSpectralCoeff(const double *const spectralCoeff, const std::stri
         break;
     }
 
-    if (filename.empty()) {
-        // default, output to screen
-        printf("kind %s, p %8d, name %s\n", kindName.c_str(), order, name.c_str());
-        for (int n = 0; n <= order; n++) {
-            for (int m = -n; m <= n; m++) {
-                if (getDimension() == 1) {
-                    printf("n %3d, m %3d, %8f\n", n, m, spectralCoeff[COEFFINDEX(0, n, m)]);
-                } else if (getDimension() == 3) {
-                    printf("n %3d, m %3d, %8f, %8f, %8f\n", n, m, spectralCoeff[COEFFINDEX(0, n, m)],
-                           spectralCoeff[COEFFINDEX(1, n, m)], spectralCoeff[COEFFINDEX(2, n, m)]);
+    const int N = order + 1;     // theta 0 to pi
+    const int M = 2 * order + 2; // phi 0 to 2pi
+    if (filename.empty()) { // default, output to screen printf("kind %s, p %8d, name %s\n", kindName.c_str(), order,
+                            // name.c_str());
+        for (int n = 0; n < N; n++) {
+            for (int m = 0; m < M; m++) {
+                if (kind == KIND::LAP) {
+                    printf("n %3d, m %3d, %8f\n", n, m, gridValue[m + n * M]);
+                } else if (kind == KIND::STK) {
+                    const int index = m + n * M;
+                    printf("n %3d, m %3d, %8f, %8f, %8f\n", n, m, gridValue[3 * index], gridValue[3 * index + 1],
+                           gridValue[3 * index + 2]);
                 }
             }
         }
@@ -60,13 +64,14 @@ void Shexp::dumpSpectralCoeff(const double *const spectralCoeff, const std::stri
         // dump to file if filename is set
         FILE *fdump = fopen(filename.c_str(), "w");
         fprintf(fdump, "kind %s, p %8d, name %s\n", kindName.c_str(), order, name.c_str());
-        for (int n = 0; n <= order; n++) {
-            for (int m = -n; m <= n; m++) {
-                if (getDimension() == 1) {
-                    fprintf(fdump, "n %3d, m %3d, %8f\n", n, m, spectralCoeff[COEFFINDEX(0, n, m)]);
-                } else if (getDimension() == 3) {
-                    fprintf(fdump, "n %3d, m %3d, %8f, %8f, %8f\n", n, m, spectralCoeff[COEFFINDEX(0, n, m)],
-                            spectralCoeff[COEFFINDEX(1, n, m)], spectralCoeff[COEFFINDEX(2, n, m)]);
+        for (int n = 0; n < N; n++) {
+            for (int m = 0; m < M; m++) {
+                if (kind == KIND::LAP) {
+                    fprintf(fdump, "n %3d, m %3d, %8f\n", n, m, gridValue[m + n * M]);
+                } else if (kind == KIND::STK) {
+                    const int index = m + n * M;
+                    fprintf(fdump, "n %3d, m %3d, %8f, %8f, %8f\n", n, m, gridValue[3 * index],
+                            gridValue[3 * index + 1], gridValue[3 * index + 2]);
                 }
             }
         }
@@ -75,7 +80,7 @@ void Shexp::dumpSpectralCoeff(const double *const spectralCoeff, const std::stri
 }
 
 // data and weight always in Float64
-int Shexp::writeVTU(std::ofstream &file, const double &radius, const Evec3 &coordBase) const {
+int Shexp::writeVTU(std::ofstream &file, const Evec3 &coordBase) const {
     // indexBase is the index of the first grid point
 
     // this must be called in single thread
@@ -86,13 +91,13 @@ int Shexp::writeVTU(std::ofstream &file, const double &radius, const Evec3 &coor
 
     std::vector<double> gridPoints;
     std::vector<double> gridWeights;
-    getGrid(gridPoints, gridWeights, radius, coordBase);
+    getGrid(gridPoints, gridWeights, coordBase);
     const int nPts = gridWeights.size();
     assert(gridPoints.size() == nPts * 3);
 
 // for debug
 #ifdef DEBUGVTU
-    printf("%lu,%lu,%lu\n", gridPoints.size(), gridWeights.size(), gridValues.size());
+    printf("%lu,%lu,%lu\n", gridPoints.size(), gridWeights.size(), gridValue.size());
     for (const auto &v : gridPoints) {
         std::cout << v << " ";
     }
@@ -116,7 +121,7 @@ int Shexp::writeVTU(std::ofstream &file, const double &radius, const Evec3 &coor
     std::vector<double> spectralValues(getSpectralDOF());
 
     calcSpectralCoeff(spectralValues.data());
-    double poleValues[6];
+    double poleValues[6] = {0, 0, 0, 0, 0, 0};
     calcPoleValue(spectralValues.data(), poleValues);
     // put the pole values in the beginning and end of the array
     if (kind == KIND::LAP) {
@@ -131,6 +136,8 @@ int Shexp::writeVTU(std::ofstream &file, const double &radius, const Evec3 &coor
         gridValueWithPole[3 + gridValue.size()] = poleValues[3];
         gridValueWithPole[4 + gridValue.size()] = poleValues[4];
         gridValueWithPole[5 + gridValue.size()] = poleValues[5];
+        printf("north pole: %lf,%lf,%lf\n", poleValues[0], poleValues[1], poleValues[2]);
+        printf("south pole: %lf,%lf,%lf\n", poleValues[3], poleValues[4], poleValues[5]);
     }
 
 // for debug
@@ -183,8 +190,7 @@ int Shexp::writeVTU(std::ofstream &file, const double &radius, const Evec3 &coor
     return nPts;
 }
 
-void Shexp::getGrid(std::vector<double> &gridPoints, std::vector<double> &gridWeights, const double &radius,
-                    const Evec3 &coordBase) const {
+void Shexp::getGrid(std::vector<double> &gridPoints, std::vector<double> &gridWeights, const Evec3 &coordBase) const {
     /*
         point order: 0 at northpole, then 2p+2 points per circle. the last at south pole
         the north and south pole are not included in the nodesGL of Gauss-Legendre nodes.
@@ -359,10 +365,10 @@ void Shexp::calcPoleValue(double *coeffPtr, double *valPtr) const {
     sctl::Vector<Real> val(Ngrid * dimension, sctl::Ptr2Itr<Real>(valPtr ? valPtr : nullptr, Ngrid * dimension), false);
 
     sctl::Vector<Real> cos_theta_phi(4);
-    cos_theta_phi[0] = 1;  // north pole, cos theta
-    cos_theta_phi[1] = 0;  // north pole, phi
-    cos_theta_phi[2] = -1; // south pole, cos theta
-    cos_theta_phi[3] = 0;  // south pole, phi
+    cos_theta_phi[0] = 1.0;  // north pole, cos theta
+    cos_theta_phi[1] = 0;    // north pole, phi
+    cos_theta_phi[2] = -1.0; // south pole, cos theta
+    cos_theta_phi[3] = 0;    // south pole, phi
 
     if (kind == KIND::LAP) {
         sctl::SphericalHarmonics<Real>::SHCEval(coeff, sctl::SHCArrange::ROW_MAJOR, order, cos_theta_phi, val);
@@ -435,5 +441,32 @@ void Shexp::invrotGridValue(double *valPtr, const int npts) const {
         Evec3 vec(valPtr[3 * i], valPtr[3 * i + 1], valPtr[3 * i + 2]);
         Emap3(valPtr + 3 * i) = q * vec;
     }
+    return;
+}
+
+void Shexp::randomFill(const int seed) {
+    std::vector<double> spectralCoeff(getSpectralDOF(), 0);
+    std::mt19937 gen(seed);
+    std::uniform_real_distribution<> dis(-2.0, 2.0);
+
+    const int Ncoeff = (order + 1) * (order + 2); // Ncoeff doubles, represent Ncoeff/2 complex
+
+    for (int d = 0; d < getDimension(); d++) {
+        for (int i = 0; i < Ncoeff; i++) {
+            spectralCoeff[i + d * Ncoeff] = dis(gen) * pow(0.8, i);
+        }
+    }
+
+    calcGridValue(spectralCoeff.data());
+    // 1 more transform to remove complex components
+    calcSpectralCoeff(spectralCoeff.data());
+    calcGridValue(spectralCoeff.data());
+
+    // std::array<double, 6> poleValue = {0, 0, 0, 0, 0, 0};
+    // calcPoleValue(spectralCoeff.data(), poleValue.data());
+    // for (auto &v : poleValue) {
+    //     printf("poleValue %lf,\n", v);
+    // }
+
     return;
 }
