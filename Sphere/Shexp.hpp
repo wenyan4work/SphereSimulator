@@ -31,11 +31,6 @@ class Shexp {
         STK  // Stokes
     };
 
-    enum class TRGPOS {
-        IN, // target inside, outside, on the sphere
-        OUT
-    };
-
     KIND kind;
     int order;          // the order of expansion p
     std::string name;   // the name of this quantity
@@ -62,13 +57,13 @@ class Shexp {
 
     // utility routines
     inline int getDimension() const { return kind == KIND::LAP ? 1 : 3; }
-    inline int getGridDOF() const { return getDimension() * (order + 1) * (2 * order + 2); }
+    inline int getGridDOF() const { return getDimension() * getGridNumber(); }
+    inline int getGridNumber() const { return (order + 1) * (2 * order + 2); }
     inline int getSpectralDOF() const { return getDimension() * (order + 1) * (order + 2); }
 
     // grid representation
-    void getGrid(std::vector<double> &gridPoints, std::vector<double> &gridWeights,
-                 const Evec3 &coordBase = Evec3::Zero()) const;
-    void getGridNorm(std::vector<double> &gridNormXYZ);
+    void getGridWithPole(std::vector<double> &gridPoints, std::vector<double> &gridWeights,
+                         const Evec3 &coordBase = Evec3::Zero(), std::vector<double> *gridNormPtr = nullptr) const;
 
     // output routine
     // each sph dump to a 'piece'.
@@ -90,17 +85,14 @@ class Shexp {
 
     // NF routines
     // User should allocate enough space. No bound check here
-    void calcSLNF(const double *coeffPtr, double *trgValue, const double *trgXYZ,
-                  const TRGPOS &trgPos) const; // both STK and LAP
-    void calcDLNF(const double *coeffPtr, double *trgValue, const double *trgXYZ,
-                  const TRGPOS &trgPos) const; // both STK and LAP
-    void calcTracNF(const double *coeffPtr, double *trgValue, const double *trgXYZ,
-                    const TRGPOS &trgPos) const; // STK Traction
+    void calcSDLNF(double *coeffPtr, const int &trgNum, double *trgXYZPtr, double *trgValuePtr,
+                  const bool &interior = false, const bool &SL=true) const; // both STK and LAP
+
 
   private:
     // called from dumpVTK()
-    void getGridCellConnect(std::vector<int32_t> &gridCellConnect, std::vector<int32_t> &offset,
-                            std::vector<uint8_t> &type) const;
+    void getGridWithPoleCellConnect(std::vector<int32_t> &gridCellConnect, std::vector<int32_t> &offset,
+                                    std::vector<uint8_t> &type) const;
 
     void rotGridValue(double *valPtr, const int npts) const;    // from default Z axis to oriented Z axis
     void invrotGridValue(double *valPtr, const int npts) const; // from oriented Z axis to default Z axis

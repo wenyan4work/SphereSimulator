@@ -91,7 +91,7 @@ int Shexp::writeVTU(std::ofstream &file, const Evec3 &coordBase) const {
 
     std::vector<double> gridPoints;
     std::vector<double> gridWeights;
-    getGrid(gridPoints, gridWeights, coordBase);
+    getGridWithPole(gridPoints, gridWeights, coordBase);
     const int nPts = gridWeights.size();
     assert(gridPoints.size() == nPts * 3);
 
@@ -115,7 +115,7 @@ int Shexp::writeVTU(std::ofstream &file, const Evec3 &coordBase) const {
     std::vector<int32_t> connect;
     std::vector<int32_t> offset;
     std::vector<uint8_t> type;
-    getGridCellConnect(connect, offset, type);
+    getGridWithPoleCellConnect(connect, offset, type);
 
     std::vector<double> gridValueWithPole(getGridDOF() + 2 * getDimension());
     std::vector<double> spectralValues(getSpectralDOF());
@@ -190,65 +190,75 @@ int Shexp::writeVTU(std::ofstream &file, const Evec3 &coordBase) const {
     return nPts;
 }
 
-void Shexp::getGrid(std::vector<double> &gridPoints, std::vector<double> &gridWeights, const Evec3 &coordBase) const {
+void Shexp::getGridWithPole(std::vector<double> &gridPoints, std::vector<double> &gridWeights, const Evec3 &coordBase,
+                            std::vector<double> *gridNormPtr) const {
     /*
         point order: 0 at northpole, then 2p+2 points per circle. the last at south pole
         the north and south pole are not included in the nodesGL of Gauss-Legendre nodes.
         add those two points with weight = 0 manually.
         total point = (p+1)(2p+2) + north/south pole = 2p^2+4p+4
     */
-    const int p = order;
-    gridPoints.resize((2 * p * p + 4 * p + 4) * 3);
-    gridWeights.resize(2 * p * p + 4 * p + 4);
+    const int Ngrid = getGridNumber() + 2; // with poles
+    gridPoints.resize(3 * Ngrid);
+    gridWeights.resize(Ngrid);
 
     std::vector<double> nodesGL; // cos thetaj = tj
     std::vector<double> weightsGL;
 
-    Gauss_Legendre_Nodes_and_Weights(p + 1, nodesGL, weightsGL); // p+1 points, excluding the two poles
+    Gauss_Legendre_Nodes_and_Weights(order + 1, nodesGL, weightsGL); // p+1 points, excluding the two poles
 
     // calculate grid coordinate without rotation
     // north pole
-    int index = 0;
-    gridPoints[3 * index] = 0;
-    gridPoints[3 * index + 1] = 0;
-    gridPoints[3 * index + 2] = 1;
-    gridWeights[index] = 0;
-    index++;
+    gridPoints[0] = 0;
+    gridPoints[1] = 0;
+    gridPoints[2] = 1;
+    gridWeights[0] = 0;
+
     // between north and south pole
     // from north pole (1) to south pole (-1), picking the points from nodesGL in reversed order
+    const int p = order;
+    const double weightfactor = radius * radius * 2 * pi / (2 * p + 2);
     for (int j = 0; j < p + 1; j++) {
-#pragma omp simd
-        for (int k = 0; k <= 2 * p + 1; k++) {
+        for (int k = 0; k < 2 * p + 2; k++) {
             // sin thetaj cos phik, sin thetaj sin phik, cos thetak
             const double costhetaj = nodesGL[p - j];
             const double phik = 2 * pi * k / (2 * p + 2);
-            double sinthetaj = sqrt(1 - costhetaj * costhetaj);
+            const double sinthetaj = sqrt(1 - costhetaj * costhetaj);
+            const int index = (j * (2 * p + 2)) + k + 1;
             gridPoints[3 * index] = sinthetaj * cos(phik);
             gridPoints[3 * index + 1] = sinthetaj * sin(phik);
             gridPoints[3 * index + 2] = costhetaj;
-            gridWeights[index] = weightsGL[p - j];
-            index++;
+            gridWeights[index] = weightfactor * weightsGL[p - j]; // area element = sin thetaj
         }
     }
     // south pole
-    gridPoints[3 * index] = 0;
-    gridPoints[3 * index + 1] = 0;
-    gridPoints[3 * index + 2] = -1;
-    gridWeights[index] = 0;
-    index++;
-    assert(index == 2 * p * p + 4 * p + 4);
+    gridPoints[3 * (Ngrid - 1)] = 0;
+    gridPoints[3 * (Ngrid - 1) + 1] = 0;
+    gridPoints[3 * (Ngrid - 1) + 2] = -1;
+    gridWeights[Ngrid - 1] = 0;
 
     // rotation with quaternion for each point coordinate
-    for (int i = 0; i < 2 * p * p + 4 * p + 4; i++) {
-        EAvec3 pointVec(gridPoints[3 * i], gridPoints[3 * i + 1], gridPoints[3 * i + 2]); // aligned temporary object
-        Eigen::Map<Evec3>(gridPoints.data() + 3 * i) = radius * (orientation * pointVec) + coordBase;
+    for (int i = 0; i < Ngrid; i++) {
+        Evec3 pointVec(gridPoints[3 * i], gridPoints[3 * i + 1], gridPoints[3 * i + 2]);
+        Eigen::Map<Evec3>(gridPoints.data() + 3 * i) = (orientation * pointVec);
+    }
+
+    // fill grid norms
+    if (gridNormPtr != nullptr) {
+        *gridNormPtr = gridPoints; // on unit sphere grid norms equal grid coordinates
+    }
+
+    // scale and shift grid points
+    for (int i = 0; i < Ngrid; i++) {
+        Evec3 pointVec(gridPoints[3 * i], gridPoints[3 * i + 1], gridPoints[3 * i + 2]);
+        Eigen::Map<Evec3>(gridPoints.data() + 3 * i) = (radius * pointVec) + coordBase;
     }
 
     return;
 }
 
-void Shexp::getGridCellConnect(std::vector<int32_t> &gridCellConnect, std::vector<int32_t> &offset,
-                               std::vector<uint8_t> &type) const {
+void Shexp::getGridWithPoleCellConnect(std::vector<int32_t> &gridCellConnect, std::vector<int32_t> &offset,
+                                       std::vector<uint8_t> &type) const {
     // offset gives the END position of each cell
 
     const int p = order;
@@ -419,6 +429,10 @@ void Shexp::calcSpectralCoeff(double *coeffPtr, double *valPtr) const {
 }
 
 void Shexp::rotGridValue(double *valPtr, const int npts) const {
+    if (orientation.w() == 1) {
+        return;
+    }
+
     // from default Z axis to oriented Z axis
     assert(kind == KIND::STK);
     // rotation with quaternion for each point vectorial value
@@ -432,6 +446,9 @@ void Shexp::rotGridValue(double *valPtr, const int npts) const {
     return;
 }
 void Shexp::invrotGridValue(double *valPtr, const int npts) const {
+    if (orientation.w() == 1) {
+        return;
+    }
     // from oriented Z axis to default Z axis
     assert(kind == KIND::STK);
     // rotation with quaternion for each point vectorial value
@@ -462,11 +479,47 @@ void Shexp::randomFill(const int seed) {
     calcSpectralCoeff(spectralCoeff.data());
     calcGridValue(spectralCoeff.data());
 
-    // std::array<double, 6> poleValue = {0, 0, 0, 0, 0, 0};
-    // calcPoleValue(spectralCoeff.data(), poleValue.data());
-    // for (auto &v : poleValue) {
-    //     printf("poleValue %lf,\n", v);
-    // }
+    return;
+}
+
+void Shexp::calcSDLNF(double *coeffPtr, const int &trgNum, double *trgXYZPtr, double *trgValuePtr, const bool &interior,
+                      const bool &SL) const {
+    using Real = double;
+    const int Ncoeff = (order + 1) * (order + 2);
+    const int dimension = getDimension();
+
+    const sctl::Vector<Real> coeff(Ncoeff * dimension,
+                                   sctl::Ptr2Itr<Real>(coeffPtr ? coeffPtr : nullptr, Ncoeff * dimension), false);
+    sctl::Vector<Real> xyz(trgNum * 3, sctl::Ptr2Itr<Real>(trgXYZPtr ? trgXYZPtr : nullptr, trgNum * 3), false);
+
+    sctl::Vector<Real> val(trgNum * dimension,
+                           sctl::Ptr2Itr<Real>(trgValuePtr ? trgValuePtr : nullptr, trgNum * dimension), false);
+
+    const double invRadius = 1.0 / radius;
+    xyz *= invRadius; // scale with radius
+
+    // rotate XYZ Coord to sh's frame;
+    invrotGridValue(trgXYZPtr, trgNum);
+
+    // compute & output
+    if (dimension == 1) {
+        // no rotation of grid value needed
+        // compute
+        printf("not implemented\n");
+        exit(1);
+    } else {
+        // compute
+        if (SL) {
+            sctl::SphericalHarmonics<Real>::StokesEvalSL(coeff, sctl::SHCArrange::ROW_MAJOR, order, xyz, interior, val);
+            val *= (radius); // scale back
+        } else {
+            sctl::SphericalHarmonics<Real>::StokesEvalDL(coeff, sctl::SHCArrange::ROW_MAJOR, order, xyz, interior, val);
+            // radius scaling already satisfied
+            val *= -1; // prefactor set to -3/4pi
+        }
+        // rotate back to lab frame for stk
+        rotGridValue(trgValuePtr, trgNum);
+    }
 
     return;
 }
