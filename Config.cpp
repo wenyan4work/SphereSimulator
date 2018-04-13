@@ -53,6 +53,10 @@ Config::Config(std::string fileName) {
     myfile >> sphereRadiusCollisionRatio >> line;
 
     getline(myfile, line);
+    gravity = 0;
+    myfile >> gravity >> line;
+
+    getline(myfile, line);
     viscosity = 0;
     myfile >> viscosity >> line;
 

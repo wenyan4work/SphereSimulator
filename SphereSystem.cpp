@@ -280,7 +280,7 @@ Teuchos::RCP<TV> SphereSystem::getForceKnown() const {
             // force
             forcePtr(6 * i, c) = 0;
             forcePtr(6 * i + 1, c) = 0;
-            forcePtr(6 * i + 2, c) = 0;
+            forcePtr(6 * i + 2, c) = -runConfig.gravity;
             // torque
             forcePtr(6 * i + 3, c) = 0;
             forcePtr(6 * i + 4, c) = 0;

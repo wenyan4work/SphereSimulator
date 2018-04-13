@@ -8,6 +8,8 @@ sphereRadius LogNormal distribution (average, sigma < 0 for same radius)
 1.0 -0.2
 sphere collision Radius ratio (radius*ratio=collision radius)
 1.1
+gravity
+1
 viscosity (pN/(um^2) s)
 0.01
 kBT (pN * um)
