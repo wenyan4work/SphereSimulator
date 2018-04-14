@@ -15,13 +15,13 @@ viscosity (pN/(um^2) s)
 kBT (pN * um)
 0.00411
 sphereNumber
-2000
+100
 dt (s)
 0.001
 timeTotal (s)
-0.1
+5
 snapFreq (int)
-1
+100
 RngSeed
 6
 Monolayer (>0 for true, <=0 for false, default to be true)
@@ -40,4 +40,7 @@ Dump Flow Mesh size (suggest boxsize / 100)
 4.0
 Spherical Shell (>0 for true. With free boundary only, no effect on hydro)
 0
-
+Shell Center
+50.0 50.0 50.0
+Shell Radius
+87.0
