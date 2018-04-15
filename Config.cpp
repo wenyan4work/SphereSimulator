@@ -148,8 +148,19 @@ Config::Config(std::string fileName) {
     shell = false;
     myfile >> temp >> line;
     if (temp > 0) {
-        std::cout << "use spherical shell as boundary" << std::endl;
         shell = true;
+    }
+
+    if (shell)
+    {
+        getline(myfile, line);
+        double x = 0.0, y = 0.0, z = 0.0;
+        myfile >> x >> y >> z >> line;
+        shellCenter << x, y, z;
+
+        getline(myfile, line);
+        shellRadius = 0.0;
+        myfile >> shellRadius >> line;
     }
 
     myfile.close();
@@ -169,7 +180,12 @@ Config::Config(std::string fileName) {
         printf("Sphere radius average: %lf, LogNormal sigma: %lf \n", sphereRadiusHydro, sphereRadiusSigmaHydro);
         printf("Sphere radius collision ratio: %lf\n", sphereRadiusCollisionRatio);
     }
-
+    if (shell)
+    {
+        std::cout << "Using spherical shell boundary: " << std::endl;
+        std::cout << "Shell center: " << shellCenter << std::endl;
+        std::cout << "Shell radius: " << shellRadius << std::endl;
+    }
     {
         printf("Physical setting: \n");
         printf("viscosity: %lf\n", viscosity);

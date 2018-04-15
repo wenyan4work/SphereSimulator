@@ -2,6 +2,7 @@
 #define CONFIG_H
 
 #include <string>
+#include "Util/EigenDef.hpp"
 
 /**
  * \class Config
@@ -33,12 +34,16 @@ class Config {
     double StkReg;
     ///
     bool dumpflow;
-    ///
+    /// Whether a spherical shell is present
     bool shell;
+    /// Shell center
+    Evec3 shellCenter;
+    /// Shell radius
+    double shellRadius;
     /// Mutlipole order p for PVFMM
     int pFMM;
-    ///
-    double dumpFlowMesh; // flow dump mesh size
+    /// flow dump mesh size (?)
+    double dumpFlowMesh;
 
     /// Radius of sphere (um)
     double sphereRadiusHydro;

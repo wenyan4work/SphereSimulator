@@ -380,20 +380,25 @@ void SphereSystem::resolveCollision(bool manybody, double buffer) {
     collector.clear();
 
     interactManagerPtr->setupEssVec(collisionSphereSrc, collisionSphereTrg);
-    if (commRcp->getRank() == 0)
-        printf("ESS vec created\n");
+    // if (commRcp->getRank() == 0)
+    //     printf("ESS vec created\n");
 
     auto nearInteractorPtr = interactManagerPtr->getNewNearInteraction();
-    if (commRcp->getRank() == 0)
-        printf("nearInteractorPtr created\n");
+    // if (commRcp->getRank() == 0)
+    //     printf("nearInteractorPtr created\n");
 
     interactManagerPtr->setupNearInteractor(nearInteractorPtr, collisionSphereSrc, collisionSphereTrg);
-    if (commRcp->getRank() == 0)
-        printf("setupNear\n");
+    // if (commRcp->getRank() == 0)
+    //     printf("setupNear\n");
 
     interactManagerPtr->calcNearInteraction(nearInteractorPtr, collisionSphereSrc, collisionSphereTrg, collector);
-    if (commRcp->getRank() == 0)
-        printf("calcNear\n");
+    // if (commRcp->getRank() == 0)
+    //     printf("calcNear\n");
+
+    if (runConfig.shell)
+    {
+        calcBoundaryCollision();
+    }
 
     // construct collision stepper
     collisionSolverPtr->setup(*(collector.collisionPoolPtr), sphereMobilityMapRcp, runConfig.dt, buffer);
@@ -414,6 +419,7 @@ void SphereSystem::step() {
     stepCount++;
     if (stepCount % runConfig.snapFreq == 0) {
         output();
+        std::cout << "Saved data at time: " << stepCount * runConfig.dt << std::endl;
     }
 }
 
@@ -426,11 +432,6 @@ void SphereSystem::calcBoundaryCollision() {
     const int maxGlobalIndexOnLocal = sphereMapRcp->getMaxGlobalIndex();
     const int minGlobalIndexOnLocal = sphereMapRcp->getMinGlobalIndex();
 
-    // a spherical shell boundary
-    const Evec3 shellCenter(runConfig.simBoxHigh[0] * 0.5, runConfig.simBoxHigh[1] * 0.5,
-                            runConfig.simBoxHigh[2] * 0.5);
-    const double shellRadius = runConfig.simBoxHigh[2];
-
 #pragma omp parallel num_threads(nThreads)
     {
         const int threadId = omp_get_thread_num();
@@ -442,11 +443,11 @@ void SphereSystem::calcBoundaryCollision() {
             // do this for each boundary. add as many boundaries as you want
             {
                 // calculate collision location
-                Evec3 rvec = s.pos - shellCenter;
+                Evec3 rvec = s.pos - runConfig.shellCenter;
                 double rnorm = rvec.norm();
-                if (rnorm > shellRadius - s.radiusCollision) {
+                if (rnorm > runConfig.shellRadius - s.radiusCollision) {
                     Evec3 normI = (-rvec).normalized();
-                    double phi0 = -(rnorm - shellRadius); // negative
+                    double phi0 = -(rnorm - runConfig.shellRadius); // negative
                     double gammaGuess = -phi0;            // positive
                     // add a new collision block. this block has only 6 non zero entries.
                     // passing sy.gid+1/globalIndex+1 as a 'fake' colliding body j, which is actually not used in the
