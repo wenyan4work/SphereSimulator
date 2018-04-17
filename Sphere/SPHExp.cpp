@@ -7,7 +7,7 @@
 #include "Util/Base64.hpp"
 #include "Util/Gauss_Legendre_Nodes_and_Weights.hpp"
 #include "Util/IOHelper.hpp"
-#include "Util/sctl.hpp"
+#include "sctl/sctl.hpp"
 
 constexpr double pi = 3.1415926535897932384626433;
 

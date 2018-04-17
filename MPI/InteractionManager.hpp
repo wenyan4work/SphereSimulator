@@ -146,55 +146,53 @@ class InteractionManager {
         std::cout << "-----------" << std::endl;
 #endif
 
-        long N = trg_src_interac.size();
+        const long N = trg_src_interac.size();
 
         if (N == 0) {
             // no pairs to process
-            return;
-        }
-
-        std::vector<std::pair<int, int>> trgIdIndex;
-        trgIdIndex.reserve(trg_src_interac.size());
-        trgIdIndex.emplace_back(std::pair<int, size_t>(trg_src_interac[0].first, 0));
-        for (size_t i = 1; i < N; i++) {
-            if (trg_src_interac[i].first != trg_src_interac[i - 1].first) {
-                // the index within N of a new trg ID.
-                trgIdIndex.emplace_back(std::pair<int, size_t>(trg_src_interac[i].first, i));
+            // do nothing
+        } else {
+            std::vector<std::pair<int, int>> trgIdIndex;
+            trgIdIndex.reserve(trg_src_interac.size());
+            trgIdIndex.emplace_back(std::pair<int, size_t>(trg_src_interac[0].first, 0));
+            for (size_t i = 1; i < N; i++) {
+                if (trg_src_interac[i].first != trg_src_interac[i - 1].first) {
+                    // the index within N of a new trg ID.
+                    trgIdIndex.emplace_back(std::pair<int, size_t>(trg_src_interac[i].first, i));
+                }
             }
-        }
-        trgIdIndex.emplace_back(std::pair<int, size_t>(static_cast<int>(UINTMAX_MAX), N)); // a tail to simplify index
+            trgIdIndex.emplace_back(
+                std::pair<int, size_t>(static_cast<int>(UINTMAX_MAX), N)); // a tail to simplify index
 
-        const int ntrg = trgIdIndex.size() - 1; // the last element is only for index bound
+            const int ntrg = trgIdIndex.size() - 1; // the last element is only for index bound
 #pragma omp parallel for
-        for (size_t k = 0; k < ntrg; k++) {
-            // start index
-            size_t lb = trgIdIndex[k].second;
-            // end index
-            size_t ub = trgIdIndex[k + 1].second;
-
-// real work
-#pragma omp simd
-            for (size_t i = lb; i < ub; i++) {
-                TrgEssType &t = trgNear[trg_src_interac[i].first];
-                SrcEssType &s = srcNear[trg_src_interac[i].second];
-                // ( compute interaction between t and s )
-                // potentially define this as #pragma omp declare simd
-                interactor(t, s);
+            for (size_t k = 0; k < ntrg; k++) {
+                size_t lb = trgIdIndex[k].second;     // start index
+                size_t ub = trgIdIndex[k + 1].second; // end index
+                for (size_t i = lb; i < ub; i++) {
+                    // real work
+                    TrgEssType &t = trgNear[trg_src_interac[i].first];
+                    SrcEssType &s = srcNear[trg_src_interac[i].second];
+                    // ( compute interaction between t and s )
+                    // potentially define this as #pragma omp declare simd
+                    interactor(t, s);
+                }
             }
-        }
 
 #ifdef DEBUGINTERACT
-        std::cout << "show pair" << std::endl;
-        for (auto &pair : trg_src_interac) {
-            std::cout << trgNear[pair.first].gid << " " << srcNear[pair.second].gid << std::endl;
-        }
+            std::cout << "show pair" << std::endl;
+            for (auto &pair : trg_src_interac) {
+                std::cout << trgNear[pair.first].gid << " " << srcNear[pair.second].gid << std::endl;
+            }
 
-        std::cout << "show index" << std::endl;
-        for (auto &p : trgIdIndex) {
+            std::cout << "show index" << std::endl;
+            for (auto &p : trgIdIndex) {
 
-            std::cout << p.first << " " << p.second << std::endl;
-        }
+                std::cout << p.first << " " << p.second << std::endl;
+            }
 #endif
+        }
+        // std::cout << "pair interactor complete" << std::endl;
 
         // Reverse scatter
         MPI_Barrier(sctlcomm.GetMPI_Comm());

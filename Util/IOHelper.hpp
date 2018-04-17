@@ -1,6 +1,7 @@
 #ifndef IOHELPER_HPP
 #define IOHELPER_HPP
 
+#include <array>
 #include <cstring>
 #include <fstream>
 #include <iostream>
@@ -265,15 +266,29 @@ class IOHelper {
         } else if (std::is_same<T, uint8_t>::value) {
             vtktype = "UInt8";
         }
-        // radiusCollision
         std::string contentB64;
-        contentB64.clear();
         B64Converter::getBase64FromVector(data, contentB64);
 
         file << "<DataArray Name=\"" << name << "\" type=\"" << vtktype << "\" NumberOfComponents=\"" << numComp
              << "\" format=\"binary\">\n";
         file << contentB64 << "\n";
         file << "</DataArray>\n";
+    }
+
+    /*******************************
+     * VTK rectilinear grid  *
+     ********************************/
+    static void writeHeadVTR(std::ofstream &vtkfile, int boxLow[3], int boxHigh[3]) {
+        vtkfile << "<?xml version=\"1.0\"?>\n";
+        vtkfile << "<VTKFile type=\"RectilinearGrid\" version=\"1.0\" byte_order=\"LittleEndian\"  "
+                   "header_type=\"UInt32\">\n";
+        vtkfile << "<RectilinearGrid WholeExtent=\"" << boxLow[0] << " " << boxHigh[0] << " " << boxLow[1] << " "
+                << boxHigh[1] << " " << boxLow[2] << " " << boxHigh[2] << "\">\n";
+    }
+
+    static void writeTailVTR(std::ofstream &vtkfile) {
+        vtkfile << "</RectilinearGrid>\n";
+        vtkfile << "</VTKFile>" << std::endl;
     }
 };
 
