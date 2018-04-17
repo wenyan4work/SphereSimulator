@@ -1,7 +1,7 @@
 #ifndef _NEAR_INTERAC_HPP_
 #define _NEAR_INTERAC_HPP_
 
-#include "Util/sctl.hpp"
+#include "sctl/sctl.hpp"
 
 template <class Real, int DIM> class NearInteraction {
     typedef sctl::Morton<DIM> MID;
