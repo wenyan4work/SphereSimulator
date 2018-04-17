@@ -9,7 +9,7 @@
 #include "Collision/CollisionSolver.hpp"
 #include "Collision/CollisionSphere.hpp"
 #include "MPI/InteractionManager.hpp"
-#include "STKFMM/STKFMM.h"
+// #include "STKFMM/STKFMM.h"
 #include "Sphere/Sphere.hpp"
 #include "Trilinos/TpetraUtil.hpp"
 #include "Util/IOHelper.hpp"
@@ -39,16 +39,16 @@ class SphereSystem {
     void partition(); // loadbalancing of spheres
 
   private:
-    std::vector<Sphere> sphere;           // spheres
+    std::vector<Sphere> sphere; // spheres
 
     std::shared_ptr<TRngPool> rngPoolPtr; // thread safe rng
 
-    std::shared_ptr<InteractionManager<double, 3, Sphere, Sphere>> interactManagerPtr; // near neighbor 
+    std::shared_ptr<InteractionManager<double, 3, Sphere, Sphere>> interactManagerPtr; // near neighbor
 
-    std::shared_ptr<CollisionSolver> collisionSolverPtr;  // collision
+    std::shared_ptr<CollisionSolver> collisionSolverPtr; // collision
     std::shared_ptr<CollisionCollector> collisionCollectorPtr;
 
-    std::shared_ptr<STKFMM>// fmm
+    // std::shared_ptr<stkfmm::STKFMM> fmmPtr; // fmm
 
     // MPI stuff
     Teuchos::RCP<const TCOMM> commRcp;       // mpi communicator

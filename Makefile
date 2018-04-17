@@ -17,7 +17,7 @@ SRC = Config.cpp main.cpp SphereSystem.cpp \
 	./Collision/CollisionSolver.cpp \
 	./Collision/CPSolver.cpp \
 	./Sphere/Sphere.cpp \
-	./Sphere/SPHExp.cpp \
+	./Sphere/Shexp.cpp \
 	./Trilinos/TpetraUtil.cpp \
 	./Util/Base64.cpp \
 	./sctl/legendre_rule.cpp \

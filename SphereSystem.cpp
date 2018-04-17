@@ -43,7 +43,7 @@ SphereSystem::SphereSystem(const std::string &configFile, const std::string &pos
     commRcp->barrier();
 
     for (auto &s : sphere) {
-        s.addLayer("stk", SPHExp::KIND::STK, 8, Equatn::UnitRandom());
+        s.addLayer("stk", Shexp::KIND::STK, 8, s.radius, Equatn::UnitRandom());
     }
     // manually initialize it on all ranks
     // VTU data always in Float64 format

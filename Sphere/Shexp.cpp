@@ -136,8 +136,8 @@ int Shexp::writeVTU(std::ofstream &file, const Evec3 &coordBase) const {
         gridValueWithPole[3 + gridValue.size()] = poleValues[3];
         gridValueWithPole[4 + gridValue.size()] = poleValues[4];
         gridValueWithPole[5 + gridValue.size()] = poleValues[5];
-        printf("north pole: %lf,%lf,%lf\n", poleValues[0], poleValues[1], poleValues[2]);
-        printf("south pole: %lf,%lf,%lf\n", poleValues[3], poleValues[4], poleValues[5]);
+        // printf("north pole: %lf,%lf,%lf\n", poleValues[0], poleValues[1], poleValues[2]);
+        // printf("south pole: %lf,%lf,%lf\n", poleValues[3], poleValues[4], poleValues[5]);
     }
 
 // for debug
