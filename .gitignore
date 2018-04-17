@@ -1,5 +1,8 @@
 doc/
 result/result*-*
+result/*.tar.gz
+result/*.avi
+result/*.ogv
 
 .cproject
 .project
@@ -21,7 +24,6 @@ collisionXF/
 .ipynb_checkpoints/
 *.ipynb
 Test/FMM/randomPoints
-result/simulation.avi
 
 *.vtu
 *.pvtu
