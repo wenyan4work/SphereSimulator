@@ -1,5 +1,5 @@
 omp threads
-2
+1
 simBox xlow ylow zlow  xhigh yhigh zhigh
 0.0 0.0 0.0 100.0 100.0 100.0
 xyz periodic (not implemented yet)
@@ -9,17 +9,17 @@ sphereRadius LogNormal distribution (average, sigma < 0 for same radius)
 sphere collision Radius ratio (radius*ratio=collision radius)
 1.1
 gravity
-1
+5
 viscosity (pN/(um^2) s)
 0.01
 kBT (pN * um)
 0.00411
 sphereNumber
-100
+10000
 dt (s)
 0.001
 timeTotal (s)
-5
+5.0
 snapFreq (int)
 100
 RngSeed
@@ -39,7 +39,7 @@ Dump Flow (>0 for true, <0 for false )
 Dump Flow Mesh size (suggest boxsize / 100)
 4.0
 Spherical Shell (>0 for true. With free boundary only, no effect on hydro)
-0
+1
 Shell Center
 50.0 50.0 50.0
 Shell Radius
