@@ -1,0 +1,100 @@
+#!/bin/bash
+
+#==================================== help ====================================#
+
+if [ "$1" == "-h" ] || [ "$1" == "--help" ]; then
+    echo "SubmitPbsJob: Submit PBS script to Torque queue"
+    echo
+    echo "Usage: From a directory containing this script, run:"
+    echo "    ./SubmitPbsJob JobName PbsScript [RunConfig [InitPos [ExeFile]]]"
+    echo "where"
+    echo "    JobName       Name of the PBS job (the argument to qsub after -N"
+    echo "                  switch); required"
+    echo "    PbsScript     Name of the pbs script; required"
+    echo "    RunConfig     Location of the run config file; optional; if not"
+    echo "                  supplied, runConfig.txt from current directory will"
+    echo "                  be used"
+    echo "    InitPos       Initial sphere location and radius; optional; if"
+    echo "                  not supplied, posInitial.txt from current directory"
+    echo "                  be used"
+    echo "    ExeFile       Name of the executable; optional; if not supplied,"
+    echo "                  SphereSimulator.X from current directory will be"
+    echo "                  used"
+fi
+
+#======================== parse command line arguments ========================#
+
+if [ -z "$1" ]; then
+    echo "ERROR: Job name must be supplied"
+    exit 1
+else
+    JOB_NAME=$1
+
+    if [ -z "$2" ]; then
+        echo "ERROR: PBS script name must be supplied"
+        exit 1
+    else
+        PBS_SCRIPT=$2
+
+        if [ -n "$3" ]; then
+            RUN_CONF=$3
+            
+            if [ -n "$4" ]; then
+                INIT_POS=$4
+
+                if [ -n "$5" ]; then
+                    EXE_FILE=$5
+                fi
+            fi
+        fi
+    fi
+fi
+
+#============================= set up directories =============================#
+
+# record current directory
+CURRDIR=`pwd`
+
+# create a direcotry name using jobname and current time
+UNIQSTR=`date +%Y-%m-%d_%H-%M-%S`"_"$JOB_NAME
+WORKDIR="/scratch/shravan_flux/saibalde/"$UNIQSTR
+
+# create the directory under scratch filesystem
+mkdir $WORKDIR
+
+#================================= copy stuff =================================#
+
+cp $PBS_SCRIPT $WORKDIR/jobsub.pbs
+
+if [ -n "$RUN_CONF" ] && [ -f $RUN_CONF ]; then
+    cp $RUN_CONF $WORKDIR/runConfig.txt
+elif [ -f "runConfig.txt" ]; then
+    cp runConfig.txt $WORKDIR/runConfig.txt
+else
+    echo "ERROR: Run configuration file does not exist!"
+    exit 1
+fi
+
+if [ -n "$INIT_POS" ] && [ -f $INIT_POS ]; then
+    cp $INIT_POS $WORKDIR/posInitial.txt
+elif [ -f "posInitial.txt" ]; then
+    cp posInitial.txt $WORKDIR/posInitial.txt
+else
+    echo "WARNING: Not initial position file, one will be randomly generated"
+fi
+
+if [ -n "$EXE_FILE" ] && [ -f $EXE_FILE ]; then
+    cp $EXE_FILE $WORKDIR/SphereSimulator.X
+elif [ -f "SphereSimulator.X" ]; then
+    cp SphereSimulator.X $WORKDIR/SphereSimulator.X
+else
+    echo "ERROR: Executable file does not exit!"
+    exit 1
+fi
+
+#================================= run script =================================#
+
+cd $WORKDIR
+qsub -N $JOB_NAME jobsub.pbs
+cd $CURRDIR
+

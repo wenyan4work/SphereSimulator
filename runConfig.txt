@@ -9,19 +9,19 @@ sphereRadius LogNormal distribution (average, sigma < 0 for same radius)
 sphere collision Radius ratio (radius*ratio=collision radius)
 1.1
 gravity
-5
+1
 viscosity (pN/(um^2) s)
 0.01
 kBT (pN * um)
 0.00411
 sphereNumber
-10000
+100
 dt (s)
 0.001
 timeTotal (s)
-5.0
+0.01
 snapFreq (int)
-100
+10
 RngSeed
 6
 Monolayer (>0 for true, <=0 for false, default to be true)
@@ -43,4 +43,4 @@ Spherical Shell (>0 for true. With free boundary only, no effect on hydro)
 Shell Center
 50.0 50.0 50.0
 Shell Radius
-87.0
+86.7

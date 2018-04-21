@@ -5,7 +5,7 @@
 #PBS -M saibalde@umich.edu
 #PBS -m abe
 
-#PBS -l nodes=1:ppn=1,pmem=16gb,walltime=12:00:00
+#PBS -l nodes=1:ppn=1,pmem=8gb,walltime=1:00:00
 #PBS -j oe
 #PBS -V
 
@@ -19,44 +19,20 @@ if [ -z "$PBS_NODEFILE" ]; then
     exit 1
 fi
 
-# set up directories
-export UNIQSTR="col_"$PBS_JOBNAME"_"`echo $PBS_JOBID | sed "s/[^0-9]*//g"`
-
-export ROOTDIR=$PBS_O_WORKDIR
-export WORKDIR="/scratch/shravan_flux/saibalde/"$UNIQSTR
-export DATADIR="/home/saibalde/results"
-
-mkdir $WORKDIR
-
-# copy simulation setup to working directory
-cp $ROOTDIR/SphereSimulator.X $WORKDIR
-cp $ROOTDIR/runConfig.txt $WORKDIR
-cd $WORKDIR
-
-# set up number of MPI processes and OpenMP threads
-export MPI_NUM_PROCESS=`wc -l < $PBS_NODEFILE`
+# set up number of OpenMP threads per MPI process
 export OMP_NUM_THREADS=`sed "2q;d" runConfig.txt`
 
 # print out some details
 echo "================================================================================"
-echo "Simulation setup :"
+echo "Simulation MPI/OpenMP Setup"
 echo "--------------------------------------------------------------------------------"
-echo "Root directory   : "$ROOTDIR
-echo "Working directory: "$WORKDIR
-echo "Data directory   : "$DATADIR/$UNIQSTR
-echo "--------------------------------------------------------------------------------"
-echo "Nodes in use     :"
+echo "Nodes in use:"
 cat $PBS_NODEFILE
-echo "--------------------------------------------------------------------------------"
-echo "MPI Processes    : "$MPI_NUM_PROCESS
-echo "OMP Threads      : "$OMP_NUM_THREADS
+echo "OMP Threads per process:"
+echo $OMP_NUM_THREADS
 echo "================================================================================"
 
 # run main program
-LD_LIBRARY_PATH=/home/saibalde/local/lib:$LD_LIBRARY_PATH mpiexec \
-    ./SphereSimulator.X
-#   -np $MPI_NUM_PROCESS --hostfile $PBS_NODEFILE \
+cd $PBS_O_WORKDIR
+LD_LIBRARY_PATH=/home/saibalde/local/lib:$LD_LIBRARY_PATH mpiexec ./SphereSimulator.X
 
-# move results to data directory and clean up
-cd $ROOTDIR
-mv $WORKDIR $DATADIR
