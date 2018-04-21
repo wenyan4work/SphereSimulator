@@ -19,6 +19,9 @@ if [ -z "$PBS_NODEFILE" ]; then
     exit 1
 fi
 
+# move into working directory
+cd $PBS_O_WORKDIR
+
 # set up number of OpenMP threads per MPI process
 export OMP_NUM_THREADS=`sed "2q;d" runConfig.txt`
 
@@ -33,6 +36,5 @@ echo $OMP_NUM_THREADS
 echo "================================================================================"
 
 # run main program
-cd $PBS_O_WORKDIR
 LD_LIBRARY_PATH=/home/saibalde/local/lib:$LD_LIBRARY_PATH mpiexec ./SphereSimulator.X
 
