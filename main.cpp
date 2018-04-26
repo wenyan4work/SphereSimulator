@@ -40,6 +40,10 @@ int main(int argc, char **argv)
             {
                 mySystem.partition();
             }
+            if (iStep % mySystem.runConfig.snapFreq == 0 && rank == 0)
+            {
+                std::cout << "t = " << t;
+            }
         }
     }
 

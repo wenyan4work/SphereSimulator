@@ -173,7 +173,7 @@ void SphereSystem::output() {
     std::string baseFolder =
         "./result/result" + std::to_string(low) + std::string("-") + std::to_string(high) + std::string("/");
     IOHelper::makeSubFolder(baseFolder);
-    writeXYZ(baseFolder);
+    // writeXYZ(baseFolder);
     writeVTK(baseFolder);
     snapID++;
 }
@@ -419,7 +419,6 @@ void SphereSystem::step() {
     stepCount++;
     if (stepCount % runConfig.snapFreq == 0) {
         output();
-        std::cout << "Saved data at time: " << stepCount * runConfig.dt << std::endl;
     }
 }
 
