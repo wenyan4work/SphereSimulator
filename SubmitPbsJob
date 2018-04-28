@@ -83,7 +83,7 @@ fi
 CURRDIR=`pwd`
 
 # create a direcotry name using jobname and current time
-WORKDIR="/scratch/shravan_flux/saibalde/"`date +%Y-%m-%d_%H-%M-%S`"_"$JOB_NAME
+WORKDIR="/scratch/shravan_flux/saibalde/"$JOB_NAME"_"`date +%Y-%m-%d_%H-%M-%S`
 
 # create the directory under scratch filesystem
 mkdir $WORKDIR
@@ -93,7 +93,7 @@ mkdir $WORKDIR
 cp $PBS_SCRIPT $WORKDIR/jobsub.pbs
 cp $RUN_CONF $WORKDIR/runConfig.txt
 cp $EXE_FILE $WORKDIR/SphereSimulator.X
-if [ -n "$INIT_POS" ];
+if [ -n "$INIT_POS" ]; then
     cp $INIT_POS $WORKDIR/posInitial.txt
 fi
 
