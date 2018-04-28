@@ -4,6 +4,10 @@ result/*.tar.gz
 result/*.avi
 result/*.ogv
 
+jobsub_*
+runConfig_*
+posInitial_*
+
 .cproject
 .project
 .cproject/
