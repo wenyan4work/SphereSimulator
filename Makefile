@@ -20,7 +20,6 @@ SRC = Config.cpp main.cpp SphereSystem.cpp \
 	./Sphere/Shexp.cpp \
 	./Trilinos/TpetraUtil.cpp \
 	./Util/Base64.cpp \
-	./sctl/legendre_rule.cpp \
 	# ./STKFMM/STKFMM.cpp \
 
 # Definitions

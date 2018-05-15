@@ -379,7 +379,7 @@ template <class Real> void SphericalHarmonics<Real>::Grid2VecSHC(const Vector<Re
       for (Long i = 0; i < Nt; i++) {
         Real sin_theta = sqrt<Real>(1 - Y[i]*Y[i]);
         Real cos_theta = Y[i];
-        Real s = 1 / sin_theta;
+        Real csc_theta = 1 / sin_theta;
         const auto X_ = X.begin() + (k*Nt+i)*Np;
         auto B0_ = B0.begin() + (k*Nt+i)*Np;
         for (Long j = 0; j < Np; j++) {
@@ -388,14 +388,15 @@ template <class Real> void SphericalHarmonics<Real>::Grid2VecSHC(const Vector<Re
           in[1] = X_[1*Ngrid+j];
           in[2] = X_[2*Ngrid+j];
 
-          StaticArray<Real,9> M;
-          M[0] = sin_theta*cos_phi[j]; M[1] = sin_theta*sin_phi[j]; M[2] = cos_theta;
-          M[3] = cos_theta*cos_phi[j]; M[4] = cos_theta*sin_phi[j]; M[5] =-sin_theta;
-          M[6] =          -sin_phi[j]; M[7] =           cos_phi[j]; M[8] =         0;
-
-          B0_[0*Ngrid+j] = ( M[0] * in[0] + M[1] * in[1] + M[2] * in[2] );
-          B0_[1*Ngrid+j] = ( M[3] * in[0] + M[4] * in[1] + M[5] * in[2] ) * s;
-          B0_[2*Ngrid+j] = ( M[6] * in[0] + M[7] * in[1] + M[8] * in[2] ) * s;
+          StaticArray<Real,9> Q;
+          { // Set Q
+            Q[0] = sin_theta*cos_phi[j]; Q[1] = sin_theta*sin_phi[j]; Q[2] = cos_theta;
+            Q[3] = cos_theta*cos_phi[j]; Q[4] = cos_theta*sin_phi[j]; Q[5] =-sin_theta;
+            Q[6] =          -sin_phi[j]; Q[7] =           cos_phi[j]; Q[8] =         0;
+          }
+          B0_[0*Ngrid+j] = ( Q[0] * in[0] + Q[1] * in[1] + Q[2] * in[2] );
+          B0_[1*Ngrid+j] = ( Q[3] * in[0] + Q[4] * in[1] + Q[5] * in[2] ) * csc_theta;
+          B0_[2*Ngrid+j] = ( Q[6] * in[0] + Q[7] * in[1] + Q[8] * in[2] ) * csc_theta;
         }
       }
     }
@@ -541,22 +542,23 @@ template <class Real> void SphericalHarmonics<Real>::VecSHC2Grid(const Vector<Re
       for (Long i = 0; i < Nt; i++) {
         Real sin_theta = sqrt<Real>(1 - Y[i]*Y[i]);
         Real cos_theta = Y[i];
-        Real s = 1 / sin_theta;
+        Real csc_theta = 1 / sin_theta;
         auto X_ = X.begin() + (k*Nt+i)*Np;
         for (Long j = 0; j < Np; j++) {
           StaticArray<Real,3> in;
           in[0] = X_[0*Ngrid+j];
-          in[1] = X_[1*Ngrid+j] * s;
-          in[2] = X_[2*Ngrid+j] * s;
+          in[1] = X_[1*Ngrid+j] * csc_theta;
+          in[2] = X_[2*Ngrid+j] * csc_theta;
 
-          StaticArray<Real,9> M;
-          M[0] = sin_theta*cos_phi[j]; M[1] = sin_theta*sin_phi[j]; M[2] = cos_theta;
-          M[3] = cos_theta*cos_phi[j]; M[4] = cos_theta*sin_phi[j]; M[5] =-sin_theta;
-          M[6] =          -sin_phi[j]; M[7] =           cos_phi[j]; M[8] =         0;
-
-          X_[0*Ngrid+j] = ( M[0] * in[0] + M[3] * in[1] + M[6] * in[2] );
-          X_[1*Ngrid+j] = ( M[1] * in[0] + M[4] * in[1] + M[7] * in[2] );
-          X_[2*Ngrid+j] = ( M[2] * in[0] + M[5] * in[1] + M[8] * in[2] );
+          StaticArray<Real,9> Q;
+          { // Set Q
+            Q[0] = sin_theta*cos_phi[j]; Q[1] = sin_theta*sin_phi[j]; Q[2] = cos_theta;
+            Q[3] = cos_theta*cos_phi[j]; Q[4] = cos_theta*sin_phi[j]; Q[5] =-sin_theta;
+            Q[6] =          -sin_phi[j]; Q[7] =           cos_phi[j]; Q[8] =         0;
+          }
+          X_[0*Ngrid+j] = ( Q[0] * in[0] + Q[3] * in[1] + Q[6] * in[2] );
+          X_[1*Ngrid+j] = ( Q[1] * in[0] + Q[4] * in[1] + Q[7] * in[2] );
+          X_[2*Ngrid+j] = ( Q[2] * in[0] + Q[5] * in[1] + Q[8] * in[2] );
         }
       }
     }
@@ -586,10 +588,20 @@ template <class Real> void SphericalHarmonics<Real>::VecSHCEval(const Vector<Rea
   assert(SHBasis.Dim(1) == COORD_DIM * M);
   Long N = SHBasis.Dim(0) / COORD_DIM;
 
-  { // Set X
+  { // Set X <-- Q * SHBasis * B1
     if (X.Dim() != N * dof * COORD_DIM) X.ReInit(N * dof * COORD_DIM);
     for (Long k0 = 0; k0 < N; k0++) {
-      for (Long k1 = 0; k1 < dof; k1++) {
+      StaticArray<Real,9> Q;
+      { // Set Q
+        Real cos_theta = cos_theta_phi[k0 * 2 + 0];
+        Real sin_theta = sqrt<Real>(1 - cos_theta * cos_theta);
+        Real cos_phi = cos(cos_theta_phi[k0 * 2 + 1]);
+        Real sin_phi = sin(cos_theta_phi[k0 * 2 + 1]);
+        Q[0] = sin_theta*cos_phi; Q[1] = sin_theta*sin_phi; Q[2] = cos_theta;
+        Q[3] = cos_theta*cos_phi; Q[4] = cos_theta*sin_phi; Q[5] =-sin_theta;
+        Q[6] =          -sin_phi; Q[7] =           cos_phi; Q[8] =         0;
+      }
+      for (Long k1 = 0; k1 < dof; k1++) { // Set X <-- Q * SHBasis * B1
         StaticArray<Real,COORD_DIM> in;
         for (Long j = 0; j < COORD_DIM; j++) {
           in[j] = 0;
@@ -597,19 +609,9 @@ template <class Real> void SphericalHarmonics<Real>::VecSHCEval(const Vector<Rea
             in[j] += B1[k1][i] * SHBasis[k0 * COORD_DIM + j][i];
           }
         }
-
-        StaticArray<Real,9> M;
-        Real cos_theta = cos_theta_phi[k0 * 2 + 0];
-        Real sin_theta = sqrt<Real>(1 - cos_theta * cos_theta);
-        Real cos_phi = cos(cos_theta_phi[k0 * 2 + 1]);
-        Real sin_phi = sin(cos_theta_phi[k0 * 2 + 1]);
-        M[0] = sin_theta*cos_phi; M[1] = sin_theta*sin_phi; M[2] = cos_theta;
-        M[3] = cos_theta*cos_phi; M[4] = cos_theta*sin_phi; M[5] =-sin_theta;
-        M[6] =          -sin_phi; M[7] =           cos_phi; M[8] =         0;
-
-        X[(k0 * dof + k1) * COORD_DIM + 0] = M[0] * in[0] + M[3] * in[1] + M[6] * in[2];
-        X[(k0 * dof + k1) * COORD_DIM + 1] = M[1] * in[0] + M[4] * in[1] + M[7] * in[2];
-        X[(k0 * dof + k1) * COORD_DIM + 2] = M[2] * in[0] + M[5] * in[1] + M[8] * in[2];
+        X[(k0 * dof + k1) * COORD_DIM + 0] = Q[0] * in[0] + Q[3] * in[1] + Q[6] * in[2];
+        X[(k0 * dof + k1) * COORD_DIM + 1] = Q[1] * in[0] + Q[4] * in[1] + Q[7] * in[2];
+        X[(k0 * dof + k1) * COORD_DIM + 2] = Q[2] * in[0] + Q[5] * in[1] + Q[8] * in[2];
       }
     }
   }
@@ -633,10 +635,12 @@ template <class Real> void SphericalHarmonics<Real>::StokesEvalSL(const Vector<R
   assert(B1.Dim(1) == COORD_DIM * M);
   assert(B1.Dim(0) == dof);
 
-  Long N;
+  Long N, p_, M_;
   Matrix<Real> SHBasis;
   Vector<Real> R, cos_theta_phi;
-  { // Set N, R, SHBasis
+  { // Set N, p_, M_, R, SHBasis
+    p_ = p0+1;
+    M_ = (p_+1) * (p_+1);
     N = coord.Dim() / COORD_DIM;
     assert(coord.Dim() == N * COORD_DIM);
 
@@ -648,27 +652,24 @@ template <class Real> void SphericalHarmonics<Real>::StokesEvalSL(const Vector<R
       cos_theta_phi[i * 2 + 0] = x[2] / R[i];
       cos_theta_phi[i * 2 + 1] = atan2(x[1], x[0]); // TODO: works only for float and double
     }
-    VecSHBasisEval(p0, cos_theta_phi, SHBasis);
-    assert(SHBasis.Dim(1) == COORD_DIM * M);
-    assert(SHBasis.Dim(0) == N * COORD_DIM);
+    SHBasisEval(p_, cos_theta_phi, SHBasis);
+    assert(SHBasis.Dim(1) == M_);
+    assert(SHBasis.Dim(0) == N);
   }
 
-  Matrix<Real> StokesOp(SHBasis.Dim(0), SHBasis.Dim(1));
+  Matrix<Real> StokesOp(N * COORD_DIM, COORD_DIM * M);
   for (Long i = 0; i < N; i++) { // Set StokesOp
+
+    Real csc_theta;
+    { // Set csc_theta
+      Real cos_theta = cos_theta_phi[i * 2 + 0];
+      Real sin_theta = sqrt<Real>(1 - cos_theta * cos_theta);
+      csc_theta = 1 / sin_theta;
+    }
+    Complex<Real> imag(0,1);
+
     for (Long m = 0; m <= p0; m++) {
       for (Long n = m; n <= p0; n++) {
-        auto read_coeff = [&](Long n, Long m, Long k0, Long k1) {
-          Complex<Real> c;
-          if (0 <= m && m <= n && n <= p0 && 0 <= k0 && k0 < COORD_DIM && 0 <= k1 && k1 < COORD_DIM) {
-            Long idx = (2 * p0 - m + 2) * m - (m ? p0+1 : 0) + n;
-            c.real = SHBasis[i * COORD_DIM + k1][k0 * M + idx];
-            if (m) {
-              idx += (p0+1-m);
-              c.imag = SHBasis[i * COORD_DIM + k1][k0 * M + idx];
-            }
-          }
-          return c;
-        };
         auto write_coeff = [&](Complex<Real> c, Long n, Long m, Long k0, Long k1) {
           if (0 <= m && m <= n && n <= p0 && 0 <= k0 && k0 < COORD_DIM && 0 <= k1 && k1 < COORD_DIM) {
             Long idx = (2 * p0 - m + 2) * m - (m ? p0+1 : 0) + n;
@@ -680,22 +681,51 @@ template <class Real> void SphericalHarmonics<Real>::StokesEvalSL(const Vector<R
           }
         };
 
-        auto Vr = read_coeff(n, m, 0, 0);
-        auto Vt = read_coeff(n, m, 0, 1);
-        auto Vp = read_coeff(n, m, 0, 2);
+        Complex<Real> Vr, Vt, Vp, Wr, Wt, Wp, Xr, Xt, Xp;
+        { // Set vector spherical harmonics
+          auto Y = [&SHBasis,p_,i](Long n, Long m) {
+            Complex<Real> c;
+            if (0 <= m && m <= n && n <= p_) {
+              Long idx = (2 * p_ - m + 2) * m - (m ? p_+1 : 0) + n;
+              c.real = SHBasis[i][idx];
+              if (m) {
+                idx += (p_+1-m);
+                c.imag = SHBasis[i][idx];
+              }
+            }
+            return c;
+          };
+          Complex<Real> Ynm_0 = Y(n - 1, m);
+          Complex<Real> Ynm_1 = Y(n + 0, m);
+          Complex<Real> Ynm_2 = Y(n + 1, m);
 
-        auto Wr = read_coeff(n, m, 1, 0);
-        auto Wt = read_coeff(n, m, 1, 1);
-        auto Wp = read_coeff(n, m, 1, 2);
+          auto Anm = (0<=n && m<=n && n<=p_ ? sqrt<Real>(n*n * ((n+1)*(n+1) - m*m) / (Real)((2*n+1)*(2*n+3))) : 0);
+          auto Bnm = (0<=n && m<=n && n<=p_ ? sqrt<Real>((n+1)*(n+1) * (n*n - m*m) / (Real)((2*n+1)*(2*n-1))) : 0);
 
-        auto Xr = read_coeff(n, m, 2, 0);
-        auto Xt = read_coeff(n, m, 2, 1);
-        auto Xp = read_coeff(n, m, 2, 2);
+          auto SetVecSH = [&imag,n,m](Complex<Real>& Vr, Complex<Real>& Vt, Complex<Real>& Vp, Complex<Real>& Wr, Complex<Real>& Wt, Complex<Real>& Wp, Complex<Real>& Xr, Complex<Real>& Xt, Complex<Real>& Xp, const Complex<Real> C0, const Complex<Real> C1, const Complex<Real> C2) {
+            Vr = C0 * (-n-1);
+            Vt = C2;
+            Vp = -imag * m * C1;
+
+            Wr = C0 * n;
+            Wt = C2;
+            Wp = -imag * m * C1;
+
+            Xr = 0;
+            Xt = imag * m * C1;
+            Xp = C2;
+          };
+          { // Set Vr, Vt, Vp, Wr, Wt, Wp, Xr, Xt, Xp
+            auto C0 = Ynm_1;
+            auto C1 = Ynm_1 * csc_theta;
+            auto C2 = (Anm * Ynm_2 - Bnm * Ynm_0) * csc_theta;
+            SetVecSH(Vr, Vt, Vp, Wr, Wt, Wp, Xr, Xt, Xp, C0, C1, C2);
+          }
+        }
 
         Complex<Real> SVr, SVt, SVp;
         Complex<Real> SWr, SWt, SWp;
         Complex<Real> SXr, SXt, SXp;
-
         if (interior) {
           Real a,b;
           a = n / (Real)((2*n+1) * (2*n+3)) * pow<Real>(R[i], n+1);
@@ -747,10 +777,20 @@ template <class Real> void SphericalHarmonics<Real>::StokesEvalSL(const Vector<R
     }
   }
 
-  { // Set X
+  { // Set X <-- Q * StokesOp * B1
     if (X.Dim() != N * dof * COORD_DIM) X.ReInit(N * dof * COORD_DIM);
     for (Long k0 = 0; k0 < N; k0++) {
-      for (Long k1 = 0; k1 < dof; k1++) {
+      StaticArray<Real,9> Q;
+      { // Set Q
+        Real cos_theta = cos_theta_phi[k0 * 2 + 0];
+        Real sin_theta = sqrt<Real>(1 - cos_theta * cos_theta);
+        Real cos_phi = cos(cos_theta_phi[k0 * 2 + 1]);
+        Real sin_phi = sin(cos_theta_phi[k0 * 2 + 1]);
+        Q[0] = sin_theta*cos_phi; Q[1] = sin_theta*sin_phi; Q[2] = cos_theta;
+        Q[3] = cos_theta*cos_phi; Q[4] = cos_theta*sin_phi; Q[5] =-sin_theta;
+        Q[6] =          -sin_phi; Q[7] =           cos_phi; Q[8] =         0;
+      }
+      for (Long k1 = 0; k1 < dof; k1++) { // Set X <-- Q * StokesOp * B1
         StaticArray<Real,COORD_DIM> in;
         for (Long j = 0; j < COORD_DIM; j++) {
           in[j] = 0;
@@ -758,19 +798,9 @@ template <class Real> void SphericalHarmonics<Real>::StokesEvalSL(const Vector<R
             in[j] += B1[k1][i] * StokesOp[k0 * COORD_DIM + j][i];
           }
         }
-
-        StaticArray<Real,9> M;
-        Real cos_theta = cos_theta_phi[k0 * 2 + 0];
-        Real sin_theta = sqrt<Real>(1 - cos_theta * cos_theta);
-        Real cos_phi = cos(cos_theta_phi[k0 * 2 + 1]);
-        Real sin_phi = sin(cos_theta_phi[k0 * 2 + 1]);
-        M[0] = sin_theta*cos_phi; M[1] = sin_theta*sin_phi; M[2] = cos_theta;
-        M[3] = cos_theta*cos_phi; M[4] = cos_theta*sin_phi; M[5] =-sin_theta;
-        M[6] =          -sin_phi; M[7] =           cos_phi; M[8] =         0;
-
-        X[(k0 * dof + k1) * COORD_DIM + 0] = M[0] * in[0] + M[3] * in[1] + M[6] * in[2];
-        X[(k0 * dof + k1) * COORD_DIM + 1] = M[1] * in[0] + M[4] * in[1] + M[7] * in[2];
-        X[(k0 * dof + k1) * COORD_DIM + 2] = M[2] * in[0] + M[5] * in[1] + M[8] * in[2];
+        X[(k0 * dof + k1) * COORD_DIM + 0] = Q[0] * in[0] + Q[3] * in[1] + Q[6] * in[2];
+        X[(k0 * dof + k1) * COORD_DIM + 1] = Q[1] * in[0] + Q[4] * in[1] + Q[7] * in[2];
+        X[(k0 * dof + k1) * COORD_DIM + 2] = Q[2] * in[0] + Q[5] * in[1] + Q[8] * in[2];
       }
     }
   }
@@ -794,10 +824,12 @@ template <class Real> void SphericalHarmonics<Real>::StokesEvalDL(const Vector<R
   assert(B1.Dim(1) == COORD_DIM * M);
   assert(B1.Dim(0) == dof);
 
-  Long N;
+  Long N, p_, M_;
   Matrix<Real> SHBasis;
   Vector<Real> R, cos_theta_phi;
-  { // Set N, R, SHBasis
+  { // Set N, p_, M_, R, SHBasis
+    p_ = p0+1;
+    M_ = (p_+1) * (p_+1);
     N = coord.Dim() / COORD_DIM;
     assert(coord.Dim() == N * COORD_DIM);
 
@@ -809,27 +841,24 @@ template <class Real> void SphericalHarmonics<Real>::StokesEvalDL(const Vector<R
       cos_theta_phi[i * 2 + 0] = x[2] / R[i];
       cos_theta_phi[i * 2 + 1] = atan2(x[1], x[0]); // TODO: works only for float and double
     }
-    VecSHBasisEval(p0, cos_theta_phi, SHBasis);
-    assert(SHBasis.Dim(1) == COORD_DIM * M);
-    assert(SHBasis.Dim(0) == N * COORD_DIM);
+    SHBasisEval(p_, cos_theta_phi, SHBasis);
+    assert(SHBasis.Dim(1) == M_);
+    assert(SHBasis.Dim(0) == N);
   }
 
-  Matrix<Real> StokesOp(SHBasis.Dim(0), SHBasis.Dim(1));
+  Matrix<Real> StokesOp(N * COORD_DIM, COORD_DIM * M);
   for (Long i = 0; i < N; i++) { // Set StokesOp
+
+    Real csc_theta;
+    { // Set csc_theta
+      Real cos_theta = cos_theta_phi[i * 2 + 0];
+      Real sin_theta = sqrt<Real>(1 - cos_theta * cos_theta);
+      csc_theta = 1 / sin_theta;
+    }
+    Complex<Real> imag(0,1);
+
     for (Long m = 0; m <= p0; m++) {
       for (Long n = m; n <= p0; n++) {
-        auto read_coeff = [&](Long n, Long m, Long k0, Long k1) {
-          Complex<Real> c;
-          if (0 <= m && m <= n && n <= p0 && 0 <= k0 && k0 < COORD_DIM && 0 <= k1 && k1 < COORD_DIM) {
-            Long idx = (2 * p0 - m + 2) * m - (m ? p0+1 : 0) + n;
-            c.real = SHBasis[i * COORD_DIM + k1][k0 * M + idx];
-            if (m) {
-              idx += (p0+1-m);
-              c.imag = SHBasis[i * COORD_DIM + k1][k0 * M + idx];
-            }
-          }
-          return c;
-        };
         auto write_coeff = [&](Complex<Real> c, Long n, Long m, Long k0, Long k1) {
           if (0 <= m && m <= n && n <= p0 && 0 <= k0 && k0 < COORD_DIM && 0 <= k1 && k1 < COORD_DIM) {
             Long idx = (2 * p0 - m + 2) * m - (m ? p0+1 : 0) + n;
@@ -841,22 +870,51 @@ template <class Real> void SphericalHarmonics<Real>::StokesEvalDL(const Vector<R
           }
         };
 
-        auto Vr = read_coeff(n, m, 0, 0);
-        auto Vt = read_coeff(n, m, 0, 1);
-        auto Vp = read_coeff(n, m, 0, 2);
+        Complex<Real> Vr, Vt, Vp, Wr, Wt, Wp, Xr, Xt, Xp;
+        { // Set vector spherical harmonics
+          auto Y = [&SHBasis,p_,i](Long n, Long m) {
+            Complex<Real> c;
+            if (0 <= m && m <= n && n <= p_) {
+              Long idx = (2 * p_ - m + 2) * m - (m ? p_+1 : 0) + n;
+              c.real = SHBasis[i][idx];
+              if (m) {
+                idx += (p_+1-m);
+                c.imag = SHBasis[i][idx];
+              }
+            }
+            return c;
+          };
+          Complex<Real> Ynm_0 = Y(n - 1, m);
+          Complex<Real> Ynm_1 = Y(n + 0, m);
+          Complex<Real> Ynm_2 = Y(n + 1, m);
 
-        auto Wr = read_coeff(n, m, 1, 0);
-        auto Wt = read_coeff(n, m, 1, 1);
-        auto Wp = read_coeff(n, m, 1, 2);
+          auto Anm = (0<=n && m<=n && n<=p_ ? sqrt<Real>(n*n * ((n+1)*(n+1) - m*m) / (Real)((2*n+1)*(2*n+3))) : 0);
+          auto Bnm = (0<=n && m<=n && n<=p_ ? sqrt<Real>((n+1)*(n+1) * (n*n - m*m) / (Real)((2*n+1)*(2*n-1))) : 0);
 
-        auto Xr = read_coeff(n, m, 2, 0);
-        auto Xt = read_coeff(n, m, 2, 1);
-        auto Xp = read_coeff(n, m, 2, 2);
+          auto SetVecSH = [&imag,n,m](Complex<Real>& Vr, Complex<Real>& Vt, Complex<Real>& Vp, Complex<Real>& Wr, Complex<Real>& Wt, Complex<Real>& Wp, Complex<Real>& Xr, Complex<Real>& Xt, Complex<Real>& Xp, const Complex<Real> C0, const Complex<Real> C1, const Complex<Real> C2) {
+            Vr = C0 * (-n-1);
+            Vt = C2;
+            Vp = -imag * m * C1;
+
+            Wr = C0 * n;
+            Wt = C2;
+            Wp = -imag * m * C1;
+
+            Xr = 0;
+            Xt = imag * m * C1;
+            Xp = C2;
+          };
+          { // Set Vr, Vt, Vp, Wr, Wt, Wp, Xr, Xt, Xp
+            auto C0 = Ynm_1;
+            auto C1 = Ynm_1 * csc_theta;
+            auto C2 = (Anm * Ynm_2 - Bnm * Ynm_0) * csc_theta;
+            SetVecSH(Vr, Vt, Vp, Wr, Wt, Wp, Xr, Xt, Xp, C0, C1, C2);
+          }
+        }
 
         Complex<Real> SVr, SVt, SVp;
         Complex<Real> SWr, SWt, SWp;
         Complex<Real> SXr, SXt, SXp;
-
         if (interior) {
           Real a,b;
           a = -2*n*(n+2) / (Real)((2*n+1) * (2*n+3)) * pow<Real>(R[i], n+1);
@@ -908,10 +966,20 @@ template <class Real> void SphericalHarmonics<Real>::StokesEvalDL(const Vector<R
     }
   }
 
-  { // Set X
+  { // Set X <-- Q * StokesOp * B1
     if (X.Dim() != N * dof * COORD_DIM) X.ReInit(N * dof * COORD_DIM);
     for (Long k0 = 0; k0 < N; k0++) {
-      for (Long k1 = 0; k1 < dof; k1++) {
+      StaticArray<Real,9> Q;
+      { // Set Q
+        Real cos_theta = cos_theta_phi[k0 * 2 + 0];
+        Real sin_theta = sqrt<Real>(1 - cos_theta * cos_theta);
+        Real cos_phi = cos(cos_theta_phi[k0 * 2 + 1]);
+        Real sin_phi = sin(cos_theta_phi[k0 * 2 + 1]);
+        Q[0] = sin_theta*cos_phi; Q[1] = sin_theta*sin_phi; Q[2] = cos_theta;
+        Q[3] = cos_theta*cos_phi; Q[4] = cos_theta*sin_phi; Q[5] =-sin_theta;
+        Q[6] =          -sin_phi; Q[7] =           cos_phi; Q[8] =         0;
+      }
+      for (Long k1 = 0; k1 < dof; k1++) { // Set X <-- Q * StokesOp * B1
         StaticArray<Real,COORD_DIM> in;
         for (Long j = 0; j < COORD_DIM; j++) {
           in[j] = 0;
@@ -919,19 +987,339 @@ template <class Real> void SphericalHarmonics<Real>::StokesEvalDL(const Vector<R
             in[j] += B1[k1][i] * StokesOp[k0 * COORD_DIM + j][i];
           }
         }
+        X[(k0 * dof + k1) * COORD_DIM + 0] = Q[0] * in[0] + Q[3] * in[1] + Q[6] * in[2];
+        X[(k0 * dof + k1) * COORD_DIM + 1] = Q[1] * in[0] + Q[4] * in[1] + Q[7] * in[2];
+        X[(k0 * dof + k1) * COORD_DIM + 2] = Q[2] * in[0] + Q[5] * in[1] + Q[8] * in[2];
+      }
+    }
+  }
+}
 
-        StaticArray<Real,9> M;
+template <class Real> void SphericalHarmonics<Real>::StokesEvalKL(const Vector<Real>& S, SHCArrange arrange, Long p0, const Vector<Real>& coord, const Vector<Real>& norm, bool interior, Vector<Real>& X) {
+  Long M = (p0+1) * (p0+1);
+
+  Long dof;
+  Matrix<Real> B1;
+  { // Set B1, dof
+    Vector<Real> B0;
+    SHCArrange1(S, arrange, p0, B0);
+    dof = B0.Dim() / M / COORD_DIM;
+    assert(B0.Dim() == dof * COORD_DIM * M);
+
+    B1.ReInit(dof, COORD_DIM * M);
+    Vector<Real> B1_(B1.Dim(0) * B1.Dim(1), B1.begin(), false);
+    SHCArrange0(B0, p0, B1_, SHCArrange::COL_MAJOR_NONZERO);
+  }
+  assert(B1.Dim(1) == COORD_DIM * M);
+  assert(B1.Dim(0) == dof);
+
+  Long N, p_, M_;
+  Matrix<Real> SHBasis;
+  Vector<Real> R, cos_theta_phi;
+  { // Set N, p_, M_, R, SHBasis
+    p_ = p0+1;
+    M_ = (p_+1) * (p_+1);
+    N = coord.Dim() / COORD_DIM;
+    assert(coord.Dim() == N * COORD_DIM);
+
+    R.ReInit(N);
+    cos_theta_phi.ReInit(2 * N);
+    for (Long i = 0; i < N; i++) { // Set R, cos_theta_phi
+      ConstIterator<Real> x = coord.begin() + i * COORD_DIM;
+      R[i] = sqrt<Real>(x[0]*x[0] + x[1]*x[1] + x[2]*x[2]);
+      cos_theta_phi[i * 2 + 0] = x[2] / R[i];
+      cos_theta_phi[i * 2 + 1] = atan2(x[1], x[0]); // TODO: works only for float and double
+    }
+    SHBasisEval(p_, cos_theta_phi, SHBasis);
+    assert(SHBasis.Dim(1) == M_);
+    assert(SHBasis.Dim(0) == N);
+  }
+
+  Matrix<Real> StokesOp(N * COORD_DIM, COORD_DIM * M);
+  for (Long i = 0; i < N; i++) { // Set StokesOp
+
+    Complex<Real> imag(0,1);
+    Real cos_theta, sin_theta, csc_theta, cot_theta, cos_phi, sin_phi;
+    { // Set cos_theta, sin_theta, cos_phi, sin_phi
+      cos_theta = cos_theta_phi[i * 2 + 0];
+      sin_theta = sqrt<Real>(1 - cos_theta * cos_theta);
+      csc_theta = 1 / sin_theta;
+      cot_theta = cos_theta * csc_theta;
+      cos_phi = cos(cos_theta_phi[i * 2 + 1]);
+      sin_phi = sin(cos_theta_phi[i * 2 + 1]);
+    }
+
+    StaticArray<Real, COORD_DIM> norm0;
+    { // Set norm0 <-- Q^t * norm
+      StaticArray<Real,9> Q;
+      { // Set Q
+        Q[0] = sin_theta*cos_phi; Q[1] = sin_theta*sin_phi; Q[2] = cos_theta;
+        Q[3] = cos_theta*cos_phi; Q[4] = cos_theta*sin_phi; Q[5] =-sin_theta;
+        Q[6] =          -sin_phi; Q[7] =           cos_phi; Q[8] =         0;
+      }
+      StaticArray<Real,COORD_DIM> in;
+      in[0] = norm[i * COORD_DIM + 0];
+      in[1] = norm[i * COORD_DIM + 1];
+      in[2] = norm[i * COORD_DIM + 2];
+      norm0[0] = Q[0] * in[0] + Q[1] * in[1] + Q[2] * in[2];
+      norm0[1] = Q[3] * in[0] + Q[4] * in[1] + Q[5] * in[2];
+      norm0[2] = Q[6] * in[0] + Q[7] * in[1] + Q[8] * in[2];
+    }
+
+    for (Long m = 0; m <= p0; m++) {
+      for (Long n = m; n <= p0; n++) {
+        auto write_coeff = [&](Complex<Real> c, Long n, Long m, Long k0, Long k1) {
+          if (0 <= m && m <= n && n <= p0 && 0 <= k0 && k0 < COORD_DIM && 0 <= k1 && k1 < COORD_DIM) {
+            Long idx = (2 * p0 - m + 2) * m - (m ? p0+1 : 0) + n;
+            StokesOp[i * COORD_DIM + k1][k0 * M + idx] = c.real;
+            if (m) {
+              idx += (p0+1-m);
+              StokesOp[i * COORD_DIM + k1][k0 * M + idx] = c.imag;
+            }
+          }
+        };
+
+        Complex<Real> Ynm;
+        Complex<Real> Vr, Vt, Vp, Wr, Wt, Wp, Xr, Xt, Xp;
+        Complex<Real> Vr_t, Vt_t, Vp_t, Wr_t, Wt_t, Wp_t, Xr_t, Xt_t, Xp_t;
+        Complex<Real> Vr_p, Vt_p, Vp_p, Wr_p, Wt_p, Wp_p, Xr_p, Xt_p, Xp_p;
+        { // Set vector spherical harmonics
+          auto Y = [&SHBasis,p_,i](Long n, Long m) {
+            Complex<Real> c;
+            if (0 <= m && m <= n && n <= p_) {
+              Long idx = (2 * p_ - m + 2) * m - (m ? p_+1 : 0) + n;
+              c.real = SHBasis[i][idx];
+              if (m) {
+                idx += (p_+1-m);
+                c.imag = SHBasis[i][idx];
+              }
+            }
+            return c;
+          };
+          auto Yt = [&Y, &R, i, cot_theta, csc_theta, sin_theta](Long n, Long m) {
+            return (n * cot_theta * Y(n, m) - (n + m) * sqrt<Real>((2*n+1)*std::max<Real>(0,n-m)/std::max<Real>(1,(2*n-1)*(n+m))) * Y(n - 1, m) * csc_theta) / R[i];
+          };
+          auto Yp = [&Y, &imag, &R, i, csc_theta](Long n, Long m) {
+            return imag * m * Y(n, m) * csc_theta / R[i];
+          };
+
+          Complex<Real> Ynm_0 = Y(n - 1, m);
+          Complex<Real> Ynm_1 = Y(n + 0, m);
+          Complex<Real> Ynm_2 = Y(n + 1, m);
+
+          Complex<Real> Ynm_0t = Yt(n - 1, m);
+          Complex<Real> Ynm_1t = Yt(n + 0, m);
+          Complex<Real> Ynm_2t = Yt(n + 1, m);
+
+          Complex<Real> Ynm_0p = Yp(n - 1, m);
+          Complex<Real> Ynm_1p = Yp(n + 0, m);
+          Complex<Real> Ynm_2p = Yp(n + 1, m);
+
+          auto Anm = (0<=n && m<=n && n<=p_ ? sqrt<Real>(n*n * ((n+1)*(n+1) - m*m) / (Real)((2*n+1)*(2*n+3))) : 0);
+          auto Bnm = (0<=n && m<=n && n<=p_ ? sqrt<Real>((n+1)*(n+1) * (n*n - m*m) / (Real)((2*n+1)*(2*n-1))) : 0);
+
+          auto SetVecSH = [&imag,n,m](Complex<Real>& Vr, Complex<Real>& Vt, Complex<Real>& Vp, Complex<Real>& Wr, Complex<Real>& Wt, Complex<Real>& Wp, Complex<Real>& Xr, Complex<Real>& Xt, Complex<Real>& Xp, const Complex<Real> C0, const Complex<Real> C1, const Complex<Real> C2) {
+            Vr = C0 * (-n-1);
+            Vt = C2;
+            Vp = -imag * m * C1;
+
+            Wr = C0 * n;
+            Wt = C2;
+            Wp = -imag * m * C1;
+
+            Xr = 0;
+            Xt = imag * m * C1;
+            Xp = C2;
+          };
+          { // Set Vr, Vt, Vp, Wr, Wt, Wp, Xr, Xt, Xp
+            auto C0 = Ynm_1;
+            auto C1 = Ynm_1 * csc_theta;
+            auto C2 = (Anm * Ynm_2 - Bnm * Ynm_0) * csc_theta;
+            SetVecSH(Vr, Vt, Vp, Wr, Wt, Wp, Xr, Xt, Xp, C0, C1, C2);
+          }
+          { // Set Vr_t, Vt_t, Vp_t, Wr_t, Wt_t, Wp_t, Xr_t, Xt_t, Xp_t
+            auto C0 = Ynm_1t;
+            auto C1 = Ynm_1t * csc_theta                        - Ynm_1 * csc_theta * cot_theta / R[i];
+            auto C2 = (Anm * Ynm_2t - Bnm * Ynm_0t) * csc_theta - (Anm * Ynm_2 - Bnm * Ynm_0) * csc_theta * cot_theta / R[i];
+            SetVecSH(Vr_t, Vt_t, Vp_t, Wr_t, Wt_t, Wp_t, Xr_t, Xt_t, Xp_t, C0, C1, C2);
+
+            Vr_t += (-Vt) / R[i];
+            Vt_t += ( Vr) / R[i];
+
+            Wr_t += (-Wt) / R[i];
+            Wt_t += ( Wr) / R[i];
+
+            Xr_t += (-Xt) / R[i];
+            Xt_t += ( Xr) / R[i];
+          }
+          { // Set Vr_p, Vt_p, Vp_p, Wr_p, Wt_p, Wp_p, Xr_p, Xt_p, Xp_p
+            auto C0 = -Ynm_1p;
+            auto C1 = -Ynm_1p * csc_theta;
+            auto C2 = -(Anm * Ynm_2p - Bnm * Ynm_0p) * csc_theta;
+            SetVecSH(Vr_p, Vt_p, Vp_p, Wr_p, Wt_p, Wp_p, Xr_p, Xt_p, Xp_p, C0, C1, C2);
+
+            Vr_p += (-sin_theta * Vp                 ) * csc_theta / R[i];
+            Vt_p += (-cos_theta * Vp                 ) * csc_theta / R[i];
+            Vp_p += ( sin_theta * Vr + cos_theta * Vt) * csc_theta / R[i];
+
+            Wr_p += (-sin_theta * Wp                 ) * csc_theta / R[i];
+            Wt_p += (-cos_theta * Wp                 ) * csc_theta / R[i];
+            Wp_p += ( sin_theta * Wr + cos_theta * Wt) * csc_theta / R[i];
+
+            Xr_p += (-sin_theta * Xp                 ) * csc_theta / R[i];
+            Xt_p += (-cos_theta * Xp                 ) * csc_theta / R[i];
+            Xp_p += ( sin_theta * Xr + cos_theta * Xt) * csc_theta / R[i];
+          }
+          Ynm = Ynm_1;
+        }
+
+        Complex<Real> PV, PW, PX;
+        Complex<Real> SV[COORD_DIM][COORD_DIM];
+        Complex<Real> SW[COORD_DIM][COORD_DIM];
+        Complex<Real> SX[COORD_DIM][COORD_DIM];
+        if (interior) {
+          PV = (n+1) * pow<Real>(R[i],n) * Ynm;
+          PW = 0;
+          PX = 0;
+
+          Real a, b;
+          Real a_r, b_r;
+          a = n / (Real)((2*n+1) * (2*n+3)) * pow<Real>(R[i], n+1);
+          b = -(n+1) / (Real)(4*n+2) * (pow<Real>(R[i], n-1) - pow<Real>(R[i], n+1));
+          a_r = n / (Real)((2*n+1) * (2*n+3)) * (n+1) * pow<Real>(R[i], n);
+          b_r = -(n+1) / (Real)(4*n+2) * ((n-1) * pow<Real>(R[i], n-2) - (n+1) * pow<Real>(R[i], n));
+          SV[0][0] = a_r * Vr + b_r * Wr;
+          SV[1][0] = a_r * Vt + b_r * Wt;
+          SV[2][0] = a_r * Vp + b_r * Wp;
+          SV[0][1] = a * Vr_t + b * Wr_t;
+          SV[1][1] = a * Vt_t + b * Wt_t;
+          SV[2][1] = a * Vp_t + b * Wp_t;
+          SV[0][2] = a * Vr_p + b * Wr_p;
+          SV[1][2] = a * Vt_p + b * Wt_p;
+          SV[2][2] = a * Vp_p + b * Wp_p;
+
+          a = (n+1) / (Real)((2*n+1) * (2*n-1)) * pow<Real>(R[i], n-1);
+          a_r = (n+1) / (Real)((2*n+1) * (2*n-1)) * (n-1) * pow<Real>(R[i], n-2);
+          SW[0][0] = a_r * Wr;
+          SW[1][0] = a_r * Wt;
+          SW[2][0] = a_r * Wp;
+          SW[0][1] = a * Wr_t;
+          SW[1][1] = a * Wt_t;
+          SW[2][1] = a * Wp_t;
+          SW[0][2] = a * Wr_p;
+          SW[1][2] = a * Wt_p;
+          SW[2][2] = a * Wp_p;
+
+          a = 1 / (Real)(2*n+1) * pow<Real>(R[i], n);
+          a_r = 1 / (Real)(2*n+1) * (n) * pow<Real>(R[i], n-1);
+          SX[0][0] = a_r * Xr;
+          SX[1][0] = a_r * Xt;
+          SX[2][0] = a_r * Xp;
+          SX[0][1] = a * Xr_t;
+          SX[1][1] = a * Xt_t;
+          SX[2][1] = a * Xp_t;
+          SX[0][2] = a * Xr_p;
+          SX[1][2] = a * Xt_p;
+          SX[2][2] = a * Xp_p;
+        } else {
+          PV = 0;
+          PW = n * pow<Real>(R[i],-n-1) * Ynm;
+          PX = 0;
+
+          Real a,b;
+          Real a_r, b_r;
+          a = n / (Real)((2*n+1) * (2*n+3)) * pow<Real>(R[i], -n-2);
+          a_r = n / (Real)((2*n+1) * (2*n+3)) * (-n-2) * pow<Real>(R[i], -n-3);
+          SV[0][0] = a_r * Vr;
+          SV[1][0] = a_r * Vt;
+          SV[2][0] = a_r * Vp;
+          SV[0][1] = a * Vr_t;
+          SV[1][1] = a * Vt_t;
+          SV[2][1] = a * Vp_t;
+          SV[0][2] = a * Vr_p;
+          SV[1][2] = a * Vt_p;
+          SV[2][2] = a * Vp_p;
+
+          a = (n+1) / (Real)((2*n+1) * (2*n-1)) * pow<Real>(R[i], -n);
+          b = n / (Real)(4*n+2) * (pow<Real>(R[i], -n-2) - pow<Real>(R[i], -n));
+          a_r = (n+1) / (Real)((2*n+1) * (2*n-1)) * (-n) * pow<Real>(R[i], -n-1);
+          b_r = n / (Real)(4*n+2) * ((-n-2)*pow<Real>(R[i], -n-3) - (-n)*pow<Real>(R[i], -n-1));
+          SW[0][0] = a_r * Wr + b_r * Vr;
+          SW[1][0] = a_r * Wt + b_r * Vt;
+          SW[2][0] = a_r * Wp + b_r * Vp;
+          SW[0][1] = a * Wr_t + b * Vr_t;
+          SW[1][1] = a * Wt_t + b * Vt_t;
+          SW[2][1] = a * Wp_t + b * Vp_t;
+          SW[0][2] = a * Wr_p + b * Vr_p;
+          SW[1][2] = a * Wt_p + b * Vt_p;
+          SW[2][2] = a * Wp_p + b * Vp_p;
+
+          a = 1 / (Real)(2*n+1) * pow<Real>(R[i], -n-1);
+          a_r = 1 / (Real)(2*n+1) * (-n-1) * pow<Real>(R[i], -n-2);
+          SX[0][0] = a_r * Xr;
+          SX[1][0] = a_r * Xt;
+          SX[2][0] = a_r * Xp;
+          SX[0][1] = a * Xr_t;
+          SX[1][1] = a * Xt_t;
+          SX[2][1] = a * Xp_t;
+          SX[0][2] = a * Xr_p;
+          SX[1][2] = a * Xt_p;
+          SX[2][2] = a * Xp_p;
+        }
+
+        Complex<Real> KV[COORD_DIM][COORD_DIM], KW[COORD_DIM][COORD_DIM], KX[COORD_DIM][COORD_DIM];
+        KV[0][0] = SV[0][0] + SV[0][0] - PV;   KV[0][1] = SV[0][1] + SV[1][0]     ;   KV[0][2] = SV[0][2] + SV[2][0]     ;
+        KV[1][0] = SV[1][0] + SV[0][1]     ;   KV[1][1] = SV[1][1] + SV[1][1] - PV;   KV[1][2] = SV[1][2] + SV[2][1]     ;
+        KV[2][0] = SV[2][0] + SV[0][2]     ;   KV[2][1] = SV[2][1] + SV[1][2]     ;   KV[2][2] = SV[2][2] + SV[2][2] - PV;
+
+        KW[0][0] = SW[0][0] + SW[0][0] - PW;   KW[0][1] = SW[0][1] + SW[1][0]     ;   KW[0][2] = SW[0][2] + SW[2][0]     ;
+        KW[1][0] = SW[1][0] + SW[0][1]     ;   KW[1][1] = SW[1][1] + SW[1][1] - PW;   KW[1][2] = SW[1][2] + SW[2][1]     ;
+        KW[2][0] = SW[2][0] + SW[0][2]     ;   KW[2][1] = SW[2][1] + SW[1][2]     ;   KW[2][2] = SW[2][2] + SW[2][2] - PW;
+
+        KX[0][0] = SX[0][0] + SX[0][0] - PX;   KX[0][1] = SX[0][1] + SX[1][0]     ;   KX[0][2] = SX[0][2] + SX[2][0]     ;
+        KX[1][0] = SX[1][0] + SX[0][1]     ;   KX[1][1] = SX[1][1] + SX[1][1] - PX;   KX[1][2] = SX[1][2] + SX[2][1]     ;
+        KX[2][0] = SX[2][0] + SX[0][2]     ;   KX[2][1] = SX[2][1] + SX[1][2]     ;   KX[2][2] = SX[2][2] + SX[2][2] - PX;
+
+
+        write_coeff(KV[0][0]*norm0[0] + KV[0][1]*norm0[1] + KV[0][2]*norm0[2], n, m, 0, 0);
+        write_coeff(KV[1][0]*norm0[0] + KV[1][1]*norm0[1] + KV[1][2]*norm0[2], n, m, 0, 1);
+        write_coeff(KV[2][0]*norm0[0] + KV[2][1]*norm0[1] + KV[2][2]*norm0[2], n, m, 0, 2);
+
+        write_coeff(KW[0][0]*norm0[0] + KW[0][1]*norm0[1] + KW[0][2]*norm0[2], n, m, 1, 0);
+        write_coeff(KW[1][0]*norm0[0] + KW[1][1]*norm0[1] + KW[1][2]*norm0[2], n, m, 1, 1);
+        write_coeff(KW[2][0]*norm0[0] + KW[2][1]*norm0[1] + KW[2][2]*norm0[2], n, m, 1, 2);
+
+        write_coeff(KX[0][0]*norm0[0] + KX[0][1]*norm0[1] + KX[0][2]*norm0[2], n, m, 2, 0);
+        write_coeff(KX[1][0]*norm0[0] + KX[1][1]*norm0[1] + KX[1][2]*norm0[2], n, m, 2, 1);
+        write_coeff(KX[2][0]*norm0[0] + KX[2][1]*norm0[1] + KX[2][2]*norm0[2], n, m, 2, 2);
+      }
+    }
+  }
+
+  { // Set X <-- Q * StokesOp * B1
+    if (X.Dim() != N * dof * COORD_DIM) X.ReInit(N * dof * COORD_DIM);
+    for (Long k0 = 0; k0 < N; k0++) {
+      StaticArray<Real,9> Q;
+      { // Set Q
         Real cos_theta = cos_theta_phi[k0 * 2 + 0];
         Real sin_theta = sqrt<Real>(1 - cos_theta * cos_theta);
         Real cos_phi = cos(cos_theta_phi[k0 * 2 + 1]);
         Real sin_phi = sin(cos_theta_phi[k0 * 2 + 1]);
-        M[0] = sin_theta*cos_phi; M[1] = sin_theta*sin_phi; M[2] = cos_theta;
-        M[3] = cos_theta*cos_phi; M[4] = cos_theta*sin_phi; M[5] =-sin_theta;
-        M[6] =          -sin_phi; M[7] =           cos_phi; M[8] =         0;
-
-        X[(k0 * dof + k1) * COORD_DIM + 0] = M[0] * in[0] + M[3] * in[1] + M[6] * in[2];
-        X[(k0 * dof + k1) * COORD_DIM + 1] = M[1] * in[0] + M[4] * in[1] + M[7] * in[2];
-        X[(k0 * dof + k1) * COORD_DIM + 2] = M[2] * in[0] + M[5] * in[1] + M[8] * in[2];
+        Q[0] = sin_theta*cos_phi; Q[1] = sin_theta*sin_phi; Q[2] = cos_theta;
+        Q[3] = cos_theta*cos_phi; Q[4] = cos_theta*sin_phi; Q[5] =-sin_theta;
+        Q[6] =          -sin_phi; Q[7] =           cos_phi; Q[8] =         0;
+      }
+      for (Long k1 = 0; k1 < dof; k1++) { // Set X <-- Q * StokesOp * B1
+        StaticArray<Real,COORD_DIM> in;
+        for (Long j = 0; j < COORD_DIM; j++) {
+          in[j] = 0;
+          for (Long i = 0; i < COORD_DIM * M; i++) {
+            in[j] += B1[k1][i] * StokesOp[k0 * COORD_DIM + j][i];
+          }
+        }
+        X[(k0 * dof + k1) * COORD_DIM + 0] = Q[0] * in[0] + Q[3] * in[1] + Q[6] * in[2];
+        X[(k0 * dof + k1) * COORD_DIM + 1] = Q[1] * in[0] + Q[4] * in[1] + Q[7] * in[2];
+        X[(k0 * dof + k1) * COORD_DIM + 2] = Q[2] * in[0] + Q[5] * in[1] + Q[8] * in[2];
       }
     }
   }
@@ -1715,7 +2103,7 @@ template <class Real> void SphericalHarmonics<Real>::VecSHBasisEval(Long p0, con
       };
       auto A = [p_](Long n, Long m) { return (0<=n && m<=n && n<=p_ ? sqrt<Real>(n*n * ((n+1)*(n+1) - m*m) / (Real)((2*n+1)*(2*n+3))) : 0); };
       auto B = [p_](Long n, Long m) { return (0<=n && m<=n && n<=p_ ? sqrt<Real>((n+1)*(n+1) * (n*n - m*m) / (Real)((2*n+1)*(2*n-1))) : 0); };
-      Real s = 1 / sqrt<Real>(1 - cos_theta[i] * cos_theta[i]);
+      Real csc_theta = 1 / sqrt<Real>(1 - cos_theta[i] * cos_theta[i]);
       if (fabs(cos_theta[i]) < 1) {
         for (Long m = 0; m <= p0; m++) {
           for (Long n = m; n <= p0; n++) {
@@ -1725,13 +2113,13 @@ template <class Real> void SphericalHarmonics<Real>::VecSHBasisEval(Long p0, con
             Complex<Real> Fw2r = Y(n,m) * n;
             Complex<Real> Fx2r = 0;
 
-            Complex<Real> Fv2t = AYBY * s;
-            Complex<Real> Fw2t = AYBY * s;
-            Complex<Real> Fx2t = imag * m * Y(n,m) * s;
+            Complex<Real> Fv2t = AYBY * csc_theta;
+            Complex<Real> Fw2t = AYBY * csc_theta;
+            Complex<Real> Fx2t = imag * m * Y(n,m) * csc_theta;
 
-            Complex<Real> Fv2p = -imag * m * Y(n,m) * s;
-            Complex<Real> Fw2p = -imag * m * Y(n,m) * s;
-            Complex<Real> Fx2p = AYBY * s;
+            Complex<Real> Fv2p = -imag * m * Y(n,m) * csc_theta;
+            Complex<Real> Fw2p = -imag * m * Y(n,m) * csc_theta;
+            Complex<Real> Fx2p = AYBY * csc_theta;
 
             write_coeff(Fv2r, n, m, 0, 0);
             write_coeff(Fw2r, n, m, 1, 0);

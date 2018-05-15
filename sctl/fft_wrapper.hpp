@@ -22,48 +22,6 @@ template <class ValueType> class Complex {
   public:
     Complex<ValueType>(ValueType r=0, ValueType i=0) : real(r), imag(i) {}
 
-    Complex<ValueType> operator*(const Complex<ValueType>& x) const {
-      Complex<ValueType> z;
-      z.real = real * x.real - imag * x.imag;
-      z.imag = imag * x.real + real * x.imag;
-      return z;
-    }
-
-    Complex<ValueType> operator*(const ValueType& x) const {
-      Complex<ValueType> z;
-      z.real = real * x;
-      z.imag = imag * x;
-      return z;
-    }
-
-    Complex<ValueType> operator+(const Complex<ValueType>& x) const {
-      Complex<ValueType> z;
-      z.real = real + x.real;
-      z.imag = imag + x.imag;
-      return z;
-    }
-
-    Complex<ValueType> operator+(const ValueType& x) const {
-      Complex<ValueType> z;
-      z.real = real + x;
-      z.imag = imag;
-      return z;
-    }
-
-    Complex<ValueType> operator-(const Complex<ValueType>& x) const {
-      Complex<ValueType> z;
-      z.real = real - x.real;
-      z.imag = imag - x.imag;
-      return z;
-    }
-
-    Complex<ValueType> operator-(const ValueType& x) const {
-      Complex<ValueType> z;
-      z.real = real - x;
-      z.imag = imag;
-      return z;
-    }
-
     Complex<ValueType> operator-() const {
       Complex<ValueType> z;
       z.real = -real;
@@ -78,30 +36,125 @@ template <class ValueType> class Complex {
       return z;
     }
 
+
+    bool operator==(const Complex<ValueType>& x) const {
+      return real == x.real && imag == x.imag;
+    }
+
+    bool operator!=(const Complex<ValueType>& x) const {
+      return !((*this) == x);;
+    }
+
+
+    template <class ScalarType> void operator+=(const Complex<ScalarType>& x) {
+      (*this) = (*this) + x;
+    }
+
+    template <class ScalarType> void operator-=(const Complex<ScalarType>& x) {
+      (*this) = (*this) - x;
+    }
+
+    template <class ScalarType> void operator*=(const Complex<ScalarType>& x) {
+      (*this) = (*this) * x;
+    }
+
+    template <class ScalarType> void operator/=(const Complex<ScalarType>& x) {
+      (*this) = (*this) / x;
+    }
+
+
+    template <class ScalarType> Complex<ValueType> operator+(const ScalarType& x) const {
+      Complex<ValueType> z;
+      z.real = real + x;
+      z.imag = imag;
+      return z;
+    }
+
+    template <class ScalarType> Complex<ValueType> operator-(const ScalarType& x) const {
+      Complex<ValueType> z;
+      z.real = real - x;
+      z.imag = imag;
+      return z;
+    }
+
+    template <class ScalarType> Complex<ValueType> operator*(const ScalarType& x) const {
+      Complex<ValueType> z;
+      z.real = real * x;
+      z.imag = imag * x;
+      return z;
+    }
+
+    template <class ScalarType> Complex<ValueType> operator/(const ScalarType& y) const {
+      Complex<ValueType> z;
+      z.real = real / y;
+      z.imag = imag / y;
+      return z;
+    }
+
+
+    Complex<ValueType> operator+(const Complex<ValueType>& x) const {
+      Complex<ValueType> z;
+      z.real = real + x.real;
+      z.imag = imag + x.imag;
+      return z;
+    }
+
+    Complex<ValueType> operator-(const Complex<ValueType>& x) const {
+      Complex<ValueType> z;
+      z.real = real - x.real;
+      z.imag = imag - x.imag;
+      return z;
+    }
+
+    Complex<ValueType> operator*(const Complex<ValueType>& x) const {
+      Complex<ValueType> z;
+      z.real = real * x.real - imag * x.imag;
+      z.imag = imag * x.real + real * x.imag;
+      return z;
+    }
+
+    Complex<ValueType> operator/(const Complex<ValueType>& y) const {
+      Complex<ValueType> z;
+      ValueType y_inv = 1 / (y.real * y.real + y.imag * y.imag);
+      z.real = (y.real * real + y.imag * imag) * y_inv;
+      z.imag = (y.real * imag - y.imag * real) * y_inv;
+      return z;
+    }
+
     ValueType real;
     ValueType imag;
 };
 
-template <class ValueType> Complex<ValueType> operator*(const ValueType& x, const Complex<ValueType>& y){
+template <class ScalarType, class ValueType> Complex<ValueType> operator*(const ScalarType& x, const Complex<ValueType>& y) {
   Complex<ValueType> z;
   z.real = y.real * x;
   z.imag = y.imag * x;
   return z;
 }
 
-template <class ValueType> Complex<ValueType> operator+(const ValueType& x, const Complex<ValueType>& y){
+template <class ScalarType, class ValueType> Complex<ValueType> operator+(const ScalarType& x, const Complex<ValueType>& y) {
   Complex<ValueType> z;
   z.real = y.real + x;
   z.imag = y.imag;
   return z;
 }
 
-template <class ValueType> Complex<ValueType> operator-(const ValueType& x, const Complex<ValueType>& y){
+template <class ScalarType, class ValueType> Complex<ValueType> operator-(const ScalarType& x, const Complex<ValueType>& y) {
   Complex<ValueType> z;
   z.real = y.real - x;
   z.imag = y.imag;
   return z;
 }
+
+template <class ScalarType, class ValueType> Complex<ValueType> operator/(const ScalarType& x, const Complex<ValueType>& y) {
+  Complex<ValueType> z;
+  ValueType y_inv = 1 / (y.real * y.real + y.imag * y.imag);
+  z.real =  (y.real * x) * y_inv;
+  z.imag = -(y.imag * x) * y_inv;
+  return z;
+}
+
+
 
 enum class FFT_Type {R2C, C2C, C2C_INV, C2R};
 
@@ -168,6 +221,7 @@ template <class ValueType, class FFT_Derived> class FFT_Generic {
     Long N1 = Dim(1);
     SCTL_ASSERT_MSG(in.Dim() == N0, "FFT: Wrong input size.");
     if (out.Dim() != N1) out.ReInit(N1);
+    check_align(in, out);
 
     Vector<ValueType> buff0(N0 + N1);
     Vector<ValueType> buff1(N0 + N1);
@@ -305,6 +359,12 @@ template <class ValueType, class FFT_Derived> class FFT_Generic {
     M1 = M0.Transpose();
   }
 
+  static void check_align(const Vector<ValueType>& in, const Vector<ValueType>& out) {
+    //SCTL_ASSERT_MSG((((uintptr_t)& in[0]) & ((uintptr_t)(SCTL_MEM_ALIGN - 1))) == 0, "sctl::FFT: Input vector not aligned to " <<SCTL_MEM_ALIGN<<" bits!");
+    //SCTL_ASSERT_MSG((((uintptr_t)&out[0]) & ((uintptr_t)(SCTL_MEM_ALIGN - 1))) == 0, "sctl::FFT: Output vector not aligned to "<<SCTL_MEM_ALIGN<<" bits!");
+    // TODO: copy to auxiliary array if unaligned
+  }
+
   StaticArray<Long,2> dim;
   FFT_Type fft_type;
   Long howmany;
@@ -326,6 +386,7 @@ template <> class FFT<double> : public FFT_Generic<double, FFT<double>> {
     if (Dim(0) && Dim(1)) fftw_destroy_plan(plan);
     this->fft_type = fft_type_;
     this->howmany = howmany_;
+    plan = NULL;
 
     Long rank = dim_vec.Dim();
     Vector<int> dim_vec_(rank);
@@ -349,6 +410,9 @@ template <> class FFT<double> : public FFT_Generic<double, FFT<double>> {
       } else if (fft_type == FFT_Type::C2R) {
         N0 = (N / dim_vec[rank - 1]) * (dim_vec[rank - 1] / 2 + 1) * 2;
         N1 = N;
+      } else {
+        N0 = 0;
+        N1 = 0;
       }
       this->dim[0] = N0;
       this->dim[1] = N1;
@@ -388,6 +452,7 @@ template <> class FFT<double> : public FFT_Generic<double, FFT<double>> {
     if (!N0 || !N1) return;
     SCTL_ASSERT_MSG(in.Dim() == N0, "FFT: Wrong input size.");
     if (out.Dim() != N1) out.ReInit(N1);
+    check_align(in, out);
 
     ValueType s = 0;
     auto in_ptr = in.begin();
@@ -432,6 +497,7 @@ template <> class FFT<float> : public FFT_Generic<float, FFT<float>> {
     if (Dim(0) && Dim(1)) fftwf_destroy_plan(plan);
     this->fft_type = fft_type_;
     this->howmany = howmany_;
+    plan = NULL;
 
     Long rank = dim_vec.Dim();
     Vector<int> dim_vec_(rank);
@@ -455,6 +521,9 @@ template <> class FFT<float> : public FFT_Generic<float, FFT<float>> {
       } else if (fft_type == FFT_Type::C2R) {
         N0 = (N / dim_vec[rank - 1]) * (dim_vec[rank - 1] / 2 + 1) * 2;
         N1 = N;
+      } else {
+        N0 = 0;
+        N1 = 0;
       }
       this->dim[0] = N0;
       this->dim[1] = N1;
@@ -494,6 +563,7 @@ template <> class FFT<float> : public FFT_Generic<float, FFT<float>> {
     if (!N0 || !N1) return;
     SCTL_ASSERT_MSG(in.Dim() == N0, "FFT: Wrong input size.");
     if (out.Dim() != N1) out.ReInit(N1);
+    check_align(in, out);
 
     ValueType s = 0;
     auto in_ptr = in.begin();
@@ -538,6 +608,7 @@ template <> class FFT<long double> : public FFT_Generic<long double, FFT<long do
     if (Dim(0) && Dim(1)) fftwl_destroy_plan(plan);
     this->fft_type = fft_type_;
     this->howmany = howmany_;
+    plan = NULL;
 
     Long rank = dim_vec.Dim();
     Vector<int> dim_vec_(rank);
@@ -559,6 +630,9 @@ template <> class FFT<long double> : public FFT_Generic<long double, FFT<long do
       } else if (fft_type == FFT_Type::C2R) {
         N0 = (N / dim_vec[rank - 1]) * (dim_vec[rank - 1] / 2 + 1) * 2;
         N1 = N;
+      } else {
+        N0 = 0;
+        N1 = 0;
       }
       this->dim[0] = N0;
       this->dim[1] = N1;
@@ -598,6 +672,7 @@ template <> class FFT<long double> : public FFT_Generic<long double, FFT<long do
     if (!N0 || !N1) return;
     SCTL_ASSERT_MSG(in.Dim() == N0, "FFT: Wrong input size.");
     if (out.Dim() != N1) out.ReInit(N1);
+    check_align(in, out);
 
     ValueType s = 0;
     auto in_ptr = in.begin();

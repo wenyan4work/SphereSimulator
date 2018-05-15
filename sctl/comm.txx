@@ -38,6 +38,7 @@ inline Comm Comm::World() {
 
 inline Comm& Comm::operator=(const Comm& c) {
 #ifdef SCTL_HAVE_MPI
+  MPI_Comm_free(&mpi_comm_);
   Init(c.mpi_comm_);
 #endif
   return *this;
@@ -931,6 +932,13 @@ inline Vector<MPI_Request>* Comm::NewReq() const {
   return &request;
 }
 
+inline void Comm::Init(const MPI_Comm mpi_comm) {
+  #pragma omp critical(SCTL_COMM_DUP)
+  MPI_Comm_dup(mpi_comm, &mpi_comm_);
+  MPI_Comm_rank(mpi_comm_, &mpi_rank_);
+  MPI_Comm_size(mpi_comm_, &mpi_size_);
+}
+
 inline void Comm::DelReq(Vector<MPI_Request>* req_ptr) const {
   if (req_ptr) req.push(req_ptr);
 }
@@ -1004,6 +1012,10 @@ template <class Type> void Comm::HyperQuickSort(const Vector<Type>& arr_, Vector
           splt_count = (100 * nelem) / totSize;
           if (npes > 100) splt_count = (drand48() * totSize) < (100 * nelem) ? 1 : 0;
           if (splt_count > nelem) splt_count = nelem;
+          MPI_Allreduce  (&splt_count, &glb_splt_count, 1, CommDatatype<Integer>::value(), CommDatatype<Integer>::sum(), comm);
+          if (!glb_splt_count) splt_count = std::min<Long>(1, nelem);
+          MPI_Allreduce  (&splt_count, &glb_splt_count, 1, CommDatatype<Integer>::value(), CommDatatype<Integer>::sum(), comm);
+          SCTL_ASSERT(glb_splt_count);
         }
 
         Vector<Type> splitters(splt_count);
@@ -1012,12 +1024,11 @@ template <class Type> void Comm::HyperQuickSort(const Vector<Type>& arr_, Vector
         }
 
         Vector<Integer> glb_splt_cnts(npes), glb_splt_disp(npes);
-        {  // Set glb_splt_count, glb_splt_cnts, glb_splt_disp
+        {  // Set glb_splt_cnts, glb_splt_disp
           MPI_Allgather(&splt_count, 1, CommDatatype<Integer>::value(), &glb_splt_cnts[0], 1, CommDatatype<Integer>::value(), comm);
           glb_splt_disp[0] = 0;
           omp_par::scan(glb_splt_cnts.begin(), glb_splt_disp.begin(), npes);
-          glb_splt_count = glb_splt_cnts[npes - 1] + glb_splt_disp[npes - 1];
-          SCTL_ASSERT(glb_splt_count);
+          SCTL_ASSERT(glb_splt_count == glb_splt_cnts[npes - 1] + glb_splt_disp[npes - 1]);
         }
 
         {  // Gather all splitters. O( log(p) )
