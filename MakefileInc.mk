@@ -1,8 +1,8 @@
 # CCB014
-# SFTPATH=/mnt/home/wyan/local
+SFTPATH=/mnt/home/wyan/local
 
 # Mac 
-SFTPATH=/Users/wyan/local
+#SFTPATH=/Users/wyan/local
 
 include $(SFTPATH)/include/Makefile.export.Trilinos
 include $(PVFMM_DIR)/MakeVariables

@@ -86,8 +86,10 @@ class Shexp {
     // NF routines
     // User should allocate enough space. No bound check here
     void calcSDLNF(double *coeffPtr, const int &trgNum, double *trgXYZPtr, double *trgValuePtr,
-                  const bool &interior = false, const bool &SL=true) const; // both STK and LAP
+                   const bool &interior = false, const bool &SL = true) const; // both STK and LAP
 
+    void calcKNF(double *coeffPtr, const int &trgNum, double *trgXYZPtr, double *trgNormPtr, double *trgValuePtr,
+                 const bool &interior = false) const;
 
   private:
     // called from dumpVTK()

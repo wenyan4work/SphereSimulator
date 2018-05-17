@@ -191,7 +191,6 @@ void testSTKDL(const int order = 12, const int npts = 1000, bool interior = fals
     std::vector<double> trgValue(3 * npts, 0);
 
     // exterior points
-
     for (int i = 0; i < npts; i++) {
         Evec3 pos = Evec3::Random();
         pos.normalize();
@@ -259,20 +258,22 @@ void testSTKDL(const int order = 12, const int npts = 1000, bool interior = fals
     return;
 }
 
-void testTracSelf(const int order = 12, const int npts = 1000, bool interior = false) {
-    // traction on unit sphere self
+void testTrac(const int order = 12, const int npts = 1000, bool interior = false) {
+    // traction on random points
 
     // generate a random radius
     std::random_device rd;
     std::mt19937 gen(rd());
     std::uniform_real_distribution<double> dis(0.2, 5.0);
     const double rad = dis(gen);
-    const double rtrg = rad;
+    double rtrg;
 
     if (interior) {
         printf("Interior testing STK Traction on %d points for order=%d, from sphere radius %lf\n", npts, order, rad);
+        rtrg = rad * 0.2; // a far point
     } else {
         printf("Exterior testing STK Traction on %d points for order=%d, from sphere radius %lf\n", npts, order, rad);
+        rtrg = rad * 4; // a far point
     }
 
     Shexp sh(Shexp::KIND::STK, "test", order, rad, Equatn::UnitRandom());
@@ -282,23 +283,30 @@ void testTracSelf(const int order = 12, const int npts = 1000, bool interior = f
 
     // generate trgs for exterior
     std::vector<double> trgXYZ(3 * npts);
+    std::vector<double> trgNorm(3 * npts);
     std::vector<double> trgValue(3 * npts, 0);
 
     // exterior points
-
     for (int i = 0; i < npts; i++) {
         Evec3 pos = Evec3::Random();
         pos.normalize();
-        pos = pos * rtrg;
+        pos = pos * (rtrg);
         trgXYZ[3 * i] = pos[0];
         trgXYZ[3 * i + 1] = pos[1];
         trgXYZ[3 * i + 2] = pos[2];
+
+        Evec3 norm = Evec3::Random();
+        norm.normalize();
+        trgNorm[3 * i] = norm[0];
+        trgNorm[3 * i + 1] = norm[1];
+        trgNorm[3 * i + 2] = norm[2];
     }
 
     std::vector<double> trgXYZGrid = trgXYZ;
+    std::vector<double> trgNormGrid = trgNorm;
 
-    // TODO: spectral Trac eval
-
+    // spectral Trac eval
+    sh.calcKNF(spectralCoeff.data(), npts, trgXYZ.data(), trgNorm.data(), trgValue.data(), interior);
 
     // grid traction eval
     const double fac4pi = -3 / (4 * 3.14159265358979323846);
@@ -313,11 +321,9 @@ void testTracSelf(const int order = 12, const int npts = 1000, bool interior = f
         const double tx = trgXYZGrid[3 * i];
         const double ty = trgXYZGrid[3 * i + 1];
         const double tz = trgXYZGrid[3 * i + 2];
-        Evec3 rvec(tx, ty, tz);
-        rvec.normalize();
-        const double nx = rvec[0];
-        const double ny = rvec[1];
-        const double nz = rvec[2];
+        const double nx = trgNormGrid[3 * i];
+        const double ny = trgNormGrid[3 * i + 1];
+        const double nz = trgNormGrid[3 * i + 2];
         for (int j = 0; j < Ngrid; j++) {
             // stokes single layer kernel
             const double lx = gridPoints[3 * (j + 1)];
@@ -348,9 +354,15 @@ void testTracSelf(const int order = 12, const int npts = 1000, bool interior = f
     // check error
     checkError(trgValue, trgValueGrid);
 
-    for (int i = 0; i < 3 * npts; i++) {
-        printf("%18.16lf\t\t%18.16lf\t\t%g\n", trgValue[i], trgValueGrid[i], trgValue[i] - trgValueGrid[i]);
-    }
+    // Equatn p0 = Equatn::FromTwoVectors(Evec3(trgValue[0], trgValue[1], trgValue[2]),
+    //                                    Evec3(trgValueGrid[0], trgValueGrid[1], trgValueGrid[2]));
+    // Equatn p1 = Equatn::FromTwoVectors(Evec3(trgValue[3], trgValue[4], trgValue[5]),
+    //                                    Evec3(trgValueGrid[3], trgValueGrid[4], trgValueGrid[5]));
+    // std::cout << "p0:\n " << p0.toRotationMatrix() << " p1:\n" << p1.toRotationMatrix() << std::endl;
+
+    // for (int i = 0; i < 3 * npts; i++) {
+    //     printf("%18.16lf\t\t%18.16lf\t\t%g\n", trgValue[i], trgValueGrid[i], trgValue[i] - trgValueGrid[i]);
+    // }
 }
 
 int main(int argc, char **argv) {
@@ -359,7 +371,7 @@ int main(int argc, char **argv) {
     // for Eigen::setRandom
     srand((unsigned int)time(0));
 
-    const int order = 16;
+    const int order = 12;
     testSTKSL(order, 1000, false);
     testSTKSL(order, 1000, true);
 
@@ -368,6 +380,9 @@ int main(int argc, char **argv) {
 
     // testTracSelf(order, 1000, false);
     // testTracSelf(order, 1000, true);
+
+    testTrac(order, 1000, false);
+    testTrac(order, 1000, true);
 
     testLAPConvert(order, 1000);
     testSTKConvert(order, 1000);

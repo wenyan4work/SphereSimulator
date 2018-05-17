@@ -429,7 +429,7 @@ void Shexp::calcSpectralCoeff(double *coeffPtr, double *valPtr) const {
 }
 
 void Shexp::rotGridValue(double *valPtr, const int npts) const {
-    if (orientation.w() == 1) {
+    if (orientation * Evec3(0, 0, 1) == Evec3(0, 0, 1)) {
         return;
     }
 
@@ -446,7 +446,7 @@ void Shexp::rotGridValue(double *valPtr, const int npts) const {
     return;
 }
 void Shexp::invrotGridValue(double *valPtr, const int npts) const {
-    if (orientation.w() == 1) {
+    if (orientation * Evec3(0, 0, 1) == Evec3(0, 0, 1)) {
         return;
     }
     // from oriented Z axis to default Z axis
@@ -518,6 +518,51 @@ void Shexp::calcSDLNF(double *coeffPtr, const int &trgNum, double *trgXYZPtr, do
             val *= -1; // prefactor set to -3/4pi
         }
         // rotate back to lab frame for stk
+        rotGridValue(trgValuePtr, trgNum);
+    }
+
+    return;
+}
+
+void Shexp::calcKNF(double *coeffPtr, const int &trgNum, double *trgXYZPtr, double *trgNormPtr, double *trgValuePtr,
+                    const bool &interior) const {
+    using Real = double;
+    const int Ncoeff = (order + 1) * (order + 2);
+    const int dimension = 3;
+
+    const sctl::Vector<Real> coeff(Ncoeff * dimension,
+                                   sctl::Ptr2Itr<Real>(coeffPtr ? coeffPtr : nullptr, Ncoeff * dimension), false);
+    sctl::Vector<Real> xyz(trgNum * 3, sctl::Ptr2Itr<Real>(trgXYZPtr ? trgXYZPtr : nullptr, trgNum * 3), false);
+    sctl::Vector<Real> norm(trgNum * 3, sctl::Ptr2Itr<Real>(trgNormPtr ? trgNormPtr : nullptr, trgNum * 3), false);
+
+    sctl::Vector<Real> val(trgNum * dimension,
+                           sctl::Ptr2Itr<Real>(trgValuePtr ? trgValuePtr : nullptr, trgNum * dimension), false);
+
+    const double invRadius = 1.0 / radius;
+    xyz *= invRadius; // scale with radius
+
+    // rotate XYZ Coord to sh's frame;
+    invrotGridValue(trgXYZPtr, trgNum);
+    invrotGridValue(trgNormPtr, trgNum);
+
+    // printf("%lf,%lf,%lf\n", trgXYZPtr[0], trgXYZPtr[1], trgXYZPtr[2]);
+    // printf("%lf,%lf,%lf\n", trgNormPtr[0], trgNormPtr[1], trgNormPtr[2]);
+
+    // compute & output
+    if (dimension == 1) {
+        // no rotation of grid value needed
+        // comput
+        printf("not implemented\n");
+        exit(1);
+    } else {
+        // compute
+        sctl::SphericalHarmonics<Real>::StokesEvalKL(coeff, sctl::SHCArrange::ROW_MAJOR, order, xyz, norm, interior,
+                                                     val);
+        // printf("%lf,%lf,%lf\n", trgValuePtr[0], trgValuePtr[1], trgValuePtr[2]);
+
+        // radius scaling already satisfied
+        // rotate back to lab frame for stk
+        // invrotGridValue(trgValuePtr, trgNum);
         rotGridValue(trgValuePtr, trgNum);
     }
 
