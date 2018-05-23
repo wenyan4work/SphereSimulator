@@ -365,6 +365,114 @@ void testTrac(const int order = 12, const int npts = 1000, bool interior = false
     // }
 }
 
+void testTracSelf(const int order = 12, const int npts = 1000, bool interior = false) {
+    // traction on random points
+
+    // generate a random radius
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_real_distribution<double> dis(0.2, 5.0);
+    const double rad = dis(gen);
+    double rtrg;
+
+    if (interior) {
+        printf("Interior testing STK Traction on %d points for order=%d, from sphere radius %lf\n", npts, order, rad);
+        rtrg = rad * 0.2; // a far point
+    } else {
+        printf("Exterior testing STK Traction on %d points for order=%d, from sphere radius %lf\n", npts, order, rad);
+        rtrg = rad * 4; // a far point
+    }
+
+    Shexp sh(Shexp::KIND::STK, "test", order, rad, Equatn::UnitRandom());
+    sh.randomFill();
+    std::vector<double> spectralCoeff(sh.getSpectralDOF());
+    sh.calcSpectralCoeff(spectralCoeff.data());
+
+    // generate trgs for exterior
+    std::vector<double> trgXYZ(3 * npts);
+    std::vector<double> trgNorm(3 * npts);
+    std::vector<double> trgValue(3 * npts, 0);
+
+    // random points
+    // on the sphere self, norm parallel with pos
+    for (int i = 0; i < npts; i++) {
+        Evec3 pos = Evec3::Random();
+        pos.normalize();
+        pos = pos * (rtrg);
+        trgXYZ[3 * i] = pos[0];
+        trgXYZ[3 * i + 1] = pos[1];
+        trgXYZ[3 * i + 2] = pos[2];
+
+        Evec3 norm = pos;
+        norm.normalize();
+        trgNorm[3 * i] = norm[0];
+        trgNorm[3 * i + 1] = norm[1];
+        trgNorm[3 * i + 2] = norm[2];
+    }
+
+    std::vector<double> trgXYZGrid = trgXYZ;
+    std::vector<double> trgNormGrid = trgNorm;
+
+    // spectral Trac eval
+    sh.calcKSelf(spectralCoeff.data(), npts, trgXYZ.data(),trgValue.data(), interior);
+
+    // grid traction eval
+    const double fac4pi = -3 / (4 * 3.14159265358979323846);
+    std::vector<double> gridPoints;
+    std::vector<double> gridWeights;
+    std::vector<double> gridNorms;
+    sh.getGridWithPole(gridPoints, gridWeights, Evec3::Zero(), &gridNorms);
+    const int Ngrid = sh.getGridNumber();
+    std::vector<double> trgValueGrid(3 * npts, 0);
+    for (int i = 0; i < npts; i++) {
+        double tvx = 0, tvy = 0, tvz = 0;
+        const double tx = trgXYZGrid[3 * i];
+        const double ty = trgXYZGrid[3 * i + 1];
+        const double tz = trgXYZGrid[3 * i + 2];
+        const double nx = trgNormGrid[3 * i];
+        const double ny = trgNormGrid[3 * i + 1];
+        const double nz = trgNormGrid[3 * i + 2];
+        for (int j = 0; j < Ngrid; j++) {
+            // stokes single layer kernel
+            const double lx = gridPoints[3 * (j + 1)];
+            const double ly = gridPoints[3 * (j + 1) + 1];
+            const double lz = gridPoints[3 * (j + 1) + 2];
+            const double fx = sh.gridValue[3 * j] * gridWeights[j + 1];
+            const double fy = sh.gridValue[3 * j + 1] * gridWeights[j + 1];
+            const double fz = sh.gridValue[3 * j + 2] * gridWeights[j + 1];
+            const double rx = (tx - lx);
+            const double ry = (ty - ly);
+            const double rz = (tz - lz);
+            const double rnorm2 = rx * rx + ry * ry + rz * rz;
+            const double rinv = 1 / sqrt(rnorm2);
+            const double rinv3 = rinv * rinv * rinv;
+            const double rinv5 = rinv3 * rinv * rinv;
+            const double commonFac = rx * rx * fx * nx + rx * ry * fx * ny + rx * rz * fx * nz + ry * rx * fy * nx +
+                                     ry * ry * fy * ny + ry * rz * fy * nz + rz * rx * fz * nx + rz * ry * fz * ny +
+                                     rz * rz * fz * nz;
+            tvx += rx * commonFac * rinv5;
+            tvy += ry * commonFac * rinv5;
+            tvz += rz * commonFac * rinv5;
+        }
+        trgValueGrid[3 * i] = tvx * fac4pi;
+        trgValueGrid[3 * i + 1] = tvy * fac4pi;
+        trgValueGrid[3 * i + 2] = tvz * fac4pi;
+    }
+
+    // check error
+    checkError(trgValue, trgValueGrid);
+
+    // Equatn p0 = Equatn::FromTwoVectors(Evec3(trgValue[0], trgValue[1], trgValue[2]),
+    //                                    Evec3(trgValueGrid[0], trgValueGrid[1], trgValueGrid[2]));
+    // Equatn p1 = Equatn::FromTwoVectors(Evec3(trgValue[3], trgValue[4], trgValue[5]),
+    //                                    Evec3(trgValueGrid[3], trgValueGrid[4], trgValueGrid[5]));
+    // std::cout << "p0:\n " << p0.toRotationMatrix() << " p1:\n" << p1.toRotationMatrix() << std::endl;
+
+    // for (int i = 0; i < 3 * npts; i++) {
+    //     printf("%18.16lf\t\t%18.16lf\t\t%g\n", trgValue[i], trgValueGrid[i], trgValue[i] - trgValueGrid[i]);
+    // }
+}
+
 int main(int argc, char **argv) {
     MPI_Init(&argc, &argv);
 
@@ -378,11 +486,11 @@ int main(int argc, char **argv) {
     testSTKDL(order, 1000, false);
     testSTKDL(order, 1000, true);
 
-    // testTracSelf(order, 1000, false);
-    // testTracSelf(order, 1000, true);
-
     testTrac(order, 1000, false);
     testTrac(order, 1000, true);
+
+    testTracSelf(order, 1000, false);
+    testTracSelf(order, 1000, true);
 
     testLAPConvert(order, 1000);
     testSTKConvert(order, 1000);

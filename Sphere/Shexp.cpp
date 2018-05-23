@@ -524,6 +524,42 @@ void Shexp::calcSDLNF(double *coeffPtr, const int &trgNum, double *trgXYZPtr, do
     return;
 }
 
+void Shexp::calcKSelf(double *coeffPtr, const int &trgNum, double *trgXYZPtr, double *trgValuePtr,
+                      const bool &interior) const {
+    using Real = double;
+    const int Ncoeff = (order + 1) * (order + 2);
+    const int dimension = getDimension();
+
+    const sctl::Vector<Real> coeff(Ncoeff * dimension,
+                                   sctl::Ptr2Itr<Real>(coeffPtr ? coeffPtr : nullptr, Ncoeff * dimension), false);
+    sctl::Vector<Real> xyz(trgNum * 3, sctl::Ptr2Itr<Real>(trgXYZPtr ? trgXYZPtr : nullptr, trgNum * 3), false);
+
+    sctl::Vector<Real> val(trgNum * dimension,
+                           sctl::Ptr2Itr<Real>(trgValuePtr ? trgValuePtr : nullptr, trgNum * dimension), false);
+
+    const double invRadius = 1.0 / radius;
+    xyz *= invRadius; // scale with radius
+
+    // rotate XYZ Coord to sh's frame;
+    invrotGridValue(trgXYZPtr, trgNum);
+
+    // compute & output
+    if (dimension == 1) {
+        // no rotation of grid value needed
+        // compute
+        printf("error, K is for Stokes only\n");
+        exit(1);
+    } else {
+        // compute
+        sctl::SphericalHarmonics<Real>::StokesEvalKSelf(coeff, sctl::SHCArrange::ROW_MAJOR, order, xyz, interior, val);
+        // radius scaling already satisfied
+        // rotate back to lab frame for stk
+        rotGridValue(trgValuePtr, trgNum);
+    }
+
+    return;
+}
+
 void Shexp::calcKNF(double *coeffPtr, const int &trgNum, double *trgXYZPtr, double *trgNormPtr, double *trgValuePtr,
                     const bool &interior) const {
     using Real = double;

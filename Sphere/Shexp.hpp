@@ -91,6 +91,10 @@ class Shexp {
     void calcKNF(double *coeffPtr, const int &trgNum, double *trgXYZPtr, double *trgNormPtr, double *trgValuePtr,
                  const bool &interior = false) const;
 
+    void calcKSelf(double *coeffPtr, const int &trgNum, double *trgXYZPtr, double *trgValuePtr,
+                   const bool &interior = false) const;
+    // points are all on a sphere centered at the sph grid center, norm paralell with XYZ, always outward
+
   private:
     // called from dumpVTK()
     void getGridWithPoleCellConnect(std::vector<int32_t> &gridCellConnect, std::vector<int32_t> &offset,
