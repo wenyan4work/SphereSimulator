@@ -393,10 +393,10 @@ void testTracSelf(const int order = 12, const int npts = 1000, bool interior = f
     double rtrg;
 
     if (interior) {
-        printf("Interior testing STK Traction on %d points for order=%d, from sphere radius %lf\n", npts, order, rad);
+        printf("Interior testing STK Traction Self on %d points for order=%d, from sphere radius %lf\n", npts, order, rad);
         rtrg = rad * 0.2; // a far point
     } else {
-        printf("Exterior testing STK Traction on %d points for order=%d, from sphere radius %lf\n", npts, order, rad);
+        printf("Exterior testing STK Traction Self on %d points for order=%d, from sphere radius %lf\n", npts, order, rad);
         rtrg = rad * 4; // a far point
     }
 
@@ -416,7 +416,7 @@ void testTracSelf(const int order = 12, const int npts = 1000, bool interior = f
         Evec3 pos;
         pos = Evec3::Random();
         if (testPole) {
-            pos = pos[2] > 0 ? Evec3(0, 0, 1) : Evec3(0, 0, -1);
+            pos = pos[2] > 0 ? sh.orientation * Evec3(0, 0, 1) : sh.orientation * Evec3(0, 0, -1);
         } else {
             pos.normalize();
         }
