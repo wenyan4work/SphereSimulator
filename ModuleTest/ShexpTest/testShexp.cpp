@@ -10,6 +10,8 @@
 
 #include <mpi.h>
 
+constexpr bool testPole = true;
+
 void testLAPConvert(const int order = 12, const int repeat = 1000) {
     printf("testing LAP Conversion %d times for order=%d\n", repeat, order);
     Shexp sh(Shexp::KIND::LAP, "test", order, 2.0, Equatn::UnitRandom());
@@ -105,8 +107,13 @@ void testSTKSL(const int order = 12, const int npts = 1000, bool interior = fals
     // exterior points
 
     for (int i = 0; i < npts; i++) {
-        Evec3 pos = Evec3::Random();
-        pos.normalize();
+        Evec3 pos;
+        pos = Evec3::Random();
+        if (testPole) {
+            pos = pos[2] > 0 ? sh.orientation * Evec3(0, 0, 1) : sh.orientation * Evec3(0, 0, -1);
+        } else {
+            pos.normalize();
+        }
         pos = pos * rtrg;
         trgXYZ[3 * i] = pos[0];
         trgXYZ[3 * i + 1] = pos[1];
@@ -192,8 +199,13 @@ void testSTKDL(const int order = 12, const int npts = 1000, bool interior = fals
 
     // exterior points
     for (int i = 0; i < npts; i++) {
-        Evec3 pos = Evec3::Random();
-        pos.normalize();
+        Evec3 pos;
+        pos = Evec3::Random();
+        if (testPole) {
+            pos = pos[2] > 0 ? sh.orientation * Evec3(0, 0, 1) : sh.orientation * Evec3(0, 0, -1);
+        } else {
+            pos.normalize();
+        }
         pos = pos * rtrg;
         trgXYZ[3 * i] = pos[0];
         trgXYZ[3 * i + 1] = pos[1];
@@ -288,8 +300,13 @@ void testTrac(const int order = 12, const int npts = 1000, bool interior = false
 
     // exterior points
     for (int i = 0; i < npts; i++) {
-        Evec3 pos = Evec3::Random();
-        pos.normalize();
+        Evec3 pos;
+        pos = Evec3::Random();
+        if (testPole) {
+            pos = pos[2] > 0 ? sh.orientation * Evec3(0, 0, 1) : sh.orientation * Evec3(0, 0, -1);
+        } else {
+            pos.normalize();
+        }
         pos = pos * (rtrg);
         trgXYZ[3 * i] = pos[0];
         trgXYZ[3 * i + 1] = pos[1];
@@ -396,8 +413,13 @@ void testTracSelf(const int order = 12, const int npts = 1000, bool interior = f
     // random points
     // on the sphere self, norm parallel with pos
     for (int i = 0; i < npts; i++) {
-        Evec3 pos = Evec3::Random();
-        pos.normalize();
+        Evec3 pos;
+        pos = Evec3::Random();
+        if (testPole) {
+            pos = pos[2] > 0 ? Evec3(0, 0, 1) : Evec3(0, 0, -1);
+        } else {
+            pos.normalize();
+        }
         pos = pos * (rtrg);
         trgXYZ[3 * i] = pos[0];
         trgXYZ[3 * i + 1] = pos[1];
@@ -414,7 +436,7 @@ void testTracSelf(const int order = 12, const int npts = 1000, bool interior = f
     std::vector<double> trgNormGrid = trgNorm;
 
     // spectral Trac eval
-    sh.calcKSelf(spectralCoeff.data(), npts, trgXYZ.data(),trgValue.data(), interior);
+    sh.calcKSelf(spectralCoeff.data(), npts, trgXYZ.data(), trgValue.data(), interior);
 
     // grid traction eval
     const double fac4pi = -3 / (4 * 3.14159265358979323846);
