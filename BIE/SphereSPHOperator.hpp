@@ -31,9 +31,10 @@ class SphereSPHOperator : public TOP {
 
     // temporary data
     std::vector<Shexp> sph;
-    std::vector<int> spectralDofIndex;
-    std::vector<int> spectralDofOffset;
+    // std::vector<int> spectralDofIndex;
+    // std::vector<int> spectralDofOffset;
 
+    // dof data
     std::vector<int> gridValueDofIndex;
     std::vector<int> gridValueDofOffset;
     std::vector<double> gridValues; // excluding the north and south pole
@@ -41,9 +42,9 @@ class SphereSPHOperator : public TOP {
     std::vector<int> gridWeightDofIndex;
     std::vector<int> gridWeightDofOffset;
     std::vector<double> gridWeights; // excluding the north and south pole
+    std::vector<double> gridPoints;  // excluding the north and south pole
 
-    std::vector<double> gridPoints; // excluding the north and south pole
-
+    // fmm data
     std::vector<double> srcSLCoord; // should be equal to gridPoints
     std::vector<double> srcDLCoord; // should be equal to gridPoints
     std::vector<double> trgCoord;
@@ -74,7 +75,7 @@ class SphereSPHOperator : public TOP {
   public:
     // Constructor
     SphereSPHOperator(const std::vector<Sphere> &sphere, const std::string &name_, std::shared_ptr<STKFMM> &fmmPtr_,
-                      const double cSL_ = 0, const double cDL_ = 0, const double cTrac_ = 0);
+                      const double cIdentity_, const double cSL_ = 0, const double cDL_ = 0, const double cTrac_ = 0);
 
     // Destructor
     ~SphereSPHOperator() = default;

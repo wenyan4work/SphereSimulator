@@ -1,11 +1,9 @@
 #include "SphereSPHOperator.hpp"
 
 SphereSPHOperator::SphereSPHOperator(const std::vector<Sphere> &sphere, const std::string &name_,
-                                     std::shared_ptr<STKFMM> &fmmPtr_, const double cSL_, const double cDL_,
-                                     const double cTrac_)
-    : spherePtr{&sphere}, 
-    dimension(sphere[0].getLayer(name_).dimension), 
-    name(name_), fmmPtr(fmmPtr_), cSL(cSL_),
+                                     std::shared_ptr<STKFMM> &fmmPtr_, const double cIdentity_, const double cSL_,
+                                     const double cDL_, const double cTrac_)
+    : spherePtr{&sphere}, dimension(sphere[0].getLayer(name_).getGridDOF()), name(name_), fmmPtr(fmmPtr_), cSL(cSL_),
       cDL(cDL_), cTrac(cTrac_) {
     commRcp = getMPIWORLDTCOMM();
 
@@ -30,8 +28,8 @@ void SphereSPHOperator::setupDOF() {
     sphereMapRcp = getTMAPFromLocalSize(nLocal, commRcp);
 
     sph.resize(nLocal);
-    spectralDofIndex.resize(nLocal);
-    spectralDofOffset.resize(nLocal, 0);
+    // spectralDofIndex.resize(nLocal);
+    // spectralDofOffset.resize(nLocal, 0);
     gridValueDofIndex.resize(nLocal);
     gridValueDofOffset.resize(nLocal, 0);
     gridWeightDofIndex.resize(nLocal);
@@ -114,19 +112,19 @@ void SphereSPHOperator::setupFMM() {
 }
 
 template <class Fntr>
-void SphereSPHOperator::setupRightSide(Fntr & fntr) {
+void SphereSPHOperator::setupRightSide(Fntr &fntr) {
     rightSideRcp = Teuchos::rcp(new TMV(spectralDofMapRcp, 1, true));
 
     auto rsPtr = rightSideRcp->getLocalView<Kokkos::HostSpace>();
     rightSideRcp->modify<Kokkos::HostSpace>();
 
     // fill entries for each sphere
-    const auto & sphere = *spherePtr;
+    const auto &sphere = *spherePtr;
     const int nLocal = sphere.size();
-    #pragma omp parallel for
-    for(int i=0;i<nLocal;i++){
+#pragma omp parallel for
+    for (int i = 0; i < nLocal; i++) {
         std::vector<double> bvec;
-        fntr(sphere[i],bvec);
+        fntr(sphere[i], bvec);
     }
 
     return;
