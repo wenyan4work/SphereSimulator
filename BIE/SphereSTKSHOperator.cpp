@@ -1,8 +1,8 @@
-#include "SphereSPHOperator.hpp"
+#include "SphereSTKSHOperator.hpp"
 
-SphereSPHOperator::SphereSPHOperator(const std::vector<Sphere> &sphere, const std::string &name_,
+SphereSTKSHOperator::SphereSTKSHOperator(const std::vector<Sphere> &sphere, const std::string &name_,
                                      std::shared_ptr<STKFMM> &fmmPtr_, const double cIdentity_, const double cSL_,
-                                     const double cDL_, const double cTrac_)
+                                     const double cDL_, const double cTrac_, const double cLOP_)
     : spherePtr{&sphere}, dimension(sphere[0].getLayer(name_).getGridDOF()), name(name_), fmmPtr(fmmPtr_), cSL(cSL_),
       cDL(cDL_), cTrac(cTrac_) {
     commRcp = getMPIWORLDTCOMM();
@@ -22,7 +22,7 @@ SphereSPHOperator::SphereSPHOperator(const std::vector<Sphere> &sphere, const st
     setupFMM();
 }
 
-void SphereSPHOperator::setupDOF() {
+void SphereSTKSHOperator::setupDOF() {
     const auto &sphere = *spherePtr;
     const int nLocal = sphere.size();
     sphereMapRcp = getTMAPFromLocalSize(nLocal, commRcp);
@@ -71,7 +71,7 @@ void SphereSPHOperator::setupDOF() {
     }
 }
 
-void SphereSPHOperator::setupFMM() {
+void SphereSTKSHOperator::setupFMM() {
     assert(fmmPtr);
     if (cSL > 0 || cTrac > 0) {
         srcSLCoord = gridPoints;
@@ -112,7 +112,7 @@ void SphereSPHOperator::setupFMM() {
 }
 
 template <class Fntr>
-void SphereSPHOperator::setupRightSide(Fntr &fntr) {
+void SphereSTKSHOperator::setupRightSide(Fntr &fntr) {
     rightSideRcp = Teuchos::rcp(new TMV(spectralDofMapRcp, 1, true));
 
     auto rsPtr = rightSideRcp->getLocalView<Kokkos::HostSpace>();
@@ -131,10 +131,10 @@ void SphereSPHOperator::setupRightSide(Fntr &fntr) {
 }
 
 // Y := beta*Y + alpha*Op(A)*X
-void SphereSPHOperator::apply(const TMV &X, TMV &Y, Teuchos::ETransp mode = Teuchos::NO_TRANS, scalar_type alpha,
+void SphereSTKSHOperator::apply(const TMV &X, TMV &Y, Teuchos::ETransp mode = Teuchos::NO_TRANS, scalar_type alpha,
                               scalar_type beta) const {
     assert(mode == Teuchos::NO_TRANS);
 
     if (commRcp->getRank() == 0)
-        printf("SphereSPHOperator Applied\n");
+        printf("SphereSTKSHOperator Applied\n");
 }
