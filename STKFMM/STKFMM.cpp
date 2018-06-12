@@ -30,11 +30,11 @@ void safeDeletePtr(T *ptr) {
 
 template <class Real_t>
 std::vector<Real_t> surface(int p, Real_t *c, Real_t alpha, int depth) {
-    size_t n_ = (6 * (p - 1) * (p - 1) + 2); // Total number of points.
+    int n_ = (6 * (p - 1) * (p - 1) + 2); // Total number of points.
 
     std::vector<Real_t> coord(n_ * 3);
     coord[0] = coord[1] = coord[2] = -1.0;
-    size_t cnt = 1;
+    int cnt = 1;
     for (int i = 0; i < p - 1; i++)
         for (int j = 0; j < p - 1; j++) {
             coord[cnt * 3] = -1.0;
@@ -56,12 +56,12 @@ std::vector<Real_t> surface(int p, Real_t *c, Real_t alpha, int depth) {
             coord[cnt * 3 + 2] = -1.0;
             cnt++;
         }
-    for (size_t i = 0; i < (n_ / 2) * 3; i++)
+    for (int i = 0; i < (n_ / 2) * 3; i++)
         coord[cnt * 3 + i] = -coord[i];
 
     Real_t r = 0.5 * pow(0.5, depth);
     Real_t b = alpha * r;
-    for (size_t i = 0; i < n_; i++) {
+    for (int i = 0; i < n_; i++) {
         coord[i * 3 + 0] = (coord[i * 3 + 0] + 1.0) * b + c[0];
         coord[i * 3 + 1] = (coord[i * 3 + 1] + 1.0) * b + c[1];
         coord[i * 3 + 2] = (coord[i * 3 + 2] + 1.0) * b + c[2];
@@ -95,6 +95,7 @@ void FMMData::readM2LMat(const std::string dataName) {
             fscanf(fin, "%d %d %lf\n", &iread, &jread, &fread);
             if (i != iread || j != jread) {
                 printf("read ij error \n");
+                exit(1);
             }
             fdata[i * size + j] = fread;
         }
@@ -146,7 +147,7 @@ FMMData::FMMData(KERNEL kernelChoice_, PAXIS periodicity_, int multOrder_, int m
         if (kernelChoice == KERNEL::LAPPGrad) {
             // load Laplace 1D, 2D, 3D data
             std::string dataName;
-            if (periodicity == PAXIS::PZ) {
+            if (periodicity == PAXIS::PX) {
                 dataName = "M2LLaplace1D3DpX";
             } else if (periodicity == PAXIS::PXY) {
                 dataName = "M2LLaplace2D3DpX";
@@ -159,7 +160,7 @@ FMMData::FMMData(KERNEL kernelChoice_, PAXIS periodicity_, int multOrder_, int m
         } else {
             // load Stokes 1D, 2D, 3D data
             std::string dataName;
-            if (periodicity == PAXIS::PZ) {
+            if (periodicity == PAXIS::PX) {
                 // TODO: generate Stokes PVel periodicity data
                 dataName = "M2LStokesPVel1D3DpX";
             } else if (periodicity == PAXIS::PXY) {
@@ -203,9 +204,9 @@ void FMMData::setupTree(const std::vector<double> &srcSLCoord, const std::vector
 
     // this is used to setup FMM octree
     treeDataPtr->pt_coord = srcSLCoord.size() > trgCoord.size() ? srcSLCoord : trgCoord;
-    const size_t nSL = srcSLCoord.size() / 3;
-    const size_t nDL = srcDLCoord.size() / 3;
-    const size_t nTrg = trgCoord.size() / 3;
+    const int nSL = srcSLCoord.size() / 3;
+    const int nDL = srcDLCoord.size() / 3;
+    const int nTrg = trgCoord.size() / 3;
 
     // space allocate
     treeDataPtr->src_value.Resize(nSL * kdimSL);
@@ -228,20 +229,23 @@ void FMMData::deleteTree() {
 
 void FMMData::evaluateFMM(std::vector<double> &srcSLValue, std::vector<double> &srcDLValue,
                           std::vector<double> &trgValue) {
-    const size_t nSrc = treeDataPtr->src_coord.Dim() / 3;
-    const size_t nSurf = treeDataPtr->surf_coord.Dim() / 3;
-    const size_t nTrg = treeDataPtr->trg_coord.Dim() / 3;
+    const int nSrc = treeDataPtr->src_coord.Dim() / 3;
+    const int nSurf = treeDataPtr->surf_coord.Dim() / 3;
+    const int nTrg = treeDataPtr->trg_coord.Dim() / 3;
+
+    int rank;
+    MPI_Comm_rank(comm, &rank);
 
     if (nTrg * kdimTrg != trgValue.size()) {
-        printf("trg value size error for kernel %zu\n", kernelChoice);
+        printf("trg value size error for kernel %u from rank %d\n", kernelChoice, rank);
         exit(1);
     }
     if (nSrc * kdimSL != srcSLValue.size()) {
-        printf("src SL value size error for kernel %zu\n", kernelChoice);
+        printf("src SL value size error for kernel %u\n from rank %d", kernelChoice, rank);
         exit(1);
     }
     if (nSurf * kdimDL != srcDLValue.size()) {
-        printf("src DL value size error for kernel %zu\n", kernelChoice);
+        printf("src DL value size error for kernel %u\n from rank %d", kernelChoice, rank);
         exit(1);
     }
     PtFMM_Evaluate(treePtr, trgValue, nTrg, &srcSLValue, &srcDLValue);
@@ -285,8 +289,8 @@ void FMMData::evaluateKernel(int nThreads, PPKERNEL p2p, const int nSrc, double 
         nThreads = omp_get_max_threads();
     }
 
-    const size_t chunkSize = 4000; // each chunk has some target points.
-    const size_t chunkNumber = floor(1.0 * (nTrg) / chunkSize) + 1;
+    const int chunkSize = 4000; // each chunk has some target points.
+    const int chunkNumber = floor(1.0 * (nTrg) / chunkSize) + 1;
 
     pvfmm::Kernel<double>::Ker_t kerPtr = nullptr; // a function pointer
     if (p2p == PPKERNEL::SLS2T) {
@@ -298,10 +302,10 @@ void FMMData::evaluateKernel(int nThreads, PPKERNEL p2p, const int nSrc, double 
     }
 
 #pragma omp parallel for schedule(static, 1) num_threads(nThreads)
-    for (size_t i = 0; i < chunkNumber; i++) {
+    for (int i = 0; i < chunkNumber; i++) {
         // each thread process one chunk
-        const size_t idTrgLow = i * chunkSize;
-        const size_t idTrgHigh = (i + 1 < chunkNumber) ? idTrgLow + chunkSize : nTrg; // not inclusive
+        const int idTrgLow = i * chunkSize;
+        const int idTrgHigh = (i + 1 < chunkNumber) ? idTrgLow + chunkSize : nTrg; // not inclusive
         kerPtr(srcCoordPtr, nSrc, srcValuePtr, 1, trgCoordPtr + 3 * idTrgLow, idTrgHigh - idTrgLow,
                trgValuePtr + kdimTrg * idTrgLow, NULL);
     }
@@ -315,8 +319,8 @@ STKFMM::STKFMM(int multOrder_, int maxPts_, PAXIS pbc_, unsigned int kernelComb_
     case PAXIS::NONE:
         pvfmm::periodicType = pvfmm::PeriodicType::NONE;
         break;
-    case PAXIS::PZ:
-        pvfmm::periodicType = pvfmm::PeriodicType::PZ;
+    case PAXIS::PX:
+        pvfmm::periodicType = pvfmm::PeriodicType::PX;
         break;
     case PAXIS::PXY:
         pvfmm::periodicType = pvfmm::PeriodicType::PXY;
@@ -338,27 +342,27 @@ STKFMM::STKFMM(int multOrder_, int maxPts_, PAXIS pbc_, unsigned int kernelComb_
     // parse the choice of kernels, use bitwise and
     if (kernelComb & asInteger(KERNEL::PVel)) {
         if (myRank == 0)
-            printf("enable PVel %lu\n", kernelComb & asInteger(KERNEL::PVel));
+            printf("enable PVel %u\n", kernelComb & asInteger(KERNEL::PVel));
         poolFMM[KERNEL::PVel] = new FMMData(KERNEL::PVel, pbc, multOrder, maxPts);
     }
     if (kernelComb & asInteger(KERNEL::PVelGrad)) {
         if (myRank == 0)
-            printf("enable PVelGrad %lu\n", kernelComb & asInteger(KERNEL::PVelGrad));
+            printf("enable PVelGrad %u\n", kernelComb & asInteger(KERNEL::PVelGrad));
         poolFMM[KERNEL::PVelGrad] = new FMMData(KERNEL::PVelGrad, pbc, multOrder, maxPts);
     }
     if (kernelComb & asInteger(KERNEL::PVelLaplacian)) {
         if (myRank == 0)
-            printf("enable PVelLaplacian %lu\n", kernelComb & asInteger(KERNEL::PVelLaplacian));
+            printf("enable PVelLaplacian %u\n", kernelComb & asInteger(KERNEL::PVelLaplacian));
         poolFMM[KERNEL::PVelLaplacian] = new FMMData(KERNEL::PVelLaplacian, pbc, multOrder, maxPts);
     }
     if (kernelComb & asInteger(KERNEL::Traction)) {
         if (myRank == 0)
-            printf("enable Traction %lu\n", kernelComb & asInteger(KERNEL::Traction));
+            printf("enable Traction %u\n", kernelComb & asInteger(KERNEL::Traction));
         poolFMM[KERNEL::Traction] = new FMMData(KERNEL::Traction, pbc, multOrder, maxPts);
     }
     if (kernelComb & asInteger(KERNEL::LAPPGrad)) {
         if (myRank == 0)
-            printf("enable LAPPGrad %lu\n", kernelComb & asInteger(KERNEL::LAPPGrad));
+            printf("enable LAPPGrad %u\n", kernelComb & asInteger(KERNEL::LAPPGrad));
         poolFMM[KERNEL::LAPPGrad] = new FMMData(KERNEL::LAPPGrad, pbc, multOrder, maxPts);
     }
 
@@ -400,8 +404,13 @@ void STKFMM::setBox(double xlow_, double xhigh_, double ylow_, double yhigh_, do
     scaleFactor = 1 / std::max(zlen, std::max(xlen, ylen));
     // new coordinate = (x+xshift)*scaleFactor, in [0,1)
 
-    std::cout << "box x " << xlen << " box y " << ylen << " box z " << zlen << std::endl;
-    std::cout << "scale factor " << scaleFactor << std::endl;
+    int rank = 0;
+    MPI_Comm_rank(comm, &rank);
+
+    if (rank == 0) {
+        std::cout << "box x " << xlen << " box y " << ylen << " box z " << zlen << std::endl;
+        std::cout << "scale factor " << scaleFactor << std::endl;
+    }
 
     // sanity check of box setting, ensure fitting in a cubic box [0,1)^3
     const double eps = pow(10, -12) / scaleFactor;
@@ -409,7 +418,7 @@ void STKFMM::setBox(double xlow_, double xhigh_, double ylow_, double yhigh_, do
     case PAXIS::NONE:
         // for PNONE, scale max length to [0,1), all choices are valid
         break;
-    case PAXIS::PZ:
+    case PAXIS::PX:
         if (zlen < xlen || zlen < ylen) {
             std::cout << "periodic box size error" << std::endl;
             exit(1);
@@ -444,15 +453,15 @@ void STKFMM::setupCoord(const int npts, const double *coordInPtr, std::vector<do
     if (pbc == PAXIS::PXYZ) {
         // no rotate
 #pragma omp parallel for
-        for (size_t i = 0; i < npts; i++) {
+        for (int i = 0; i < npts; i++) {
             coord[3 * i] = fracwrap((coordInPtr[3 * i] + xshift) * scaleFactor);
             coord[3 * i + 1] = fracwrap((coordInPtr[3 * i + 1] + yshift) * scaleFactor);
             coord[3 * i + 2] = fracwrap((coordInPtr[3 * i + 2] + zshift) * scaleFactor);
         }
-    } else if (pbc == PAXIS::PZ) {
+    } else if (pbc == PAXIS::PX) {
         // no rotate
 #pragma omp parallel for
-        for (size_t i = 0; i < npts; i++) {
+        for (int i = 0; i < npts; i++) {
             coord[3 * i] = ((coordInPtr[3 * i] + xshift) * scaleFactor);
             coord[3 * i + 1] = ((coordInPtr[3 * i + 1] + yshift) * scaleFactor);
             coord[3 * i + 2] = fracwrap((coordInPtr[3 * i + 2] + zshift) * scaleFactor);
@@ -460,7 +469,7 @@ void STKFMM::setupCoord(const int npts, const double *coordInPtr, std::vector<do
     } else if (pbc == PAXIS::PXY) {
         // no rotate
 #pragma omp parallel for
-        for (size_t i = 0; i < npts; i++) {
+        for (int i = 0; i < npts; i++) {
             coord[3 * i] = fracwrap((coordInPtr[3 * i] + xshift) * scaleFactor);
             coord[3 * i + 1] = fracwrap((coordInPtr[3 * i + 1] + yshift) * scaleFactor);
             coord[3 * i + 2] = ((coordInPtr[3 * i + 2] + zshift) * scaleFactor);
@@ -469,7 +478,7 @@ void STKFMM::setupCoord(const int npts, const double *coordInPtr, std::vector<do
         assert(pbc == PAXIS::NONE);
         // no rotate
 #pragma omp parallel for
-        for (size_t i = 0; i < npts; i++) {
+        for (int i = 0; i < npts; i++) {
             coord[3 * i] = ((coordInPtr[3 * i] + xshift) * scaleFactor);
             coord[3 * i + 1] = ((coordInPtr[3 * i + 1] + yshift) * scaleFactor);
             coord[3 * i + 2] = ((coordInPtr[3 * i + 2] + zshift) * scaleFactor);
@@ -487,7 +496,7 @@ void STKFMM::setPoints(const int nSL, const double *srcSLCoordPtr, const int nDL
     if (!poolFMM.empty()) {
         for (auto &fmm : poolFMM) {
             if (myRank == 0)
-                printf("kernel %lu \n", asInteger(fmm.second->kernelChoice));
+                printf("kernel %u \n", asInteger(fmm.second->kernelChoice));
             fmm.second->deleteTree();
         }
         if (myRank == 0)
@@ -519,12 +528,8 @@ void STKFMM::evaluateFMM(const int nSL, const double *srcSLValuePtr, const int n
     }
     FMMData &fmm = *((*poolFMM.find(kernel)).second);
 
-    // const int nSL = srcSLCoordInternal.size() / 3;
-    // const int nDL = srcDLCoordInternal.size() / 3;
-    // const int nTrg = trgCoordInternal.size() / 3;
     srcSLValueInternal.resize(nSL * fmm.kdimSL);
     srcDLValueInternal.resize(nDL * fmm.kdimDL);
-    // trgValue.resize(nTrg * fmm.kdimTrg);
 
     // scale the source strength, SL as 1/r, DL as 1/r^2
     // SL no extra scaling
