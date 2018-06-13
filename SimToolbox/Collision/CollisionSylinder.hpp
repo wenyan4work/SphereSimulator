@@ -7,8 +7,7 @@
 #include "Util/Buffer.hpp"
 #include "Util/EigenDef.hpp"
 
-#define INVALID -1
-#define COLBUF 0.5 // record collision block for sep < COLBUF*(rI+rJ)
+constexpr double COLBUF = 0.5; // record collision block for sep < COLBUF*(rI+rJ)
 
 class CollisionSylinder {
     // this is a POD type, used to generate collision blocks
@@ -113,8 +112,5 @@ class CollisionSylinder {
         }
     }
 };
-
-#undef INVALID
-#undef COLBUF
 
 #endif

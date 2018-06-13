@@ -32,7 +32,7 @@ LINKFLAGS= $(CXXFLAGS) $(LDLIBS_PVFMM) $(Trilinos_EXTRA_LD_FLAGS) #-lm -ldl
 # if Trilinos and pvfmm are compiled with ipo, removing this may cause linking failures
 
 # debug
-DEBUGMODE:= no
+DEBUGMODE:= yes
 
 # debug flags
 # CXXFLAGS += -DFMMTIMING 

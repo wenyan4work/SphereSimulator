@@ -18,8 +18,8 @@ SRC = Config.cpp main.cpp SphereSystem.cpp \
 	./SimToolbox/Collision/CPSolver.cpp \
 	./SimToolbox/Sphere/Sphere.cpp \
 	./SimToolbox/Sphere/Shexp.cpp \
-	./SimToolboxTrilinos/TpetraUtil.cpp \
-	./SimTollUtil/Util/Base64.cpp \
+	./SimToolbox/Trilinos/TpetraUtil.cpp \
+	./SimToolbox/Util/Base64.cpp \
 	./BIE/SphereSTKMobMat.cpp \
 	./BIE/SphereSTKSHOperator.cpp \
 	./STKFMM/STKFMM.cpp \

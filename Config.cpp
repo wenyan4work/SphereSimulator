@@ -61,6 +61,10 @@ Config::Config(std::string fileName) {
     myfile >> kBT >> line;
 
     getline(myfile, line);
+    gravityForce = 0;
+    myfile >> gravityForce >> line;
+
+    getline(myfile, line);
     sphereNumber = 0;
     myfile >> sphereNumber >> line;
 

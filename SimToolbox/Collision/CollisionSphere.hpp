@@ -6,8 +6,7 @@
 #include "Util/Buffer.hpp"
 #include "Util/EigenDef.hpp"
 
-#define INVALID -1
-#define COLBUF 0.3 // record collision block for sep < COLBUF*(rI+RJ)
+constexpr double COLBUF = 0.3; // record collision block for sep < COLBUF*(rI+RJ)
 
 class CollisionSphere {
   public:
@@ -81,8 +80,5 @@ class CollisionSphere {
         }
     }
 };
-
-#undef INVALID
-#undef COLBUF
 
 #endif

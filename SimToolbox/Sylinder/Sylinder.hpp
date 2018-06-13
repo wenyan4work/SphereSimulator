@@ -8,7 +8,7 @@
 #include "Util/EigenDef.hpp"
 #include "Util/IOHelper.hpp"
 
-#define INVALID -1
+constexpr int INVALID = -1;
 
 class Sylinder {
   public:
@@ -61,12 +61,9 @@ class Sylinder {
 
     void Unpack(const std::vector<char> &buff);
 
-
     static void writeVTP(const std::vector<Sylinder> &sylinder, const std::string &prefix, const std::string &postfix,
                          int rank);
     static void writePVTP(const std::string &prefix, const std::string &postfix, const int nProcs);
 };
-    
-#undef INVALID
 
 #endif

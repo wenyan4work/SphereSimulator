@@ -7,14 +7,16 @@
 //
 //        Array of nodes and weights for Gauss Legendre quadrature of order between 1 and 128.
 //
+//        Modified by Wen Yan 2018
 //
 
-#ifndef __Gauss_Legendre_Nodes_and_Weights_hpp__
-#define __Gauss_Legendre_Nodes_and_Weights_hpp__
+#ifndef Gauss_Legendre_Nodes_and_Weights_hpp__
+#define Gauss_Legendre_Nodes_and_Weights_hpp__
 
 #include <cassert>
 
-void Gauss_Legendre_Nodes_and_Weights(int N, std::vector<double> &nodes, std::vector<double> &weights) {
+template <class Real>
+void Gauss_Legendre_Nodes_and_Weights(int N, std::vector<Real> &nodes, std::vector<Real> &weights) {
     assert(N >= 1 && "Number of nodes must be atleast 1.");
     assert(N <= 128 && "Currently, the maximum number of nodes is only 128.");
     switch (N) {

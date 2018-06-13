@@ -6,16 +6,16 @@
 #include <memory>
 #include <set>
 
+#include "Config.h"
+
 #include "Collision/CollisionSolver.hpp"
 #include "Collision/CollisionSphere.hpp"
 #include "MPI/InteractionManager.hpp"
-// #include "STKFMM/STKFMM.h"
+#include "STKFMM/STKFMM.h"
 #include "Sphere/Sphere.hpp"
 #include "Trilinos/TpetraUtil.hpp"
 #include "Util/IOHelper.hpp"
 #include "Util/TRngPool.hpp"
-
-#include "Config.h"
 
 #define COLBUF 0.3 // possible collision within (1+0.3)*(radiusI+radiusJ)
 
@@ -48,7 +48,7 @@ class SphereSystem {
     std::shared_ptr<CollisionSolver> collisionSolverPtr; // collision
     std::shared_ptr<CollisionCollector> collisionCollectorPtr;
 
-    // std::shared_ptr<stkfmm::STKFMM> fmmPtr; // fmm
+    std::shared_ptr<stkfmm::STKFMM> fmmPtr;
 
     // MPI stuff
     Teuchos::RCP<const TCOMM> commRcp;       // mpi communicator
@@ -70,7 +70,7 @@ class SphereSystem {
     void writeSerialized();
     void readSerialized();
 
-    Teuchos::RCP<TOP> getMobOperator(bool manybody) const;
+    Teuchos::RCP<TOP> getMobOperator(bool manybody);
     Teuchos::RCP<TV> getVelocityKnown(Teuchos::RCP<TOP> &mobilityOpRcp, Teuchos::RCP<TV> &forceRcp) const;
     Teuchos::RCP<TV> getVelocityBrown() const;
     Teuchos::RCP<TV> getForceKnown() const;

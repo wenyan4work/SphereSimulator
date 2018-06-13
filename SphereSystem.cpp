@@ -1,3 +1,5 @@
+#include "SphereSystem.hpp"
+
 #include <cassert>
 #include <cmath>
 #include <vector>
@@ -5,7 +7,7 @@
 #include <mpi.h>
 #include <omp.h>
 
-#include "SphereSystem.hpp"
+#include "BIE/SphereSTKMobMat.hpp"
 #include "Util/EquatnHelper.hpp"
 #include "Util/IOHelper.hpp"
 
@@ -20,10 +22,13 @@ SphereSystem::SphereSystem(const std::string &configFile, const std::string &pos
     stepCount = 0;
     snapID = 0;
 
-    // TRNG pool must be initialized after mpi is initialized
+    // TRNG pool & fmm must be initialized after mpi is initialized
     rngPoolPtr = std::make_shared<TRngPool>(runConfig.rngSeed);
     collisionSolverPtr = std::make_shared<CollisionSolver>();
     collisionCollectorPtr = std::make_shared<CollisionCollector>();
+    // activate PVel and Traction operator
+    if (runConfig.hydro)
+        fmmPtr = std::make_shared<stkfmm::STKFMM>(runConfig.pFMM, 4000, stkfmm::PAXIS::NONE, 9);
 
     if (commRcp->getRank() == 0) {
         // prepare the output directory
@@ -203,10 +208,14 @@ void SphereSystem::partition() {
     return;
 }
 
-Teuchos::RCP<TOP> SphereSystem::getMobOperator(bool manybody) const {
+Teuchos::RCP<TOP> SphereSystem::getMobOperator(bool manybody) {
     Teuchos::RCP<TOP> mobOpRcp;
     if (manybody) {
         // get full mobility operator
+        std::string name("stk");
+        fmmPtr->setBox(runConfig.simBoxLow[0], runConfig.simBoxHigh[0], runConfig.simBoxLow[1], runConfig.simBoxHigh[1],
+                       runConfig.simBoxLow[2], runConfig.simBoxHigh[2]);
+        mobOpRcp = Teuchos::rcp(new SphereSTKMobMat(&sphere, name, fmmPtr, runConfig.viscosity));
     } else {
         Teuchos::RCP<TCMAT> mobMatRcp;
         // get mobility matrix for local drag only
@@ -280,7 +289,7 @@ Teuchos::RCP<TV> SphereSystem::getForceKnown() const {
             // force
             forcePtr(6 * i, c) = 0;
             forcePtr(6 * i + 1, c) = 0;
-            forcePtr(6 * i + 2, c) = 0;
+            forcePtr(6 * i + 2, c) = -runConfig.gravityForce;
             // torque
             forcePtr(6 * i + 3, c) = 0;
             forcePtr(6 * i + 4, c) = 0;
@@ -374,26 +383,31 @@ void SphereSystem::resolveCollision(bool manybody, double buffer) {
     Teuchos::RCP<TV> velocityKnownRcp = getVelocityKnown(mobOpRcp, forceKnownRcp);
 
     // Collect collision pair blocks
-    std::vector<CollisionSphere> collisionSphereSrc;
-    std::vector<CollisionSphere> collisionSphereTrg;
     auto &collector = *collisionCollectorPtr;
     collector.clear();
 
-    interactManagerPtr->setupEssVec(collisionSphereSrc, collisionSphereTrg);
-    if (commRcp->getRank() == 0)
-        printf("ESS vec created\n");
+    if (this->sphereMapRcp->getGlobalNumElements() > 1) {
+        // no collision for only 1 object
+        // temporary workaround for a bug in interact manager
+        std::vector<CollisionSphere> collisionSphereSrc;
+        std::vector<CollisionSphere> collisionSphereTrg;
 
-    auto nearInteractorPtr = interactManagerPtr->getNewNearInteraction();
-    if (commRcp->getRank() == 0)
-        printf("nearInteractorPtr created\n");
+        interactManagerPtr->setupEssVec(collisionSphereSrc, collisionSphereTrg);
+        if (commRcp->getRank() == 0)
+            printf("ESS vec created\n");
 
-    interactManagerPtr->setupNearInteractor(nearInteractorPtr, collisionSphereSrc, collisionSphereTrg);
-    if (commRcp->getRank() == 0)
-        printf("setupNear\n");
+        auto nearInteractorPtr = interactManagerPtr->getNewNearInteraction();
+        if (commRcp->getRank() == 0)
+            printf("nearInteractorPtr created\n");
 
-    interactManagerPtr->calcNearInteraction(nearInteractorPtr, collisionSphereSrc, collisionSphereTrg, collector);
-    if (commRcp->getRank() == 0)
-        printf("calcNear\n");
+        interactManagerPtr->setupNearInteractor(nearInteractorPtr, collisionSphereSrc, collisionSphereTrg);
+        if (commRcp->getRank() == 0)
+            printf("setupNear\n");
+
+        interactManagerPtr->calcNearInteraction(nearInteractorPtr, collisionSphereSrc, collisionSphereTrg, collector);
+        if (commRcp->getRank() == 0)
+            printf("calcNear\n");
+    }
 
     // construct collision stepper
     collisionSolverPtr->setup(*(collector.collisionPoolPtr), sphereMobilityMapRcp, runConfig.dt, buffer);

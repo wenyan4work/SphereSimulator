@@ -93,7 +93,7 @@ class Shexp {
 
     void calcKSelf(double *coeffPtr, const int &trgNum, double *trgXYZPtr, double *trgValuePtr,
                    const bool &interior = false) const;
-    // points are all on a sphere centered at the sph grid center, norm paralell with XYZ, always outward
+    // points are all on a sphere centered at the sph grid center, norm parallel with XYZ, always outward
 
   private:
     // called from dumpVTK()

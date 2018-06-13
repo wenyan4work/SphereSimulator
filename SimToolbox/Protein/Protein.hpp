@@ -8,7 +8,7 @@
 #include "Util/EigenDef.hpp"
 #include "Util/IOHelper.hpp"
 
-#define INVALID -1
+constexpr int INVALID = -1;
 
 class Protein {
   public:
@@ -29,5 +29,4 @@ class Protein {
     static void writePVTP(const std::string &prefix, const std::string &postfix, const int nProcs);
 };
 
-#undef INVALID
 #endif

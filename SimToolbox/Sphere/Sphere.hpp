@@ -10,7 +10,7 @@
 #include "Util/Buffer.hpp"
 #include "Util/IOHelper.hpp"
 
-#define INVALID -1
+constexpr int INVALID = -1;
 
 // class NeighborSphere {
 //   public:
@@ -48,7 +48,7 @@ class Sphere {
 
     Sphere &operator=(Sphere) noexcept;
 
-    void addLayer(const std::string & name_, const Shexp::KIND & kind_, const int &order_ = 4, const double &radius_ = -1,
+    void addLayer(const std::string &name_, const Shexp::KIND &kind_, const int &order_ = 4, const double &radius_ = -1,
                   const Equatn orientation_ = Equatn::Identity());
 
     void dumpSphere() const;
