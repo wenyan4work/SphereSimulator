@@ -14,13 +14,15 @@ SIZE =	size
 
 # Files
 SRC = Config.cpp main.cpp SphereSystem.cpp \
-	./Collision/CollisionSolver.cpp \
-	./Collision/CPSolver.cpp \
-	./Sphere/Sphere.cpp \
-	./Sphere/Shexp.cpp \
-	./Trilinos/TpetraUtil.cpp \
-	./Util/Base64.cpp \
-	# ./STKFMM/STKFMM.cpp \
+	./SimToolbox/Collision/CollisionSolver.cpp \
+	./SimToolbox/Collision/CPSolver.cpp \
+	./SimToolbox/Sphere/Sphere.cpp \
+	./SimToolbox/Sphere/Shexp.cpp \
+	./SimToolboxTrilinos/TpetraUtil.cpp \
+	./SimTollUtil/Util/Base64.cpp \
+	./BIE/SphereSTKMobMat.cpp \
+	./BIE/SphereSTKSHOperator.cpp \
+	./STKFMM/STKFMM.cpp \
 
 # Definitions
 EXE :=   SphereSimulator.X
