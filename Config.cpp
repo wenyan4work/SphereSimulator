@@ -97,7 +97,12 @@ Config::Config(std::string fileName) {
     hydro = temp > 0 ? true : false;
 
     getline(myfile, line);
-    pFMM = 0;
+    pSH = 3;
+    std::cout << line;
+    myfile >> pSH >> line;
+
+    getline(myfile, line);
+    pFMM = 6;
     std::cout << line;
     myfile >> pFMM >> line;
     if (pFMM % 2 != 0) {

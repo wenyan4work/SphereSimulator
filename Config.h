@@ -19,6 +19,7 @@ class Config {
     bool dumpflow;
     bool shell;
     int pFMM;            // mult_order p for PVFMM
+    int pSH;            // mult_order p for Spherical Harmonics
     double dumpFlowMesh; // flow dump mesh size
 
     // physical setting

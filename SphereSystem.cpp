@@ -26,9 +26,6 @@ SphereSystem::SphereSystem(const std::string &configFile, const std::string &pos
     rngPoolPtr = std::make_shared<TRngPool>(runConfig.rngSeed);
     collisionSolverPtr = std::make_shared<CollisionSolver>();
     collisionCollectorPtr = std::make_shared<CollisionCollector>();
-    // activate PVel and Traction operator
-    if (runConfig.hydro)
-        fmmPtr = std::make_shared<stkfmm::STKFMM>(runConfig.pFMM, 4000, stkfmm::PAXIS::NONE, 9);
 
     if (commRcp->getRank() == 0) {
         // prepare the output directory
@@ -47,12 +44,16 @@ SphereSystem::SphereSystem(const std::string &configFile, const std::string &pos
     partition();
     commRcp->barrier();
 
-    for (auto &s : sphere) {
-        s.addLayer("stk", Shexp::KIND::STK, 8, s.radius, Equatn::UnitRandom());
+    // activate PVel and Traction operator
+    if (runConfig.hydro) {
+        fmmPtr = std::make_shared<stkfmm::STKFMM>(runConfig.pFMM, 4000, stkfmm::PAXIS::NONE, 9);
+        for (auto &s : sphere) {
+            s.addLayer("stk", Shexp::KIND::STK, runConfig.pSH, s.radius);
+        }
+        // manually initialize it on all ranks
+        // VTU data always in Float64 format
+        dataFieldVTU.emplace_back(3, IOHelper::IOTYPE::Float64, "stk");
     }
-    // manually initialize it on all ranks
-    // VTU data always in Float64 format
-    dataFieldVTU.emplace_back(3, IOHelper::IOTYPE::Float64, "stk");
 
     printf("local: %lu spheres on process %d\n", sphere.size(), commRcp->getRank());
     output();
@@ -366,7 +367,7 @@ void SphereSystem::moveEuler(Teuchos::RCP<TV> &velocityRcp) {
         auto &s = sphere[i];
         s.vel = Evec3(vx, vy, vz);
         s.omega = Evec3(wx, wy, wz);
-
+        printf("%d vel: %lf,%lf,%lf, omega: %lf, %lf, %lf\n", i, vx, vy, vz, wx, wy, wz);
         s.stepEuler(dt);
     }
 
@@ -413,6 +414,11 @@ void SphereSystem::resolveCollision(bool manybody, double buffer) {
     collisionSolverPtr->setup(*(collector.collisionPoolPtr), sphereMobilityMapRcp, runConfig.dt, buffer);
     collisionSolverPtr->setControlLCP(1e-5, 200, false); // res, maxIte, NWTN refine
     collisionSolverPtr->solveCollision(mobOpRcp, velocityKnownRcp);
+
+    if (runConfig.hydro && manybody) {
+        Teuchos::RCP<SphereSTKMobMat> stkmobopRcp = rcp_dynamic_cast<SphereSTKMobMat>(mobOpRcp, true);
+        stkmobopRcp->writeBackDensitySolution();
+    }
 
     return;
 }

@@ -23,8 +23,8 @@ using namespace stkfmm;
 
 class SphereSTKMobMat : public TOP {
   private:
-    const std::vector<Sphere> *const spherePtr; // read only
-    const std::string name;                     // which sphere harmonics to work on
+    std::vector<Sphere> *const spherePtr; // read only
+    const std::string name;               // which sphere harmonics to work on
     const double viscosity;
 
     std::shared_ptr<STKFMM> fmmPtr;
@@ -38,9 +38,8 @@ class SphereSTKMobMat : public TOP {
     Teuchos::RCP<TMV> bRcp;
 
     Belos::SolverFactory<::TOP::scalar_type, TMV, TOP> factory;
-    Teuchos::RCP<Belos::SolverManager<::TOP::scalar_type, TMV, TOP>> solverRCP;
-    Teuchos::RCP<Belos::LinearProblem<::TOP::scalar_type, TMV, TOP>> problemRCP;
-    Teuchos::RCP<TOP> precOp;
+    Teuchos::RCP<Belos::SolverManager<::TOP::scalar_type, TMV, TOP>> solverRcp;
+    Teuchos::RCP<Belos::LinearProblem<::TOP::scalar_type, TMV, TOP>> problemRcp;
 
     // temporary data
     mutable std::vector<double> force;
@@ -48,10 +47,12 @@ class SphereSTKMobMat : public TOP {
     mutable std::vector<double> rho;
     mutable std::vector<double> b;
 
+    void testOperator();
+
   public:
     // Constructor
-    SphereSTKMobMat(const std::vector<Sphere> *const spherePtr, const std::string name_,
-                    std::shared_ptr<STKFMM> &fmmPtr_, const double viscosity_);
+    SphereSTKMobMat(std::vector<Sphere> *const spherePtr, const std::string name_, std::shared_ptr<STKFMM> &fmmPtr_,
+                    const double viscosity_);
 
     // default Destructor and copy
     ~SphereSTKMobMat() = default;
@@ -68,6 +69,10 @@ class SphereSTKMobMat : public TOP {
                scalar_type beta = Teuchos::ScalarTraits<scalar_type>::zero()) const;
 
     void solveMob(const double *forcePtr, double *velPtr) const;
+
+    const std::vector<double> &getDensitySolution() const { return rho; }
+
+    void writeBackDensitySolution();
 };
 
 #endif

@@ -23,7 +23,6 @@ class SphereSTKSHOperator : public TOP {
   private:
     const double cId;
     const double cSL;
-    const double cDL;
     const double cTrac;
     const double cLOP;
 
@@ -35,6 +34,11 @@ class SphereSTKSHOperator : public TOP {
     mutable std::vector<double> pointValues;      // a temporary space to store input vector
     mutable std::vector<double> pointValuesApply; // a temporary space to accumulate operator results
 
+    // temporary data for sh coeffs, for cached data
+    mutable std::vector<int> shCoeffIndex;
+    mutable std::vector<int> shCoeffLength;
+    mutable std::vector<double> shCoeffValues;
+
     // dof data
     // DofIndex: beginning index of each SphHarm
     // DofLength: Length of the array
@@ -42,16 +46,17 @@ class SphereSTKSHOperator : public TOP {
     // std::vector<int> gridValueDofLength;
     // std::vector<double> gridValues; // excluding the north and south pole
 
-    std::vector<int> gridDofIndex; // dim 1
-    std::vector<int> gridDofLength;
-    std::vector<double> gridWeights; // excluding the north and south pole
-    std::vector<double> gridNorms;   // excluding the north and south pole
-    std::vector<double> gridCoords;  // excluding the north and south pole
+    std::vector<int> gridNumberIndex; // dim 1
+    std::vector<int> gridNumberLength;
+    std::vector<double> gridWeights;        // excluding the north and south pole
+    std::vector<double> gridNorms;          // excluding the north and south pole
+    std::vector<double> gridCoords;         // excluding the north and south pole
+    std::vector<double> gridCoordsRelative; // excluding the north and south pole, relative to the sph centers
 
     // fmm data
-    std::vector<double> srcSLCoord; // should be equal to gridPoints
-    std::vector<double> srcDLCoord; // should be equal to gridPoints
-    std::vector<double> trgCoord;
+    mutable std::vector<double> srcSLCoord; // should be equal to gridPoints
+    mutable std::vector<double> srcDLCoord; // should be equal to gridPoints
+    mutable std::vector<double> trgCoord;
     mutable std::vector<double> srcSLValue;
     mutable std::vector<double> srcDLValue;
     mutable std::vector<double> trgValue;
@@ -61,7 +66,7 @@ class SphereSTKSHOperator : public TOP {
     Teuchos::RCP<const TCOMM> commRcp;
     Teuchos::RCP<TMAP> sphereMapRcp;
     Teuchos::RCP<TMAP> gridValueDofMapRcp;
-    Teuchos::RCP<TMAP> gridDofMapRcp;
+    Teuchos::RCP<TMAP> gridNumberMapRcp;
 
     // right side of linear equation
     Teuchos::RCP<TMV> rightSideRcp;
@@ -70,11 +75,13 @@ class SphereSTKSHOperator : public TOP {
 
     void setupFMM();
 
+    void cacheSHCoeff(double *gridValues) const;
+
   public:
     // Constructor
     SphereSTKSHOperator(const std::vector<Sphere> *const spherePtr, const std::string &name_,
                         std::shared_ptr<STKFMM> &fmmPtr_, const double cIdentity_ = 0, const double cSL_ = 0,
-                        const double cDL_ = 0, const double cTrac_ = 0, const double cLOP_ = 0);
+                        const double cTrac_ = 0, const double cLOP_ = 0);
 
     // default Destructor and copy
     ~SphereSTKSHOperator() = default;
@@ -90,15 +97,15 @@ class SphereSTKSHOperator : public TOP {
                scalar_type alpha = Teuchos::ScalarTraits<scalar_type>::one(),
                scalar_type beta = Teuchos::ScalarTraits<scalar_type>::zero()) const;
 
-    void projectNullSpace(const double *inPtr, double *outPtr) const;
-    // out-of-place operation to remove the space in grid values which are not representable by spectral coefficients
+    void projectNullSpace(double *inPtr) const;
+    // in-place operation to remove the space in grid values which are not representable by spectral coefficients
     // results are ADDED TO the values already in outPtr
 
-    void runFMM(const double *inPtr, double *outPtr, double cId_, double cSL_, double cDL_, double cTrac_) const;
+    void applyP2POP(const double *inPtr, double *outPtr, double cId_, double cSL_, double cTrac_) const;
     // apply the FMM operator cId, cSL, cDL, cTrac to inPtr and
     // results are ADDED TO the values already in outPtr
 
-    void applyLOP(const double *inPtr, double *outPtr) const;
+    void applyLOP(const double *inPtr, double *outPtr, double cLOP_) const;
     // apply the L operator cLOP to inPtr and
     // results are ADDED TO the values already in outPtr
 
@@ -111,8 +118,8 @@ class SphereSTKSHOperator : public TOP {
     const std::vector<double> &getGridWeights() const { return gridWeights; }
     const std::vector<double> &getGridCoords() const { return gridCoords; }
     const std::vector<double> &getGridNorms() const { return gridNorms; }
-    const std::vector<int> &getGridDofIndex() const { return gridDofIndex; }
-    const std::vector<int> &getGridDofLength() const { return gridDofLength; }
+    const std::vector<int> &getGridNumberIndex() const { return gridNumberIndex; }
+    const std::vector<int> &getGridNumberLength() const { return gridNumberLength; }
     const std::vector<Shexp> &getSH() const { return sph; }
 };
 
