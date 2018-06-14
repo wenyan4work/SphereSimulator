@@ -26,7 +26,8 @@ class Config {
     double sphereRadiusHydro;          // um
     double sphereRadiusSigmaHydro;     // sigma for log normal distribution
     double sphereRadiusCollisionRatio; // ratio*radiusHydro=radiusCollision
-    double gravityForce; //pN
+    double extForce[3]; //pN
+    double extTorque[3]; //pN
 
     // physical constant
     double viscosity;       // pN/(um^2 s)

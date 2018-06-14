@@ -48,7 +48,7 @@ SphereSystem::SphereSystem(const std::string &configFile, const std::string &pos
     if (runConfig.hydro) {
         fmmPtr = std::make_shared<stkfmm::STKFMM>(runConfig.pFMM, 4000, stkfmm::PAXIS::NONE, 9);
         for (auto &s : sphere) {
-            s.addLayer("stk", Shexp::KIND::STK, runConfig.pSH, s.radius);
+            s.addLayer("stk", Shexp::KIND::STK, runConfig.pSH, s.radius, Equatn::UnitRandom());
         }
         // manually initialize it on all ranks
         // VTU data always in Float64 format
@@ -288,13 +288,13 @@ Teuchos::RCP<TV> SphereSystem::getForceKnown() const {
 #pragma omp parallel for schedule(dynamic, 1024)
         for (int i = 0; i < sphereLocalNumber; i++) {
             // force
-            forcePtr(6 * i, c) = 0;
-            forcePtr(6 * i + 1, c) = 0;
-            forcePtr(6 * i + 2, c) = -runConfig.gravityForce;
+            forcePtr(6 * i, c) = runConfig.extForce[0];
+            forcePtr(6 * i + 1, c) = runConfig.extForce[1];
+            forcePtr(6 * i + 2, c) = runConfig.extForce[2];
             // torque
-            forcePtr(6 * i + 3, c) = 0;
-            forcePtr(6 * i + 4, c) = 0;
-            forcePtr(6 * i + 5, c) = 0;
+            forcePtr(6 * i + 3, c) = runConfig.extTorque[0];
+            forcePtr(6 * i + 4, c) = runConfig.extTorque[1];
+            forcePtr(6 * i + 5, c) = runConfig.extTorque[2];
         }
     }
     commRcp->barrier();

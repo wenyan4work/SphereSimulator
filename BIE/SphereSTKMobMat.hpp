@@ -37,7 +37,6 @@ class SphereSTKMobMat : public TOP {
     Teuchos::RCP<TMV> xRcp;
     Teuchos::RCP<TMV> bRcp;
 
-    Belos::SolverFactory<::TOP::scalar_type, TMV, TOP> factory;
     Teuchos::RCP<Belos::SolverManager<::TOP::scalar_type, TMV, TOP>> solverRcp;
     Teuchos::RCP<Belos::LinearProblem<::TOP::scalar_type, TMV, TOP>> problemRcp;
 

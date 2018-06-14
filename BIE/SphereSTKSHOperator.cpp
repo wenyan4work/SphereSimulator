@@ -91,12 +91,7 @@ void SphereSTKSHOperator::setupFMM() {
         }
     }
 
-    if (cSL != 0 || cTrac != 0) {
-        srcSLCoord = gridCoords;
-    } else {
-        srcSLCoord.clear();
-    }
-
+    srcSLCoord = gridCoords;
     trgCoord = gridCoords;
 
     const int nSL = srcSLCoord.size() / 3;
@@ -174,8 +169,8 @@ void SphereSTKSHOperator::apply(const TMV &X, TMV &Y, Teuchos::ETransp mode, sca
         std::fill(pointValuesApply.begin(), pointValuesApply.end(), 0);
 
         // step 1, project out the linear space cannot be represented by spherical harmonics
-        printf("projectout\n");
-        projectNullSpace(pointValues.data());
+        // printf("projectout\n");
+        // projectNullSpace(pointValues.data());
 
         // step 2, run FMM
         printf("runFMM\n");
@@ -243,7 +238,7 @@ void SphereSTKSHOperator::applyP2POP(const double *inPtr, double *outPtr, double
     srcDLValue.clear();
 
     // SL Stokes PVel FMM
-    if (cSLex != 0) {
+    if (fabs(cSLex) > 1e-9) {
         // step 1 setup value
         srcSLValue.resize(nGridPts * 4);
 #pragma omp parallel for
@@ -310,7 +305,7 @@ void SphereSTKSHOperator::applyP2POP(const double *inPtr, double *outPtr, double
     }
 
     // Traction, Stokes Traction FMM
-    if (cTracex != 0) {
+    if (fabs(cTracex) > 1e-9) {
         srcSLValue.resize(nGridPts * 4);
 #pragma omp parallel for
         for (int i = 0; i < nGridPts; i++) {
@@ -387,7 +382,7 @@ void SphereSTKSHOperator::applyP2POP(const double *inPtr, double *outPtr, double
         }
     }
 
-    if (cIdex != 0) {
+    if (fabs(cIdex) > 1e-9) {
 #pragma omp parallel for
         for (int i = 0; i < nGridPts; i++) {
             outPtr[3 * i + 0] += cIdex * inPtr[3 * i + 0];
@@ -403,7 +398,7 @@ void SphereSTKSHOperator::applyLOP(const double *inPtr, double *outPtr, double c
     const int nLocal = sphere.size();
 #pragma omp parallel
     {
-        std::vector<double> temp;
+        // std::vector<double> temp;
 #pragma omp for
         for (int i = 0; i < nLocal; i++) {
             Evec3 A(0, 0, 0);
@@ -415,7 +410,7 @@ void SphereSTKSHOperator::applyLOP(const double *inPtr, double *outPtr, double c
                 const int index = indexBase + j;
                 Evec3 valj = Evec3(inPtr[3 * index], inPtr[3 * index + 1], inPtr[3 * index + 2]);
                 A += gridWeights[index] * valj;
-                B += gridWeights[index] * radius *
+                B += (gridWeights[index] * radius) *
                      Evec3(gridNorms[3 * index], gridNorms[3 * index + 1], gridNorms[3 * index + 2]).cross(valj);
             }
             A *= (1 / (4 * pi * radius * radius));

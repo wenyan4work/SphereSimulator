@@ -23,7 +23,7 @@ SphereSTKMobMat::SphereSTKMobMat(std::vector<Sphere> *const spherePtr, const std
     xRcp = Teuchos::rcp(new TMV(AOpRcp->getDomainMap(), 1, true));
     bRcp = Teuchos::rcp(new TMV(AOpRcp->getRangeMap(), 1, true));
 
-    testOperator();
+    // testOperator();
 
     // setup the problem
     problemRcp = Teuchos::rcp(new Belos::LinearProblem<TOP::scalar_type, TMV, TOP>(AOpRcp, xRcp, bRcp));
@@ -34,8 +34,13 @@ SphereSTKMobMat::SphereSTKMobMat(std::vector<Sphere> *const spherePtr, const std
     solverParams->set("Num Blocks", 50); // larger than this might trigger a std::bad_alloc inside Kokkos.
     solverParams->set("Maximum Iterations", 1000);
     solverParams->set("Convergence Tolerance", 1e-6);
+    solverParams->set("Orthogonalization", "ICGS");
+    solverParams->set("Implicit Residual Scaling", "Norm of RHS");
+    solverParams->set("Explicit Residual Scaling", "Norm of RHS");
     solverParams->set("Timer Label", "Iterative Mobility Solution");
     solverParams->set("Verbosity", Belos::Errors + Belos::Warnings + Belos::TimingDetails + Belos::FinalSummary);
+
+    Belos::SolverFactory<::TOP::scalar_type, TMV, TOP> factory;
     solverRcp = factory.create("GMRES", solverParams);
     solverRcp->setProblem(problemRcp);
 
@@ -98,11 +103,12 @@ void SphereSTKMobMat::solveMob(const double *forcePtr, double *velPtr) const {
         const int indexBase = gridNumberIndex[i];
         const int npts = gridNumberLength[i];
         for (int j = 0; j < npts; j++) {
-            Evec3 ro = A + B.cross(radius * Evec3(gridNorms[3 * (indexBase + j)], gridNorms[3 * (indexBase + j) + 1],
-                                                  gridNorms[3 * (indexBase + j) + 2]));
-            rho[3 * (indexBase + j) + 0] = ro[0];
-            rho[3 * (indexBase + j) + 1] = ro[1];
-            rho[3 * (indexBase + j) + 2] = ro[2];
+            const int index = indexBase + j;
+            Evec3 ro = A + B.cross(radius * Evec3(gridNorms[3 * (index)], gridNorms[3 * (index) + 1],
+                                                  gridNorms[3 * (index) + 2]));
+            rho[3 * (index) + 0] = ro[0];
+            rho[3 * (index) + 1] = ro[1];
+            rho[3 * (index) + 2] = ro[2];
         }
     }
 
@@ -156,7 +162,7 @@ void SphereSTKMobMat::solveMob(const double *forcePtr, double *velPtr) const {
     }
 
     // u is stored in b
-    AOpRcp->applyP2POP(rho.data(), b.data(), 0, 1, 0);
+    AOpRcp->applyP2POP(rho.data(), b.data(), 0, 1.0, 0);
     const double invVis = 1 / viscosity;
 #pragma omp parallel for
     for (int i = 0; i < nLocal; i++) {
@@ -167,14 +173,15 @@ void SphereSTKMobMat::solveMob(const double *forcePtr, double *velPtr) const {
         Evec3 omega = Evec3::Zero();
         for (int j = 0; j < npts; j++) {
             // velocity of this point
-            Evec3 velpts(b[3 * (j + indexBase)], b[3 * (j + indexBase) + 1], b[3 * (j + indexBase) + 2]);
-            vel += gridWeights[indexBase + j] * velpts;
-            omega += radius * gridWeights[indexBase + j] *
-                     (velpts.cross(Evec3(gridNorms[3 * (j + indexBase)], gridNorms[3 * (j + indexBase) + 1],
-                                         gridNorms[3 * (j + indexBase) + 2])));
+            const int index = indexBase + j;
+            Evec3 velpts(b[3 * index], b[3 * index + 1], b[3 * index + 2]);
+            vel += gridWeights[index] * velpts;
+            omega +=
+                (radius * gridWeights[index]) *
+                (Evec3(gridNorms[3 * (index)], gridNorms[3 * (index) + 1], gridNorms[3 * (index) + 2]).cross(velpts));
         }
         vel *= (1 / (4 * pi * radius * radius));
-        omega *= -(1 / (4 * pi * radius * radius * radius * radius));
+        omega *= (3 / (8 * pi * radius * radius * radius * radius));
         velPtr[6 * i + 0] = vel[0] * invVis;
         velPtr[6 * i + 1] = vel[1] * invVis;
         velPtr[6 * i + 2] = vel[2] * invVis;
