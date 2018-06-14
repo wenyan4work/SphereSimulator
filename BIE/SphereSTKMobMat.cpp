@@ -24,11 +24,7 @@ SphereSTKMobMat::SphereSTKMobMat(std::vector<Sphere> *const spherePtr, const std
     bRcp = Teuchos::rcp(new TMV(AOpRcp->getRangeMap(), 1, true));
 
     // testOperator();
-
-    // setup the problem
     problemRcp = Teuchos::rcp(new Belos::LinearProblem<TOP::scalar_type, TMV, TOP>(AOpRcp, xRcp, bRcp));
-    problemRcp->setProblem();
-
     // Create the GMRES solver.
     Teuchos::RCP<Teuchos::ParameterList> solverParams = Teuchos::parameterList();
     solverParams->set("Num Blocks", 50); // larger than this might trigger a std::bad_alloc inside Kokkos.
@@ -37,12 +33,12 @@ SphereSTKMobMat::SphereSTKMobMat(std::vector<Sphere> *const spherePtr, const std
     solverParams->set("Orthogonalization", "ICGS");
     solverParams->set("Implicit Residual Scaling", "Norm of RHS");
     solverParams->set("Explicit Residual Scaling", "Norm of RHS");
+    solverParams->set("Output Frequency", 1);
     solverParams->set("Timer Label", "Iterative Mobility Solution");
     solverParams->set("Verbosity", Belos::Errors + Belos::Warnings + Belos::TimingDetails + Belos::FinalSummary);
 
     Belos::SolverFactory<::TOP::scalar_type, TMV, TOP> factory;
     solverRcp = factory.create("GMRES", solverParams);
-    solverRcp->setProblem(problemRcp);
 
     return;
 }
@@ -123,6 +119,7 @@ void SphereSTKMobMat::solveMob(const double *forcePtr, double *velPtr) const {
     for (int i = 0; i < nRowLocal; i++) {
         bPtr(i, 0) = b[i];
     }
+    dumpTMV(bRcp, "B.mtx");
 
     // step 2 solve linear system
     // fill initial guess with current value in sh
@@ -136,21 +133,24 @@ void SphereSTKMobMat::solveMob(const double *forcePtr, double *velPtr) const {
         for (int j = 0; j < npts; j++) {
             const int index = indexBase + j;
             xPtr(3 * (index) + 0, 0) = density[3 * j + 0] - rho[3 * (index) + 0];
-            xPtr(3 * (index) + 1, 0) = density[3 * j + 1] - rho[3 * (index) + 0];
-            xPtr(3 * (index) + 2, 0) = density[3 * j + 2] - rho[3 * (index) + 0];
+            xPtr(3 * (index) + 1, 0) = density[3 * j + 1] - rho[3 * (index) + 1];
+            xPtr(3 * (index) + 2, 0) = density[3 * j + 2] - rho[3 * (index) + 2];
         }
     }
     dumpTMV(xRcp, "Xguess.mtx");
 
     // iterative solve
 
-    solverRcp->reset(Belos::Problem);
+    // setup the problem
+    problemRcp->setProblem();
+    solverRcp->setProblem(problemRcp);
+    // solverRcp->reset(Belos::Problem);
+
     Belos::ReturnType result = solverRcp->solve();
     int numIters = solverRcp->getNumIters();
     if (commRcp->getRank() == 0) {
         std::cout << "Num of Iterations in Mobility Matrix: " << numIters << std::endl;
     }
-    dumpTMV(bRcp, "B.mtx");
     dumpTMV(xRcp, "Xsol.mtx");
 
     // step 3 compute velocity with solved density

@@ -25,7 +25,7 @@ CXX= mpicxx
 LINK= $(CXX)
 
 # optimized
-CXXFLAGS= -xHost -O3 -std=c++14 -qopenmp -qno-offload -DALLTOALLV_FIX -DFFTW3_MKL -Qoption,cpp,--extended_float_type # $(CXXFLAGS_PVFMM) 
+CXXFLAGS= $(CXXFLAGS_PVFMM) 
 LINKFLAGS= $(CXXFLAGS) $(LDLIBS_PVFMM) $(Trilinos_EXTRA_LD_FLAGS) #-lm -ldl
 
 # remove some flags for debugging

@@ -175,10 +175,18 @@ void SphereSTKSHOperator::apply(const TMV &X, TMV &Y, Teuchos::ETransp mode, sca
         // step 2, run FMM
         printf("runFMM\n");
         applyP2POP(pointValues.data(), pointValuesApply.data(), cId, cSL, cTrac);
+        for (auto &v : pointValuesApply) {
+            printf("%lf\t", v);
+        }
+        printf("\n");
 
         // step 3, apply the rigid body operator
         printf("applyLOP\n");
         applyLOP(pointValues.data(), pointValuesApply.data(), cLOP);
+        for (auto &v : pointValuesApply) {
+            printf("%lf\t", v);
+        }
+        printf("\n");
 
         // step 4, store to y
         TEUCHOS_ASSERT(nRowLocal == pointValues.size());
