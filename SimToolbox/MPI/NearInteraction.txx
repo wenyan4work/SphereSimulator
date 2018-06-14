@@ -407,6 +407,10 @@ template <class Real, int DIM> template <class SrcObj, class TrgObj> void NearIn
       }
 
   // fprintf(stderr,"pair-building loop complete in nearinterac\n");
+  if(TSPair.Dim()==0){
+    // no pair detected
+    return;
+  }
 
   // builds SRglb and TRglb
   // fprintf(stderr,"pair sorting in nearinterac\n");

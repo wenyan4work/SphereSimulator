@@ -2,9 +2,8 @@
 // Test 1 species, partition, multiple interaction & multiple essential types
 // Test 2 species, partition, multiple interaction & multiple essential types
 
-#include "MPI/InteractionManager.hpp"
 #include "Util/Buffer.hpp"
-#include "Util/cmdparser.hpp"
+#include "MPI/InteractionManager.hpp"
 
 #include <random>
 
@@ -187,22 +186,23 @@ class Elec {
     }
 };
 
-void initParticle(std::vector<FullParticle> &particle, const int NPAR, const double radius,
-                  const std::array<double, 3> &boxLow, const std::array<double, 3> &boxHigh) {
+void testOneSpecies(const int NPAR) {
     int myRank = 0;
     MPI_Comm_rank(MPI_COMM_WORLD, &myRank);
     // initialize to random
+    std::vector<FullParticle> particle;
 
     std::random_device rd;
-    std::mt19937 gen(rd());
+    std::mt19937 gen(0);
     std::uniform_real_distribution<double> dis(0, 1);
 
-    double box[3];
-    for (int j = 0; j < 3; j++) {
-        box[j] = boxHigh[j] - boxLow[j];
-    }
+    std::array<double, 3> boxLow = {10.0, 10.0, 10.0};
+    std::array<double, 3> box = {10.0, 20.0, 30.0};
+    std::array<double, 3> boxHigh;
 
-    double boxMin = std::min(std::min(box[0], box[1]), box[2]);
+    boxHigh[0] = boxLow[0] + box[0];
+    boxHigh[1] = boxLow[1] + box[1];
+    boxHigh[2] = boxLow[2] + box[2];
 
     if (myRank == 0) {
         particle.resize(NPAR);
@@ -214,7 +214,7 @@ void initParticle(std::vector<FullParticle> &particle, const int NPAR, const dou
             }
             p.mass = 1;
             p.charge = 1;
-            p.radius = radius * boxMin;
+            p.radius = 0.05 * box[0];
             for (int j = 0; j < DIM; j++) {
                 p.vel[j] = 0;
                 p.velGrav[j] = 0;
@@ -222,22 +222,72 @@ void initParticle(std::vector<FullParticle> &particle, const int NPAR, const dou
             }
         }
     }
+
     // // output
     // for (const auto &p : particle) {
     //     printf("%d,%f,%f,%f\n", p.gid, p.coord[0], p.coord[1], p.coord[2]);
     // }
-}
 
-void checkSum(const std::vector<FullParticle> &particle) {
-    int myRank = 0;
-    MPI_Comm_rank(MPI_COMM_WORLD, &myRank);
+    // initialize
+    InteractionManager<double, DIM, FullParticle, FullParticle> interactManager(&particle, &particle);
 
-    const auto npar = particle.size();
-    // check sum
+    // create a nearInteractor for full particle
+    auto nearInteractFullParPtr = interactManager.getNewNearInteraction();
+    interactManager.partitionObject(nearInteractFullParPtr);
+    printf("partition complete\n");
+
+    auto nearInteractPtr = interactManager.getNewNearInteraction();
+
+    // near interactor for Grav
+    std::vector<EssGrav> srcEss, trgEss;
+    Gravity grav;
+    interactManager.setupEssVec(srcEss, trgEss);
+    fprintf(stderr, "setupEssVec complete\n");
+    interactManager.setupNearInteractor(nearInteractPtr, srcEss, trgEss);
+    fprintf(stderr, "setupNearInteractor complete\n");
+    interactManager.calcNearInteraction<EssGrav, EssGrav, Gravity>(nearInteractPtr, srcEss, trgEss, grav);
+    fprintf(stderr, "calcNearInteraction complete\n");
+
+    // write back
+    assert(trgEss.size() == particle.size());
+    const int npar = particle.size();
+#pragma omp parallel for
+    for (int i = 0; i < npar; i++) {
+        particle[i].velGrav[0] = trgEss[i].velGrav[0];
+        particle[i].velGrav[1] = trgEss[i].velGrav[1];
+        particle[i].velGrav[2] = trgEss[i].velGrav[2];
+    }
+
+    nearInteractPtr->Barrier();
+
+    // near interactor for Elec
+    std::vector<EssElec> srcEssElec, trgEssElec;
+    Elec elec;
+    interactManager.setupEssVec(srcEssElec, trgEssElec);
+    fprintf(stderr, "setupEssVec complete\n");
+    interactManager.setupNearInteractor(nearInteractPtr, srcEssElec, trgEssElec);
+    fprintf(stderr, "setupNearInteractor complete\n");
+    interactManager.calcNearInteraction<EssElec, EssElec, Elec>(nearInteractPtr, srcEssElec, trgEssElec, elec);
+    fprintf(stderr, "calcNearInteraction complete\n");
+    assert(trgEssElec.size() == particle.size());
+#pragma omp parallel for
+    for (int i = 0; i < npar; i++) {
+        particle[i].velElec[0] = trgEssElec[i].velElec[0];
+        particle[i].velElec[1] = trgEssElec[i].velElec[1];
+        particle[i].velElec[2] = trgEssElec[i].velElec[2];
+    }
+
+    // // output
+    // for (const auto &p : particle) {
+    //     printf("%d,%f,%f,%f, %f,%f,%f,%f,%f,%f\n", p.gid, p.coord[0], p.coord[1], p.coord[2], p.velGrav[0],
+    //            p.velGrav[1], p.velGrav[2], p.velElec[0], p.velElec[1], p.velElec[2]);
+    // }
+
+    // check sum zero
     double vex = 0, vey = 0, vez = 0;
     double vgx = 0, vgy = 0, vgz = 0;
 #pragma omp parallel for reduction(+ : vex, vey, vez)
-    for (size_t i = 0; i < npar; i++) {
+    for (int i = 0; i < npar; i++) {
         vex += particle[i].velElec[0];
         vey += particle[i].velElec[1];
         vez += particle[i].velElec[2];
@@ -245,7 +295,7 @@ void checkSum(const std::vector<FullParticle> &particle) {
     printf("sum velElec: %f,%f,%f\n", vex, vey, vez);
 
 #pragma omp parallel for reduction(+ : vgx, vgy, vgz)
-    for (size_t i = 0; i < npar; i++) {
+    for (int i = 0; i < npar; i++) {
         vgx += particle[i].velGrav[0];
         vgy += particle[i].velGrav[1];
         vgz += particle[i].velGrav[2];
@@ -267,14 +317,21 @@ void checkSum(const std::vector<FullParticle> &particle) {
         if (myRank == 0)
             printf("Global sum velGrav: %g,%g,%g\n", vGlobalSum[0], vGlobalSum[1], vGlobalSum[2]);
     }
+
+    return;
 }
 
-void testOneSpecies(const int NPAR, const double radius) {
+void testOneSpeciesPBCX(const int NPAR) {
     int myRank = 0;
     MPI_Comm_rank(MPI_COMM_WORLD, &myRank);
     // initialize to random
     std::vector<FullParticle> particle;
 
+    std::random_device rd;
+    std::mt19937 gen(0);
+    std::uniform_real_distribution<double> dis(0, 1);
+
+    std::array<int, 3> pbcFLag = {1, 0, 0};
     std::array<double, 3> boxLow = {10.0, 10.0, 10.0};
     std::array<double, 3> box = {10.0, 20.0, 30.0};
     std::array<double, 3> boxHigh;
@@ -283,10 +340,33 @@ void testOneSpecies(const int NPAR, const double radius) {
     boxHigh[1] = boxLow[1] + box[1];
     boxHigh[2] = boxLow[2] + box[2];
 
-    initParticle(particle, NPAR, radius, boxLow, boxHigh);
+    if (myRank == 0) {
+        particle.resize(NPAR);
+        for (int i = 0; i < NPAR; i++) {
+            auto &p = particle[i];
+            p.gid = myRank * NPAR + i;
+            for (int j = 0; j < DIM; j++) {
+                p.coord[j] = dis(gen) * box[j];
+            }
+            p.mass = 1;
+            p.charge = 1;
+            p.radius = 0.05 * box[0];
+            for (int j = 0; j < DIM; j++) {
+                p.vel[j] = 0;
+                p.velGrav[j] = 0;
+                p.velElec[j] = 0;
+            }
+        }
+    }
+
+    // // output
+    // for (const auto &p : particle) {
+    //     printf("%d,%f,%f,%f\n", p.gid, p.coord[0], p.coord[1], p.coord[2]);
+    // }
 
     // initialize
     InteractionManager<double, DIM, FullParticle, FullParticle> interactManager(&particle, &particle);
+    interactManager.setPBCBox(pbcFLag, boxLow, boxHigh);
 
     // create a nearInteractor for full particle
     auto nearInteractFullParPtr = interactManager.getNewNearInteraction();
@@ -340,31 +420,90 @@ void testOneSpecies(const int NPAR, const double radius) {
     //            p.velGrav[1], p.velGrav[2], p.velElec[0], p.velElec[1], p.velElec[2]);
     // }
 
-    checkSum(particle);
+    // check sum
+    double vex = 0, vey = 0, vez = 0;
+    double vgx = 0, vgy = 0, vgz = 0;
+#pragma omp parallel for reduction(+ : vex, vey, vez)
+    for (int i = 0; i < npar; i++) {
+        vex += particle[i].velElec[0];
+        vey += particle[i].velElec[1];
+        vez += particle[i].velElec[2];
+    }
+    printf("sum velElec: %f,%f,%f\n", vex, vey, vez);
+
+#pragma omp parallel for reduction(+ : vgx, vgy, vgz)
+    for (int i = 0; i < npar; i++) {
+        vgx += particle[i].velGrav[0];
+        vgy += particle[i].velGrav[1];
+        vgz += particle[i].velGrav[2];
+    }
+    printf("sum velGrav: %f,%f,%f\n", vgx, vgy, vgz);
+
+    {
+        double vGlobalSum[3] = {0, 0, 0};
+        double ve[3] = {vex, vey, vez};
+        MPI_Reduce(ve, vGlobalSum, 3, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
+        if (myRank == 0)
+            printf("Global sum velElec: %g,%g,%g\n", vGlobalSum[0], vGlobalSum[1], vGlobalSum[2]);
+    }
+
+    {
+        double vGlobalSum[3] = {0, 0, 0};
+        double vg[3] = {vgx, vgy, vgz};
+        MPI_Reduce(vg, vGlobalSum, 3, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
+        if (myRank == 0)
+            printf("Global sum velGrav: %g,%g,%g\n", vGlobalSum[0], vGlobalSum[1], vGlobalSum[2]);
+    }
 
     return;
 }
 
-void testOneSpeciesPBCX(const int NPAR, const double radius) {
+void testOneSpeciesPBCYZ(const int NPAR) {
     int myRank = 0;
     MPI_Comm_rank(MPI_COMM_WORLD, &myRank);
     // initialize to random
     std::vector<FullParticle> particle;
 
+    std::random_device rd;
+    std::mt19937 gen(0);
+    std::uniform_real_distribution<double> dis(0, 1);
+
+    std::array<int, 3> pbcFLag = {0, 1, 1};
     std::array<double, 3> boxLow = {10.0, 10.0, 10.0};
     std::array<double, 3> box = {10.0, 20.0, 30.0};
     std::array<double, 3> boxHigh;
-    std::array<bool, 3> pbcFlag = {true, false, false};
 
     boxHigh[0] = boxLow[0] + box[0];
     boxHigh[1] = boxLow[1] + box[1];
     boxHigh[2] = boxLow[2] + box[2];
 
-    initParticle(particle, NPAR, radius, boxLow, boxHigh);
+    if (myRank == 0) {
+        particle.resize(NPAR);
+        for (int i = 0; i < NPAR; i++) {
+            auto &p = particle[i];
+            p.gid = myRank * NPAR + i;
+            for (int j = 0; j < DIM; j++) {
+                p.coord[j] = dis(gen) * box[j];
+            }
+            p.mass = 1;
+            p.charge = 1;
+            p.radius = 0.05 * box[0];
+            for (int j = 0; j < DIM; j++) {
+                p.vel[j] = 0;
+                p.velGrav[j] = 0;
+                p.velElec[j] = 0;
+            }
+        }
+    }
+
+    // // output
+    // for (const auto &p : particle) {
+    //     printf("%d,%f,%f,%f\n", p.gid, p.coord[0], p.coord[1], p.coord[2]);
+    // }
 
     // initialize
     InteractionManager<double, DIM, FullParticle, FullParticle> interactManager(&particle, &particle);
-    interactManager.setPBCBox(pbcFlag, boxLow, boxHigh);
+    interactManager.setPBCBox(pbcFLag, boxLow, boxHigh);
 
     // create a nearInteractor for full particle
     auto nearInteractFullParPtr = interactManager.getNewNearInteraction();
@@ -418,125 +557,60 @@ void testOneSpeciesPBCX(const int NPAR, const double radius) {
     //            p.velGrav[1], p.velGrav[2], p.velElec[0], p.velElec[1], p.velElec[2]);
     // }
 
-    checkSum(particle);
-
-    return;
-}
-
-void testOneSpeciesPBCYZ(const int NPAR, const double radius) {
-    int myRank = 0;
-    MPI_Comm_rank(MPI_COMM_WORLD, &myRank);
-    // initialize to random
-    std::vector<FullParticle> particle;
-
-    std::array<double, 3> boxLow = {10.0, 10.0, 10.0};
-    std::array<double, 3> box = {10.0, 20.0, 30.0};
-    std::array<double, 3> boxHigh;
-    std::array<bool, 3> pbcFlag = {false, true, true};
-
-    boxHigh[0] = boxLow[0] + box[0];
-    boxHigh[1] = boxLow[1] + box[1];
-    boxHigh[2] = boxLow[2] + box[2];
-
-    initParticle(particle, NPAR, radius, boxLow, boxHigh);
-
-    // initialize
-    InteractionManager<double, DIM, FullParticle, FullParticle> interactManager(&particle, &particle);
-    interactManager.setPBCBox(pbcFlag, boxLow, boxHigh);
-
-    // create a nearInteractor for full particle
-    auto nearInteractFullParPtr = interactManager.getNewNearInteraction();
-    interactManager.partitionObject(nearInteractFullParPtr);
-    printf("partition complete\n");
-
-    auto nearInteractPtr = interactManager.getNewNearInteraction();
-
-    // near interactor for Grav
-    std::vector<EssGrav> srcEss, trgEss;
-    Gravity grav;
-    interactManager.setupEssVec(srcEss, trgEss);
-    fprintf(stderr, "setupEssVec complete\n");
-    interactManager.setupNearInteractor(nearInteractPtr, srcEss, trgEss);
-    fprintf(stderr, "setupNearInteractor complete\n");
-    interactManager.calcNearInteraction<EssGrav, EssGrav, Gravity>(nearInteractPtr, srcEss, trgEss, grav);
-    fprintf(stderr, "calcNearInteraction complete\n");
-
-    // write back
-    assert(trgEss.size() == particle.size());
-    const int npar = particle.size();
-#pragma omp parallel for
+    // check sum
+    double vex = 0, vey = 0, vez = 0;
+    double vgx = 0, vgy = 0, vgz = 0;
+#pragma omp parallel for reduction(+ : vex, vey, vez)
     for (int i = 0; i < npar; i++) {
-        particle[i].velGrav[0] = trgEss[i].velGrav[0];
-        particle[i].velGrav[1] = trgEss[i].velGrav[1];
-        particle[i].velGrav[2] = trgEss[i].velGrav[2];
+        vex += particle[i].velElec[0];
+        vey += particle[i].velElec[1];
+        vez += particle[i].velElec[2];
+    }
+    printf("sum velElec: %f,%f,%f\n", vex, vey, vez);
+
+#pragma omp parallel for reduction(+ : vgx, vgy, vgz)
+    for (int i = 0; i < npar; i++) {
+        vgx += particle[i].velGrav[0];
+        vgy += particle[i].velGrav[1];
+        vgz += particle[i].velGrav[2];
+    }
+    printf("sum velGrav: %f,%f,%f\n", vgx, vgy, vgz);
+
+    {
+        double vGlobalSum[3] = {0, 0, 0};
+        double ve[3] = {vex, vey, vez};
+        MPI_Reduce(ve, vGlobalSum, 3, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
+        if (myRank == 0)
+            printf("Global sum velElec: %g,%g,%g\n", vGlobalSum[0], vGlobalSum[1], vGlobalSum[2]);
     }
 
-    nearInteractPtr->Barrier();
-
-    // near interactor for Elec
-    std::vector<EssElec> srcEssElec, trgEssElec;
-    Elec elec;
-    interactManager.setupEssVec(srcEssElec, trgEssElec);
-    fprintf(stderr, "setupEssVec complete\n");
-    interactManager.setupNearInteractor(nearInteractPtr, srcEssElec, trgEssElec);
-    fprintf(stderr, "setupNearInteractor complete\n");
-    interactManager.calcNearInteraction<EssElec, EssElec, Elec>(nearInteractPtr, srcEssElec, trgEssElec, elec);
-    fprintf(stderr, "calcNearInteraction complete\n");
-    assert(trgEssElec.size() == particle.size());
-#pragma omp parallel for
-    for (int i = 0; i < npar; i++) {
-        particle[i].velElec[0] = trgEssElec[i].velElec[0];
-        particle[i].velElec[1] = trgEssElec[i].velElec[1];
-        particle[i].velElec[2] = trgEssElec[i].velElec[2];
+    {
+        double vGlobalSum[3] = {0, 0, 0};
+        double vg[3] = {vgx, vgy, vgz};
+        MPI_Reduce(vg, vGlobalSum, 3, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
+        if (myRank == 0)
+            printf("Global sum velGrav: %g,%g,%g\n", vGlobalSum[0], vGlobalSum[1], vGlobalSum[2]);
     }
 
-    // // output
-    // for (const auto &p : particle) {
-    //     printf("%d,%f,%f,%f, %f,%f,%f,%f,%f,%f\n", p.gid, p.coord[0], p.coord[1], p.coord[2], p.velGrav[0],
-    //            p.velGrav[1], p.velGrav[2], p.velElec[0], p.velElec[1], p.velElec[2]);
-    // }
-    checkSum(particle);
-
     return;
-}
-
-void configure_parser(cli::Parser &parser) {
-    parser.set_optional<int>("N", "NPAR", 10000, "global number of particles to test, default = 10k");
-    parser.set_optional<double>("R", "Radius", 0.02, "search radius = R * min(box edge), default = 0.02, must < 0.3");
-}
-
-void showOption(const cli::Parser &parser) {
-    std::cout << "Running setting: " << std::endl;
-    std::cout << "Particle Number: " << parser.get<int>("N") << std::endl;
-    std::cout << "Search Radius Fraction: " << parser.get<double>("R") << std::endl;
 }
 
 int main(int argc, char **argv) {
     MPI_Init(&argc, &argv);
 
-    cli::Parser parser(argc, argv);
-    configure_parser(parser);
-    parser.run_and_exit_if_error();
-
-    int rank, size;
-    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-
-    if (rank == 0)
-        showOption(parser);
-
-    int NPAR = parser.get<int>("N");
-    double radius = parser.get<double>("R");
+    int NPAR=30000;
     printf("testing free space BC\n");
-    testOneSpecies(NPAR, radius);
+    testOneSpecies(NPAR);
 
     MPI_Barrier(MPI_COMM_WORLD);
     printf("testing PBC X\n");
-    testOneSpeciesPBCX(NPAR, radius);
+    testOneSpeciesPBCX(NPAR);
 
     MPI_Barrier(MPI_COMM_WORLD);
     printf("testing PBC YZ\n");
-    testOneSpeciesPBCYZ(NPAR, radius);
+    testOneSpeciesPBCYZ(NPAR);
 
     MPI_Finalize();
+
     return 0;
 }

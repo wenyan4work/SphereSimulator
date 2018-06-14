@@ -32,7 +32,7 @@ class InteractionManager {
 
     std::array<Real, DIM> boxLow;
     std::array<Real, DIM> boxHigh;
-    std::array<bool, DIM> pbcFlag; // 111 for periodic in xyz, etc
+    std::array<int, DIM> pbcFlag; // 111 for periodic in xyz, etc
 
     // WARNING: create or copy this too many times will cause fatal error:
     //   Too many communicators (0/16384 free on this process; ignore_id=0)
@@ -68,7 +68,7 @@ class InteractionManager {
     // set PBC
     // If PBC is activated, it is the user's job to guarantee that the coordinates are within the box set by PBC
     // There is no coordinate check of that
-    void setPBCBox(std::array<bool, DIM> &pbcFlag_, std::array<Real, DIM> &boxLow_, std::array<Real, DIM> &boxHigh_) {
+    void setPBCBox(std::array<int, DIM> &pbcFlag_, std::array<Real, DIM> &boxLow_, std::array<Real, DIM> &boxHigh_) {
         pbcFlag = pbcFlag_;
         for (int i = 0; i < DIM; i++) {
             if (boxLow_[i] >= boxHigh_[i]) {
@@ -96,7 +96,7 @@ class InteractionManager {
         // get a new NearInteraction object to be used for partition or interaction
         auto p = std::make_shared<NearInteraction<Real, DIM>>(sctlcomm);
         for (int i = 0; i < DIM; i++) {
-            if (pbcFlag[i]) {
+            if (pbcFlag[i] != 0) {
                 p->SetPeriodLength(i, boxHigh[i] - boxLow[i]);
             } else {
                 p->SetPeriodLength(i, 0);
@@ -170,12 +170,12 @@ class InteractionManager {
         // the position and shape of the sources and the targets do not change.
 
         // Forward scatter
-        // printf("scatter start\n");
+        printf("scatter start\n");
         std::vector<SrcEssType> srcNear;
         std::vector<TrgEssType> trgNear;
         nearInteracPtr->template ForwardScatterSrc<SrcEssType>(srcEssVec, srcNear);
         nearInteracPtr->template ForwardScatterTrg<TrgEssType>(trgEssVec, trgNear);
-        // printf("scatter complete\n");
+        printf("scatter complete\n");
 
         // trg_src_interac is sorted according to trg id
         // This is the internal id maintained by the object pointed by nearInteracPtr
@@ -198,7 +198,7 @@ class InteractionManager {
             // no pairs to process
             // do nothing
         } else {
-            // printf("calc work division start\n");
+        printf("calc work division start\n");
             std::vector<std::pair<int, int>> trgIdIndex;
             trgIdIndex.reserve(trg_src_interac.size());
             trgIdIndex.emplace_back(std::pair<int, size_t>(trg_src_interac[0].first, 0));
@@ -211,7 +211,7 @@ class InteractionManager {
             trgIdIndex.emplace_back(
                 std::pair<int, size_t>(static_cast<int>(UINTMAX_MAX), N)); // a tail to simplify index
 
-            // printf("calc work division complete\n");
+        printf("calc work division complete\n");
             const int ntrg = trgIdIndex.size() - 1; // the last element is only for index bound
 #pragma omp parallel for
             for (size_t k = 0; k < ntrg; k++) {
