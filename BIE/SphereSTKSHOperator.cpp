@@ -47,19 +47,18 @@ void SphereSTKSHOperator::setupDOF() {
 
     gridNumberMapRcp = getTMAPFromLocalSize(gridNumberIndex.back() + gridNumberLength.back(), commRcp);
     gridValueDofMapRcp = getTMAPFromLocalSize(gridNumberMapRcp->getNodeNumElements() * 3, commRcp);
-
-    gridCoords.resize(3 * gridNumberMapRcp->getNodeNumElements());
-    gridCoordsRelative.resize(3 * gridNumberMapRcp->getNodeNumElements());
-    gridNorms.resize(3 * gridNumberMapRcp->getNodeNumElements());
-    gridWeights.resize(gridNumberMapRcp->getNodeNumElements());
-
-    TEUCHOS_ASSERT(gridCoords.size() == gridValueDofMapRcp->getNodeNumElements());
-    TEUCHOS_ASSERT(gridNorms.size() == gridValueDofMapRcp->getNodeNumElements());
 }
 
 void SphereSTKSHOperator::setupFMM() {
     const auto &sphere = *spherePtr;
     const int nLocal = sphere.size();
+
+    gridCoords.resize(3 * gridNumberMapRcp->getNodeNumElements(), 0);
+    gridCoordsRelative.resize(3 * gridNumberMapRcp->getNodeNumElements(), 0);
+    gridNorms.resize(3 * gridNumberMapRcp->getNodeNumElements(), 0);
+    gridWeights.resize(gridNumberMapRcp->getNodeNumElements(), 0);
+    TEUCHOS_ASSERT(gridCoords.size() == gridValueDofMapRcp->getNodeNumElements());
+    TEUCHOS_ASSERT(gridNorms.size() == gridValueDofMapRcp->getNodeNumElements());
 
     // setup points
 #pragma omp parallel
@@ -175,18 +174,18 @@ void SphereSTKSHOperator::apply(const TMV &X, TMV &Y, Teuchos::ETransp mode, sca
         // step 2, run FMM
         printf("runFMM\n");
         applyP2POP(pointValues.data(), pointValuesApply.data(), cId, cSL, cTrac);
-        for (auto &v : pointValuesApply) {
-            printf("%lf\t", v);
-        }
-        printf("\n");
+        // for (auto &v : pointValuesApply) {
+        //     printf("%lf\n", v);
+        // }
+        // printf("\n");
 
         // step 3, apply the rigid body operator
         printf("applyLOP\n");
         applyLOP(pointValues.data(), pointValuesApply.data(), cLOP);
-        for (auto &v : pointValuesApply) {
-            printf("%lf\t", v);
-        }
-        printf("\n");
+        // for (auto &v : pointValuesApply) {
+        //     printf("%lf\n", v);
+        // }
+        // printf("\n");
 
         // step 4, store to y
         TEUCHOS_ASSERT(nRowLocal == pointValues.size());
@@ -263,6 +262,10 @@ void SphereSTKSHOperator::applyP2POP(const double *inPtr, double *outPtr, double
         // step 2 run
         fmmPtr->clearFMM(KERNEL::PVel);
         fmmPtr->evaluateFMM(nGridPts, srcSLValue.data(), 0, srcDLValue.data(), nGridPts, trgValue.data(), KERNEL::PVel);
+        // printf("fmmvalue SL\n");
+        // for (auto &v : trgValue) {
+        //     printf("%lf\n", v);
+        // }
 #pragma omp parallel for
         for (int i = 0; i < nGridPts; i++) {
             // trgValue = p,vx,vy,vz
@@ -299,10 +302,18 @@ void SphereSTKSHOperator::applyP2POP(const double *inPtr, double *outPtr, double
 
                 // this is already scaled by cSLex
                 fmmPtr->evaluateKernel(1, PPKERNEL::SLS2T, npts, gridcoordrelative.data(),
-                                       srcSLValue.data() + 4 * indexBase, npts,
-                                       gridcoordrelative.data() + 3 * indexBase, fmmvalue.data(), KERNEL::PVel);
+                                       srcSLValue.data() + 4 * indexBase, npts, gridcoordrelative.data(),
+                                       fmmvalue.data(), KERNEL::PVel);
+                // printf("fmmvalue SL, sph %d\n", i);
+                // for (auto &v : fmmvalue) {
+                //     printf("%lf\n", v);
+                // }
                 // this is not scaled by cSLex
                 sph[i].calcSDLNF(shcoeff.data(), npts, gridcoordrelative.data(), shvalue.data(), false, true);
+                // printf("sphvalue SL, sph %d\n", i);
+                // for (auto &v : shvalue) {
+                //     printf("%lf\n", v);
+                // }
                 for (int j = 0; j < npts; j++) {
                     outPtr[3 * (indexBase + j) + 0] += cSLex * shvalue[3 * j + 0] - fmmvalue[4 * j + 1];
                     outPtr[3 * (indexBase + j) + 1] += cSLex * shvalue[3 * j + 1] - fmmvalue[4 * j + 2];
@@ -328,6 +339,10 @@ void SphereSTKSHOperator::applyP2POP(const double *inPtr, double *outPtr, double
         fmmPtr->clearFMM(KERNEL::Traction);
         fmmPtr->evaluateFMM(nGridPts, srcSLValue.data(), 0, srcDLValue.data(), nGridPts, trgValue.data(),
                             KERNEL::Traction);
+        // printf("fmmvalue Trac");
+        // for (auto &v : trgValue) {
+        //     printf("%lf\n", v);
+        // }
         // fix trgValue with operator on self
 #pragma omp parallel
         {
@@ -356,10 +371,18 @@ void SphereSTKSHOperator::applyP2POP(const double *inPtr, double *outPtr, double
 
                 // this is already scaled by cTracex
                 fmmPtr->evaluateKernel(1, PPKERNEL::SLS2T, npts, gridcoordrelative.data(),
-                                       srcSLValue.data() + 4 * indexBase, npts,
-                                       gridcoordrelative.data() + 3 * indexBase, fmmvalue.data(), KERNEL::Traction);
+                                       srcSLValue.data() + 4 * indexBase, npts, gridcoordrelative.data(),
+                                       fmmvalue.data(), KERNEL::Traction);
+                // printf("fmmvalue Trac, sph %d\n", i);
+                // for (auto &v : fmmvalue) {
+                //     printf("%lf\n", v);
+                // }
                 // this is not scaled by cTracex
                 sph[i].calcKSelf(shcoeff.data(), npts, gridcoordrelative.data(), shvalue.data(), false);
+                // printf("shvalue Trac, sph %d\n", i);
+                // for (auto &v : shvalue) {
+                //     printf("%lf\n", v);
+                // }
 
                 // remove fmm self value from trgValue
                 for (int j = 0; j < npts; j++) {

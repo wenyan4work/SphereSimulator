@@ -387,28 +387,28 @@ void SphereSystem::resolveCollision(bool manybody, double buffer) {
     auto &collector = *collisionCollectorPtr;
     collector.clear();
 
-    if (this->sphereMapRcp->getGlobalNumElements() > 1) {
-        // no collision for only 1 object
-        // temporary workaround for a bug in interact manager
-        std::vector<CollisionSphere> collisionSphereSrc;
-        std::vector<CollisionSphere> collisionSphereTrg;
+    // if (this->sphereMapRcp->getGlobalNumElements() > 1) {
+    // no collision for only 1 object
+    // temporary workaround for a bug in interact manager
+    std::vector<CollisionSphere> collisionSphereSrc;
+    std::vector<CollisionSphere> collisionSphereTrg;
 
-        interactManagerPtr->setupEssVec(collisionSphereSrc, collisionSphereTrg);
-        if (commRcp->getRank() == 0)
-            printf("ESS vec created\n");
+    interactManagerPtr->setupEssVec(collisionSphereSrc, collisionSphereTrg);
+    if (commRcp->getRank() == 0)
+        printf("ESS vec created\n");
 
-        auto nearInteractorPtr = interactManagerPtr->getNewNearInteraction();
-        if (commRcp->getRank() == 0)
-            printf("nearInteractorPtr created\n");
+    auto nearInteractorPtr = interactManagerPtr->getNewNearInteraction();
+    if (commRcp->getRank() == 0)
+        printf("nearInteractorPtr created\n");
 
-        interactManagerPtr->setupNearInteractor(nearInteractorPtr, collisionSphereSrc, collisionSphereTrg);
-        if (commRcp->getRank() == 0)
-            printf("setupNear\n");
+    interactManagerPtr->setupNearInteractor(nearInteractorPtr, collisionSphereSrc, collisionSphereTrg);
+    if (commRcp->getRank() == 0)
+        printf("setupNear\n");
 
-        interactManagerPtr->calcNearInteraction(nearInteractorPtr, collisionSphereSrc, collisionSphereTrg, collector);
-        if (commRcp->getRank() == 0)
-            printf("calcNear\n");
-    }
+    interactManagerPtr->calcNearInteraction(nearInteractorPtr, collisionSphereSrc, collisionSphereTrg, collector);
+    if (commRcp->getRank() == 0)
+        printf("calcNear\n");
+    // }
 
     // construct collision stepper
     collisionSolverPtr->setup(*(collector.collisionPoolPtr), sphereMobilityMapRcp, runConfig.dt, buffer);

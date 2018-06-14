@@ -13,7 +13,7 @@ viscosity (pN/(um^2) s)
 kBT (pN * um)
 0.00411
 External Force and Torque (pN)
-1.0 0.0 0.0 0.0 0.0 0.0
+0.0 0.0 1.0 0.0 0.0 0.0
 sphereNumber
 1
 dt (s)
