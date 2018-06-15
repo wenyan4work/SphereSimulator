@@ -20,18 +20,17 @@ void testLAPConvert(const int order = 12, const int repeat = 1000) {
     std::vector<double> gridValueInitial(sh.getGridDOF(), 0);
     randomUniformFill(gridValueInitial, -2, 2);
 
-    sh.gridValue = gridValueInitial;
-
     std::vector<double> spectralCoeff(sh.getSpectralDOF(), 0);
-    sh.calcSpectralCoeff(spectralCoeff.data());
+    sh.calcSpectralCoeff(spectralCoeff.data(), gridValueInitial.data());
     sh.calcGridValue(spectralCoeff.data(), gridValueInitial.data()); // remove the nullspace of random grid value
+    sh.gridValue = gridValueInitial;
 
     // transform 1000 times
     for (int i = 0; i < repeat; i++) {
         // grid to spectral
-        sh.calcSpectralCoeff(spectralCoeff.data());
+        sh.calcSpectralCoeff(spectralCoeff.data(), gridValueInitial.data());
         // spectral to grid
-        sh.calcGridValue(spectralCoeff.data());
+        sh.calcGridValue(spectralCoeff.data(), gridValueInitial.data());
     }
 
     // check error
@@ -53,18 +52,17 @@ void testSTKConvert(const int order = 12, const int repeat = 1000) {
     std::vector<double> gridValueInitial(sh.getGridDOF(), 0);
     randomUniformFill(gridValueInitial, -2, 2);
 
-    sh.gridValue = gridValueInitial;
-
     std::vector<double> spectralCoeff(sh.getSpectralDOF(), 0);
-    sh.calcSpectralCoeff(spectralCoeff.data());
+    sh.calcSpectralCoeff(spectralCoeff.data(), gridValueInitial.data());
     sh.calcGridValue(spectralCoeff.data(), gridValueInitial.data()); // remove the nullspace of random grid value
+    sh.gridValue = gridValueInitial;
 
     // transform 1000 times
     for (int i = 0; i < repeat; i++) {
         // grid to spectral
-        sh.calcSpectralCoeff(spectralCoeff.data());
+        sh.calcSpectralCoeff(spectralCoeff.data(), gridValueInitial.data());
         // spectral to grid
-        sh.calcGridValue(spectralCoeff.data());
+        sh.calcGridValue(spectralCoeff.data(), gridValueInitial.data());
     }
 
     // check error

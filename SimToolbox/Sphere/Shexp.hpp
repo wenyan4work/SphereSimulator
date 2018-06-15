@@ -78,13 +78,16 @@ class Shexp {
 
     // convert G2S and S2G
     // User should allocate enough space. No bound check here
+    // spectralCoeff pointed by coeffPtr is not modified
     void calcGridValue(double *coeffPtr, double *valPtr = nullptr);
-    void calcPoleValue(double *coeffPtr, double *valPtr) const;
+    void calcPoleValue(double *coeffPtr, double *valPtr = nullptr) const;
 
-    void calcSpectralCoeff(double *coeffPtr, double *valPtr = nullptr) const;
+    // gridValue pointed by valPtr is not modified
+    void calcSpectralCoeff(double *coeffPtr, const double *valPtr = nullptr) const;
 
     // NF routines
     // User should allocate enough space. No bound check here
+    // the data pointed by trgXYZPtr, trgValuePtr, trgNormPtr are modified by grid rotation
     void calcSDLNF(double *coeffPtr, const int &trgNum, double *trgXYZPtr, double *trgValuePtr,
                    const bool &interior = false, const bool &SL = true) const; // both STK and LAP
 
