@@ -36,7 +36,7 @@ int main(int argc, char **argv) {
     Teuchos::RCP<TCMAT> matTestRcp = Teuchos::rcp(new TCMAT(rowMapRcp, colMapRcp, rowPointers, columnIndices, values));
     matTestRcp->fillComplete(colOpMapRcp, rowMapRcp); // domainMap, rangeMap
 
-    dumpTCMAT(matTestRcp, "matTestRcp.mtx");
+    dumpTCMAT(matTestRcp, "matTestRcp");
 
     MPI_Finalize();
     return 0;

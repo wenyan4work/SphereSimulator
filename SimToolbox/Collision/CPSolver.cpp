@@ -250,8 +250,8 @@ CPSolver::CPSolver(int globalSize) {
     std::cout << "ARcp" << ARcp->description() << std::endl;
 
     // dump matrix
-    dumpTCMAT(Atemp, "Amat.mtx");
-    dumpTV(this->bRcp, "bvec.mtx");
+    dumpTCMAT(Atemp, "Amat");
+    dumpTV(this->bRcp, "bvec");
 }
 
 int CPSolver::LCP_BBPGD(Teuchos::RCP<TV> &xsolRcp, const double tol, const int iteMax, IteHistory &history) const {
@@ -785,8 +785,8 @@ int CPSolver::test_LCP(double tol, int maxIte, int solverChoice) {
     Teuchos::RCP<TV> AxbRcp = Teuchos::rcp(new TV(this->mapRcp.getConst(), false));
     ARcp->apply(*xsolRcp, *AxbRcp);  // Ax
     AxbRcp->update(1.0, *bRcp, 1.0); // Ax+b
-    dumpTV(xsolRcp, "xsol.mtx");
-    dumpTV(AxbRcp, "Axb.mtx");
+    dumpTV(xsolRcp, "xsol");
+    dumpTV(AxbRcp, "Axb");
     auto xView = xsolRcp->getLocalView<Kokkos::HostSpace>();
     auto yView = AxbRcp->getLocalView<Kokkos::HostSpace>();
 

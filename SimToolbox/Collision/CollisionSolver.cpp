@@ -77,8 +77,8 @@ void CollisionSolver::solveCollision(Teuchos::RCP<TOP> &matMobilityRcp_, Teuchos
             std::cout << p[0] << " " << p[1] << " " << p[2] << " " << p[3] << " " << p[4] << std::endl;
         }
     }
-    dumpTV(forceColRcp, "forceCol.mtx");
-    dumpTV(gammaRcp, "gammaSolLCP.mtx");
+    dumpTV(forceColRcp, "forceCol");
+    dumpTV(gammaRcp, "gammaSolLCP");
 #endif
 }
 
@@ -216,7 +216,7 @@ void CollisionSolver::setupFcTrans(CollisionBlockPool &collision_) {
 
 #ifdef DEBUGLCPCOL
     std::cout << "FcTransConstructed: " << matFcTransRcp->description() << std::endl;
-    dumpTCMAT(matFcTransRcp, "matFcTrans.mtx");
+    dumpTCMAT(matFcTransRcp, "matFcTrans");
 #endif
 
     return;
@@ -268,7 +268,7 @@ void CollisionSolver::setupPhi0Vec(CollisionBlockPool &collision_, double dt_, d
 
 #ifdef DEBUGLCPCOL
     std::cout << "phi0 vector Constructed: " << phi0Rcp->description() << std::endl;
-    dumpTV(phi0Rcp, "phi0Vec.mtx");
+    dumpTV(phi0Rcp, "phi0Vec");
 #endif
 }
 
@@ -294,7 +294,7 @@ void CollisionSolver::setupGammaVec(CollisionBlockPool &collision_) {
 
 #ifdef DEBUGLCPCOL
     std::cout << "gamma vector Constructed: " << gammaRcp->description() << std::endl;
-    dumpTV(gammaRcp, "gammaVec.mtx");
+    dumpTV(gammaRcp, "gammaVec");
 #endif
 }
 
@@ -304,7 +304,7 @@ void CollisionSolver::setupVnVec(CollisionBlockPool &collision_, std::vector<dou
     vnRcp = getTVFromVector(velocity_, commRcp);
 #ifdef DEBUGLCPCOL
     std::cout << "Vn vector Constructed: " << vnRcp->description() << std::endl;
-    dumpTV(vnRcp, "VnVec.mtx");
+    dumpTV(vnRcp, "VnVec");
 #endif
 }
 

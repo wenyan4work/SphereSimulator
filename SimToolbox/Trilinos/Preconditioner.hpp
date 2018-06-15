@@ -7,7 +7,7 @@ class PrecondUtil {
   public:
     static void showPrecDebugInfo(const Teuchos::RCP<const TCMAT> &A, const Teuchos::RCP<const TOP> &PrecOp) {
 #ifdef IFPACKDEBUG
-        dumpTCMAT(A, "A_for_Prec.mtx");
+        dumpTCMAT(A, "A_for_Prec");
         if (A->getComm()->getRank() == 0) {
             Teuchos::FancyOStream fancyout(Teuchos::rcp(&std::cout, false));
             cout << "NNZ local" << A->getNodeNumEntries() << endl;
@@ -53,9 +53,9 @@ class PrecondUtil {
         Teuchos::RCP<TMV> bRCP = Teuchos::rcp(new TMV(A->getRowMap(), 1, false));
         xRCP->putScalar(1);
         A->apply(*xRCP, *bRCP);
-        dumpTMV(bRCP, "bRCP_A.mtx");
+        dumpTMV(bRCP, "bRCP_Ax");
         prec->apply(*xRCP, *bRCP);
-        dumpTMV(bRCP, "bRCP_prec,mtx");
+        dumpTMV(bRCP, "bRCP_prec");
 #endif
     }
 
