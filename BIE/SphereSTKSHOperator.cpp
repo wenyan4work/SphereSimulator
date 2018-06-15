@@ -347,7 +347,7 @@ void SphereSTKSHOperator::applyP2POP(const double *inPtr, double *outPtr, double
 #pragma omp parallel
         {
             std::vector<double> fmmvalue;
-            std::vector<double> shvalue;
+            std::vector<double> shvalueout;
             std::vector<double> shcoeff;
             std::vector<double> gridcoordrelative;
 #pragma omp for
@@ -358,8 +358,8 @@ void SphereSTKSHOperator::applyP2POP(const double *inPtr, double *outPtr, double
                 fmmvalue.resize(9 * npts);
                 std::fill(fmmvalue.begin(), fmmvalue.end(), 0);
 
-                shvalue.resize(3 * npts);
-                std::fill(shvalue.begin(), shvalue.end(), 0);
+                shvalueout.resize(3 * npts);
+                std::fill(shvalueout.begin(), shvalueout.end(), 0);
 
                 shcoeff.resize(shCoeffLength[i]);
                 std::copy(shCoeffValues.cbegin() + shCoeffIndex[i],
@@ -378,7 +378,10 @@ void SphereSTKSHOperator::applyP2POP(const double *inPtr, double *outPtr, double
                 //     printf("%lf\n", v);
                 // }
                 // this is not scaled by cTracex
-                sph[i].calcKSelf(shcoeff.data(), npts, gridcoordrelative.data(), shvalue.data(), false);
+                // principal value of traction = Double layer exterior - 1/2 I
+                sph[i].calcSDLNF(shcoeff.data(), npts, gridcoordrelative.data(), shvalueout.data(), false, false);
+                // modify shvalue to get principal value
+
                 // printf("shvalue Trac, sph %d\n", i);
                 // for (auto &v : shvalue) {
                 //     printf("%lf\n", v);
@@ -386,8 +389,9 @@ void SphereSTKSHOperator::applyP2POP(const double *inPtr, double *outPtr, double
 
                 // remove fmm self value from trgValue
                 for (int j = 0; j < npts; j++) {
+                    const int index = indexBase + j;
                     for (int k = 0; k < 9; k++) {
-                        trgValue[9 * (indexBase + j) + k] -= fmmvalue[9 * j + k];
+                        trgValue[9 * index + k] -= fmmvalue[9 * j + k];
                     }
                 }
                 // compute velocity
@@ -403,11 +407,13 @@ void SphereSTKSHOperator::applyP2POP(const double *inPtr, double *outPtr, double
                                              trgValue[9 * index + 7] * gridNorms[3 * index + 1] +
                                              trgValue[9 * index + 8] * gridNorms[3 * index + 2];
                 }
-
                 for (int j = 0; j < npts; j++) {
-                    outPtr[3 * (indexBase + j) + 0] += cTracex * shvalue[3 * j + 0];
-                    outPtr[3 * (indexBase + j) + 1] += cTracex * shvalue[3 * j + 1];
-                    outPtr[3 * (indexBase + j) + 2] += cTracex * shvalue[3 * j + 2];
+                    const int index = indexBase + j;
+#pragma unroll
+                    for (int kk = 0; kk < 3; kk++) {
+                        // principal value of traction = Double layer exterior - 1/2 I
+                        outPtr[3 * (index) + kk] += cTracex * (shvalueout[3 * j + kk] - 0.5 * inPtr[3 * index + kk]);
+                    }
                 }
             }
         }
@@ -429,7 +435,6 @@ void SphereSTKSHOperator::applyLOP(const double *inPtr, double *outPtr, double c
     const int nLocal = sphere.size();
 #pragma omp parallel
     {
-        // std::vector<double> temp;
 #pragma omp for
         for (int i = 0; i < nLocal; i++) {
             Evec3 A(0, 0, 0);
@@ -437,6 +442,7 @@ void SphereSTKSHOperator::applyLOP(const double *inPtr, double *outPtr, double c
             const int indexBase = gridNumberIndex[i];
             const int npts = gridNumberLength[i];
             const double radius = sph[i].radius;
+
             for (int j = 0; j < npts; j++) {
                 const int index = indexBase + j;
                 Evec3 valj = Evec3(inPtr[3 * index], inPtr[3 * index + 1], inPtr[3 * index + 2]);

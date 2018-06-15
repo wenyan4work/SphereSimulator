@@ -31,9 +31,12 @@ SphereSTKMobMat::SphereSTKMobMat(std::vector<Sphere> *const spherePtr, const std
     solverParams->set("Maximum Iterations", 1000);
     solverParams->set("Convergence Tolerance", 1e-6);
     solverParams->set("Orthogonalization", "ICGS");
+    // default is preconditioned initial residual
+    // solverParams->set("Implicit Residual Scaling", "Norm of Initial Residual");
+    // solverParams->set("Explicit Residual Scaling", "Norm of Initial Residual");
     solverParams->set("Implicit Residual Scaling", "Norm of RHS");
     solverParams->set("Explicit Residual Scaling", "Norm of RHS");
-    solverParams->set("Output Frequency", 1);
+    // solverParams->set("Output Frequency", 1);
     solverParams->set("Timer Label", "Iterative Mobility Solution");
     solverParams->set("Verbosity", Belos::Errors + Belos::Warnings + Belos::TimingDetails + Belos::FinalSummary);
 
@@ -109,7 +112,7 @@ void SphereSTKMobMat::solveMob(const double *forcePtr, double *velPtr) const {
     }
 
     // step 2, compute - (1/2I+K) rho
-    AOpRcp->applyP2POP(rho.data(), b.data(), -0.5, 0, -1);
+    AOpRcp->applyP2POP(rho.data(), b.data(), -0.5, 0, -1.0);
 
     auto bPtr = bRcp->getLocalView<Kokkos::HostSpace>();
     bRcp->modify<Kokkos::HostSpace>();
@@ -142,10 +145,9 @@ void SphereSTKMobMat::solveMob(const double *forcePtr, double *velPtr) const {
     // iterative solve
 
     // setup the problem
+    solverRcp->reset(Belos::Problem);
     problemRcp->setProblem();
     solverRcp->setProblem(problemRcp);
-    // solverRcp->reset(Belos::Problem);
-
     Belos::ReturnType result = solverRcp->solve();
     int numIters = solverRcp->getNumIters();
     if (commRcp->getRank() == 0) {
