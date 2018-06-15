@@ -18,7 +18,7 @@ Shexp::Shexp(const KIND kind_, const std::string &name_, const int order_, const
              const Equatn orientation_)
     : kind(kind_), order(order_), name(name_), radius(radius_),
       orientation(orientation_) { // the dimension , =1 for LAPSL, LAPDL, =3 for STKSL and STKDL
-    gridValue.resize(getGridDOF());
+    gridValue.resize(getGridDOF(), 0);
 }
 
 // move constructor

@@ -500,20 +500,24 @@ int main(int argc, char **argv) {
     srand((unsigned int)time(0));
 
     const int order = 12;
-    testSTKSL(order, 1000, false);
-    testSTKSL(order, 1000, true);
 
-    testSTKDL(order, 1000, false);
-    testSTKDL(order, 1000, true);
+#pragma omp parallel for
+    for (int i = 0; i < 100; i++) {
+        testSTKSL(order, 1000, false);
+        testSTKSL(order, 1000, true);
 
-    testTrac(order, 1000, false);
-    testTrac(order, 1000, true);
+        testSTKDL(order, 1000, false);
+        testSTKDL(order, 1000, true);
 
-    testTracSelf(order, 1000, false);
-    testTracSelf(order, 1000, true);
+        testTrac(order, 1000, false);
+        testTrac(order, 1000, true);
 
-    testLAPConvert(order, 1000);
-    testSTKConvert(order, 1000);
+        testTracSelf(order, 1000, false);
+        testTracSelf(order, 1000, true);
+
+        testLAPConvert(order, 1000);
+        testSTKConvert(order, 1000);
+    }
 
     MPI_Finalize();
     return 0;
