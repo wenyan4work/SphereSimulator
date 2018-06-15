@@ -28,7 +28,7 @@ void SphereSTKSHOperator::setupDOF() {
     const int nLocal = sphere.size();
     sphereMapRcp = getTMAPFromLocalSize(nLocal, commRcp);
     for (int i = 0; i < nLocal; i++) {
-        sph.emplace_back(sphere[i].getLayer(name));
+        sph.push_back(sphere[i].getLayer(name));
     }
 
     gridNumberIndex.clear();
@@ -195,6 +195,8 @@ void SphereSTKSHOperator::apply(const TMV &X, TMV &Y, Teuchos::ETransp mode, sca
         TEUCHOS_ASSERT(nRowLocal == 3 * gridWeights.size());
 #pragma omp parallel for
         for (int i = 0; i < nRowLocal; i++) {
+
+            printf("%lf\n", YPtr(i, c));
             YPtr(i, c) = beta * YPtr(i, c) + alpha * pointValuesApply[i];
         }
     }
@@ -203,42 +205,30 @@ void SphereSTKSHOperator::apply(const TMV &X, TMV &Y, Teuchos::ETransp mode, sca
 // in-place removal
 void SphereSTKSHOperator::projectNullSpace(double *inPtr) const {
     const int nLocal = sph.size();
-#pragma omp parallel
-    {
+    TEUCHOS_ASSERT(nLocal == spherePtr->size());
+#pragma omp parallel for
+    for (int i = 0; i < nLocal; i++) {
         // temporary data space
-        std::vector<double> spectralCoeff;
-        std::vector<double> gridValue;
-#pragma omp for
-        for (int i = 0; i < nLocal; i++) {
-            spectralCoeff.resize(sph[i].getSpectralDOF());
-            std::fill(spectralCoeff.begin(), spectralCoeff.end(), 0);
-            const int indexBase = gridNumberIndex[i];
-            const int npts = gridNumberLength[i];
+        std::vector<double> spectralCoeff(sph[i].getSpectralDOF(), 0);
 
-            gridValue.resize(3 * npts);
-            std::copy(inPtr + 3 * indexBase, inPtr + 3 * indexBase + 3 * npts, gridValue.begin());
+        const int indexBase = gridNumberIndex[i];
+        const int npts = gridNumberLength[i];
 
-            sph[i].calcSpectralCoeff(spectralCoeff.data(), gridValue.data());
-            sph[i].calcGridValue(spectralCoeff.data(), gridValue.data());
-
-            for (int j = 0; j < npts; j++) {
-                inPtr[3 * (indexBase + j) + 0] = gridValue[3 * j + 0];
-                inPtr[3 * (indexBase + j) + 1] = gridValue[3 * j + 1];
-                inPtr[3 * (indexBase + j) + 2] = gridValue[3 * j + 2];
-            }
-        }
+        sph[i].calcSpectralCoeff(spectralCoeff.data(), inPtr + 3 * indexBase);
+        sph[i].calcGridValue(spectralCoeff.data(), inPtr + 3 * indexBase);
     }
 }
 
 void SphereSTKSHOperator::applyP2POP(const double *inPtr, double *outPtr, double cIdex, double cSLex,
                                      double cTracex) const {
 
-    std::vector<double> gridValueTemp(gridValueDofMapRcp->getNodeNumElements());
+    // ex means "extra" parameter value different from stored in the matrix.
+    const int nGridPts = gridNumberMapRcp->getNodeNumElements();
+
+    std::vector<double> gridValueTemp(3 * nGridPts);
     std::copy(inPtr, inPtr + gridValueTemp.size(), gridValueTemp.data());
     cacheSHCoeff(gridValueTemp.data());
 
-    // ex means "extra" parameter value different from stored in the matrix.
-    const int nGridPts = gridNumberMapRcp->getNodeNumElements();
     const int nLocal = spherePtr->size();
     srcSLValue.clear();
     trgValue.clear();
@@ -348,8 +338,10 @@ void SphereSTKSHOperator::applyP2POP(const double *inPtr, double *outPtr, double
         {
             std::vector<double> fmmvalue;
             std::vector<double> shvalueout;
+            std::vector<double> shvaluein;
             std::vector<double> shcoeff;
             std::vector<double> gridcoordrelative;
+            std::vector<double> gridcoordrelative2;
 #pragma omp for
             for (int i = 0; i < nLocal; i++) {
                 const int indexBase = gridNumberIndex[i];
@@ -361,6 +353,9 @@ void SphereSTKSHOperator::applyP2POP(const double *inPtr, double *outPtr, double
                 shvalueout.resize(3 * npts);
                 std::fill(shvalueout.begin(), shvalueout.end(), 0);
 
+                shvaluein.resize(3 * npts);
+                std::fill(shvaluein.begin(), shvaluein.end(), 0);
+
                 shcoeff.resize(shCoeffLength[i]);
                 std::copy(shCoeffValues.cbegin() + shCoeffIndex[i],
                           shCoeffValues.cbegin() + shCoeffIndex[i] + shCoeffLength[i], shcoeff.begin());
@@ -368,6 +363,7 @@ void SphereSTKSHOperator::applyP2POP(const double *inPtr, double *outPtr, double
                 gridcoordrelative.resize(3 * npts);
                 std::copy(gridCoordsRelative.cbegin() + 3 * indexBase,
                           gridCoordsRelative.cbegin() + 3 * indexBase + 3 * npts, gridcoordrelative.begin());
+                gridcoordrelative2 = gridcoordrelative;
 
                 // this is already scaled by cTracex
                 fmmPtr->evaluateKernel(1, PPKERNEL::SLS2T, npts, gridcoordrelative.data(),
@@ -378,8 +374,9 @@ void SphereSTKSHOperator::applyP2POP(const double *inPtr, double *outPtr, double
                 //     printf("%lf\n", v);
                 // }
                 // this is not scaled by cTracex
-                // principal value of traction = Double layer exterior - 1/2 I
-                sph[i].calcSDLNF(shcoeff.data(), npts, gridcoordrelative.data(), shvalueout.data(), false, false);
+                // principal value of traction
+                sph[i].calcKSelf(shcoeff.data(), npts, gridcoordrelative.data(), shvalueout.data(), false);
+                sph[i].calcKSelf(shcoeff.data(), npts, gridcoordrelative2.data(), shvaluein.data(), true);
                 // modify shvalue to get principal value
 
                 // printf("shvalue Trac, sph %d\n", i);
@@ -387,7 +384,7 @@ void SphereSTKSHOperator::applyP2POP(const double *inPtr, double *outPtr, double
                 //     printf("%lf\n", v);
                 // }
 
-                // remove fmm self value from trgValue
+                // // remove fmm self value from trgValue
                 for (int j = 0; j < npts; j++) {
                     const int index = indexBase + j;
                     for (int k = 0; k < 9; k++) {
@@ -411,8 +408,8 @@ void SphereSTKSHOperator::applyP2POP(const double *inPtr, double *outPtr, double
                     const int index = indexBase + j;
 #pragma unroll
                     for (int kk = 0; kk < 3; kk++) {
-                        // principal value of traction = Double layer exterior - 1/2 I
-                        outPtr[3 * (index) + kk] += cTracex * (shvalueout[3 * j + kk] - 0.5 * inPtr[3 * index + kk]);
+                        // principal value of traction
+                        outPtr[3 * (index) + kk] += (0.5 * cTracex) * (shvalueout[3 * j + kk] + shvaluein[3 * j + kk]);
                     }
                 }
             }
@@ -469,8 +466,8 @@ void SphereSTKSHOperator::cacheSHCoeff(double *gridValuesPtr) const {
     const int nLocal = sph.size();
     TEUCHOS_ASSERT(nLocal == spherePtr->size());
 
-    shCoeffIndex.resize(nLocal, 0);
-    shCoeffLength.resize(nLocal, 0);
+    shCoeffIndex.resize(nLocal);
+    shCoeffLength.resize(nLocal);
     std::fill(shCoeffIndex.begin(), shCoeffIndex.end(), 0);
     std::fill(shCoeffLength.begin(), shCoeffLength.end(), 0);
 

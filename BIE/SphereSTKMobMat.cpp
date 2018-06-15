@@ -22,25 +22,27 @@ SphereSTKMobMat::SphereSTKMobMat(std::vector<Sphere> *const spherePtr, const std
     AOpRcp = Teuchos::rcp(new SphereSTKSHOperator(spherePtr, name, fmmPtr, 0.5, 0, 1.0, 1.0));
     xRcp = Teuchos::rcp(new TMV(AOpRcp->getDomainMap(), 1, true));
     bRcp = Teuchos::rcp(new TMV(AOpRcp->getRangeMap(), 1, true));
+    problemRcp = Teuchos::rcp(new Belos::LinearProblem<TOP::scalar_type, TMV, TOP>(AOpRcp, xRcp, bRcp));
 
     // testOperator();
-    problemRcp = Teuchos::rcp(new Belos::LinearProblem<TOP::scalar_type, TMV, TOP>(AOpRcp, xRcp, bRcp));
     // Create the GMRES solver.
     Teuchos::RCP<Teuchos::ParameterList> solverParams = Teuchos::parameterList();
     solverParams->set("Num Blocks", 50); // larger than this might trigger a std::bad_alloc inside Kokkos.
     solverParams->set("Maximum Iterations", 1000);
     solverParams->set("Convergence Tolerance", 1e-6);
     solverParams->set("Orthogonalization", "ICGS");
+    solverParams->set("Output Style", Belos::OutputType::General);
     // default is preconditioned initial residual
     // solverParams->set("Implicit Residual Scaling", "Norm of Initial Residual");
     // solverParams->set("Explicit Residual Scaling", "Norm of Initial Residual");
-    solverParams->set("Implicit Residual Scaling", "Norm of RHS");
-    solverParams->set("Explicit Residual Scaling", "Norm of RHS");
+    // solverParams->set("Implicit Residual Scaling", "Norm of RHS");
+    // solverParams->set("Explicit Residual Scaling", "Norm of RHS");
     // solverParams->set("Output Frequency", 1);
     solverParams->set("Timer Label", "Iterative Mobility Solution");
     solverParams->set("Verbosity", Belos::Errors + Belos::Warnings + Belos::TimingDetails + Belos::FinalSummary);
 
     Belos::SolverFactory<::TOP::scalar_type, TMV, TOP> factory;
+    // solverRcp = factory.create("BICGSTAB", solverParams);
     solverRcp = factory.create("GMRES", solverParams);
 
     return;
@@ -77,7 +79,8 @@ void SphereSTKMobMat::apply(const TMV &X, TMV &Y, Teuchos::ETransp mode, scalar_
 }
 
 void SphereSTKMobMat::solveMob(const double *forcePtr, double *velPtr) const {
-    printf("start mobility solve\n");
+    if (commRcp->getRank() == 0)
+        printf("start mobility solve\n");
 
     // step 1, compute rho
     const int nLocal = spherePtr->size();
@@ -116,18 +119,19 @@ void SphereSTKMobMat::solveMob(const double *forcePtr, double *velPtr) const {
 
     auto bPtr = bRcp->getLocalView<Kokkos::HostSpace>();
     bRcp->modify<Kokkos::HostSpace>();
+
     const int nRowLocal = bRcp->getLocalLength();
     TEUCHOS_ASSERT(nRowLocal == b.size());
 #pragma omp parallel for
     for (int i = 0; i < nRowLocal; i++) {
         bPtr(i, 0) = b[i];
     }
-    dumpTMV(bRcp, "B.mtx");
+    dumpTMV(bRcp, "B");
 
     // step 2 solve linear system
     // fill initial guess with current value in sh
-    auto xPtr = xRcp->getLocalView<Kokkos::HostSpace>();
-    xRcp->modify<Kokkos::HostSpace>();
+    // use b as temporary space
+    TEUCHOS_ASSERT(nRowLocal == b.size());
 #pragma omp parallel for
     for (int i = 0; i < nLocal; i++) {
         const int indexBase = gridNumberIndex[i];
@@ -135,17 +139,25 @@ void SphereSTKMobMat::solveMob(const double *forcePtr, double *velPtr) const {
         auto &density = sh[i].gridValue;
         for (int j = 0; j < npts; j++) {
             const int index = indexBase + j;
-            xPtr(3 * (index) + 0, 0) = density[3 * j + 0] - rho[3 * (index) + 0];
-            xPtr(3 * (index) + 1, 0) = density[3 * j + 1] - rho[3 * (index) + 1];
-            xPtr(3 * (index) + 2, 0) = density[3 * j + 2] - rho[3 * (index) + 2];
+            b[3 * (index) + 0] = density[3 * j + 0] - rho[3 * (index) + 0];
+            b[3 * (index) + 1] = density[3 * j + 1] - rho[3 * (index) + 1];
+            b[3 * (index) + 2] = density[3 * j + 2] - rho[3 * (index) + 2];
         }
     }
-    dumpTMV(xRcp, "Xguess.mtx");
+
+    AOpRcp->projectNullSpace(b.data());
+    auto xPtr = xRcp->getLocalView<Kokkos::HostSpace>();
+    xRcp->modify<Kokkos::HostSpace>();
+#pragma omp parallel for
+    for (int i = 0; i < nRowLocal; i++) {
+        xPtr(i, 0) = b[i];
+    }
+
+    dumpTMV(xRcp, "Xguess");
 
     // iterative solve
 
     // setup the problem
-    solverRcp->reset(Belos::Problem);
     problemRcp->setProblem();
     solverRcp->setProblem(problemRcp);
     Belos::ReturnType result = solverRcp->solve();
@@ -153,7 +165,7 @@ void SphereSTKMobMat::solveMob(const double *forcePtr, double *velPtr) const {
     if (commRcp->getRank() == 0) {
         std::cout << "Num of Iterations in Mobility Matrix: " << numIters << std::endl;
     }
-    dumpTMV(xRcp, "Xsol.mtx");
+    dumpTMV(xRcp, "Xsol");
 
     // step 3 compute velocity with solved density
     // rho+mu is saved in rho, the density generating the fluid velocity
@@ -217,11 +229,11 @@ void SphereSTKMobMat::writeBackDensitySolution() {
 void SphereSTKMobMat::testOperator() {
     xRcp->putScalar(3.0);
     AOpRcp->apply(*xRcp, *bRcp);
-    dumpTMV(bRcp, "x3b.mtx");
+    dumpTMV(bRcp, "x3b");
     xRcp->putScalar(1.0);
     AOpRcp->apply(*xRcp, *bRcp);
-    dumpTMV(bRcp, "x1b.mtx");
+    dumpTMV(bRcp, "x1b");
     xRcp->putScalar(0.0);
     AOpRcp->apply(*xRcp, *bRcp);
-    dumpTMV(bRcp, "x0b.mtx");
+    dumpTMV(bRcp, "x0b");
 }

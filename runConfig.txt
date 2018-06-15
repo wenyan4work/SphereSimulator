@@ -1,5 +1,5 @@
 omp threads
-6
+-6
 simBox xlow ylow zlow  xhigh yhigh zhigh
 0.0 0.0 0.0 100.0 100.0 100.0
 xyz periodic (not implemented yet)
