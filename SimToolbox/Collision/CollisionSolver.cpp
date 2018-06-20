@@ -1,5 +1,8 @@
 #include "CollisionSolver.hpp"
 
+// The number of collision blocks can be zero on one, several or all nodes
+// be careful about this special case.
+
 void CollisionSolver::setup(CollisionBlockPool &collision_, Teuchos::RCP<TMAP> &objMobMapRcp_, double dt_,
                             double bufferGap_) {
     reset();
@@ -7,25 +10,29 @@ void CollisionSolver::setup(CollisionBlockPool &collision_, Teuchos::RCP<TMAP> &
     forceColRcp = Teuchos::rcp(new TV(objMobMapRcp, true));
     velocityColRcp = Teuchos::rcp(new TV(objMobMapRcp, true));
 
-    if (collisionIsEmpty(collision_)) {
-        // no collision, nullptr
-        gammaMapRcp = Teuchos::null; // distributed map for collision magnitude gamma
-        gammaRcp = Teuchos::null;    // the unknown
-        phi0Rcp = Teuchos::null;
-        bRcp = Teuchos::null;          // the constant piece of LCP problem
-        matFcTransRcp = Teuchos::null; // FcTrans matrix, 6 dof per obj to gamma dof
+    // check global empty
+    // bool emptyFlagLocal = collisionLocalIsEmpty(collision_);
+    // bool emptyFlagGlobal = true;
+    // MPI_Allreduce(&emptyFlagLocal, &emptyFlagGlobal, 1, MPI_CXX_BOOL, MPI_LAND, MPI_COMM_WORLD);
+    // if (emptyFlagGlobal) {
+    //     // TMAP seems does not allow 0 global size. Add a manual fix
+    // }
+
+    setupCollisionBlockQueThreadIndex(collision_);
+
+    // step 1 setup maps
+    auto commRcp = objMobMapRcp->getComm();
+    gammaMapRcp = getTMAPFromLocalSize(queueThreadIndex.back(), commRcp);
+
+    // const int nObjLocal = objMobMapRcp->getNodeNumElements() / 6;
+    // const int nObjGlobal = objMobMapRcp->getGlobalNumElements() / 6;
+    // TEUCHOS_ASSERT(nObjLocal * 6 == objMobMapRcp->getNodeNumElements());
+    // TEUCHOS_ASSERT(nObjGlobal * 6 == objMobMapRcp->getGlobalNumElements());
+
+    if (gammaMapRcp->getGlobalNumElements() == 0) {
+        if (commRcp->getRank() == 0)
+            std::cout << "No collision detected, will set forceCol and velCol to zero" << std::endl;
     } else {
-        setupCollisionBlockQueThreadIndex(collision_);
-
-        // step 1 setup maps
-        auto commRcp = objMobMapRcp->getComm();
-        gammaMapRcp = getTMAPFromLocalSize(queueThreadIndex.back(), commRcp);
-
-        const int nObjLocal = objMobMapRcp->getNodeNumElements() / 6;
-        const int nObjGlobal = objMobMapRcp->getGlobalNumElements() / 6;
-        assert(nObjLocal * 6 == objMobMapRcp->getNodeNumElements());
-        assert(nObjGlobal * 6 == objMobMapRcp->getGlobalNumElements());
-
         // setup vecs
         gammaRcp = Teuchos::rcp(new TV(gammaMapRcp, true));
 
@@ -44,8 +51,8 @@ void CollisionSolver::solveCollision(Teuchos::RCP<TOP> &matMobilityRcp_, Teuchos
     this->matMobilityRcp = matMobilityRcp_;
     this->vnRcp = velocityKnownRcp_;
 
-    if (matFcTransRcp.is_null()) {
-        // no entry in FcTrans Mat means no collision.
+    if (gammaMapRcp->getGlobalNumElements() == 0) {
+        // global no collision.
         forceColRcp->putScalar(0);
         velocityColRcp->putScalar(0);
         return;

@@ -48,7 +48,7 @@ class CollisionSolver {
         queueThreadIndex.clear();
     }
 
-    bool collisionIsEmpty(const CollisionBlockPool &colPool) const {
+    bool collisionLocalIsEmpty(const CollisionBlockPool &colPool) const {
         if (colPool.empty()) {
             return true;
         } else {
