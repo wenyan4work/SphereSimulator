@@ -31,16 +31,14 @@ void SphereSTKSHOperator::setupDOF() {
         sph.push_back(sphere[i].getLayer(name));
     }
 
-    gridNumberIndex.clear();
-    gridNumberIndex.resize(nLocal, 0);
-    gridNumberLength.clear();
-    gridNumberLength.resize(nLocal, 0);
-
+    gridNumberLength.resize(nLocal);
 #pragma omp parallel for
     for (int i = 0; i < nLocal; i++) {
         gridNumberLength[i] = sph[i].getGridNumber();
     }
 
+    gridNumberIndex.resize(nLocal);
+    gridNumberIndex[0] = 0;
     for (int i = 1; i < nLocal; i++) {
         gridNumberIndex[i] = gridNumberIndex[i - 1] + gridNumberLength[i - 1];
     }
@@ -61,33 +59,29 @@ void SphereSTKSHOperator::setupFMM() {
     TEUCHOS_ASSERT(gridNorms.size() == gridValueDofMapRcp->getNodeNumElements());
 
     // setup points
-#pragma omp parallel
-    {
-        std::vector<double> coords;  // 3d
-        std::vector<double> norms;   // 3d for STK
-        std::vector<double> weights; // 1d
+#pragma omp parallel for
+    for (int i = 0; i < nLocal; i++) {
+        std::vector<double> coords;                    // 3d
+        std::vector<double> norms;                     // 3d for STK
+        std::vector<double> weights;                   // 1d
+        coords.resize(sph[i].getGridNumber() * 3 + 6); // 3d
+        norms.resize(sph[i].getGridNumber() * 3 + 6);  // 3d for STK
+        weights.resize(sph[i].getGridNumber() + 2);    // 1d
 
-#pragma omp for
-        for (int i = 0; i < nLocal; i++) {
-            coords.resize(sph[i].getGridNumber() * 3 + 6); // 3d
-            norms.resize(sph[i].getGridNumber() * 3 + 6);  // 3d for STK
-            weights.resize(sph[i].getGridNumber() + 2);    // 1d
+        // returned by this contains north and south pole
+        sph[i].getGridWithPole(coords, weights, sphere[i].pos, &norms);
+        const int indexBase = gridNumberIndex[i];
+        const int npts = gridNumberLength[i];
+        // remove north and south pole
+        std::copy(coords.cbegin() + 3, coords.cend() - 3, gridCoords.begin() + 3 * indexBase);
+        std::copy(norms.cbegin() + 3, norms.cend() - 3, gridNorms.begin() + 3 * indexBase);
+        std::copy(weights.cbegin() + 1, weights.cend() - 1, gridWeights.begin() + indexBase);
 
-            // returned by this contains north and south pole
-            sph[i].getGridWithPole(coords, weights, sphere[i].pos, &norms);
-            const int indexBase = gridNumberIndex[i];
-            const int npts = gridNumberLength[i];
-            // remove north and south pole
-            std::copy(coords.cbegin() + 3, coords.cend() - 3, gridCoords.begin() + 3 * indexBase);
-            std::copy(norms.cbegin() + 3, norms.cend() - 3, gridNorms.begin() + 3 * indexBase);
-            std::copy(weights.cbegin() + 1, weights.cend() - 1, gridWeights.begin() + indexBase);
-
-            // coordsrelative = norms * radius
-            for (auto &v : norms) {
-                v *= sph[i].radius;
-            }
-            std::copy(norms.cbegin() + 3, norms.cend() - 3, gridCoordsRelative.begin() + 3 * indexBase);
+        // coordsrelative = norms * radius
+        for (auto &v : norms) {
+            v *= sph[i].radius;
         }
+        std::copy(norms.cbegin() + 3, norms.cend() - 3, gridCoordsRelative.begin() + 3 * indexBase);
     }
 
     srcSLCoord = gridCoords;
@@ -104,7 +98,7 @@ void SphereSTKSHOperator::setupFMM() {
     srcSLValue.resize(srcSLCoord.size() / 3 * 4);
     trgValue.resize(trgCoord.size() / 3 * 9);
 
-    // TODO: figure out a more flexible way to setup tree
+    // TODO: figure out a more flexible way to setup tree in STKFMM
     // For the moment, PVel tree and Traction tree has no double layer src points,
     fmmPtr->setupTree(KERNEL::PVel);
     fmmPtr->setupTree(KERNEL::Traction);
@@ -114,27 +108,6 @@ void SphereSTKSHOperator::setupFMM() {
 
 template <class Fntr>
 void SphereSTKSHOperator::setupRightSide(Fntr &fntr) {
-    // right side has the same number of dofs for each sphere
-    rightSideRcp = Teuchos::rcp(new TMV(spectralDofMapRcp, 1, true));
-
-    auto rsPtr = rightSideRcp->getLocalView<Kokkos::HostSpace>();
-    rightSideRcp->modify<Kokkos::HostSpace>();
-
-    // fill entries for each sphere
-    const auto &sphere = *spherePtr;
-    const int nLocal = sphere.size();
-#pragma omp parallel for
-    for (int i = 0; i < nLocal; i++) {
-        std::vector<double> bvec;
-        fntr(sphere[i], bvec);
-
-        const int index = gridValueDofIndex[i];
-        const int length = gridValueDofLength[i];
-        TEUCHOS_ASSERT(length == bvec.size());
-        for (int j = 0; j < length; j++) {
-            rsPtr(index + j, 0) = bvec[j];
-        }
-    }
 
     return;
 }
@@ -143,28 +116,52 @@ void SphereSTKSHOperator::setupRightSide(Fntr &fntr) {
 void SphereSTKSHOperator::apply(const TMV &X, TMV &Y, Teuchos::ETransp mode, scalar_type alpha,
                                 scalar_type beta) const {
     TEUCHOS_ASSERT(mode == Teuchos::NO_TRANS);
+    // dumpTMV(Teuchos::rcpFromRef(X),"Xin");
+    // dumpTMV(Teuchos::rcpFromRef(Y),"Yin");
+    if(beta==Teuchos::ScalarTraits<scalar_type>::zero()){
+        Y.putScalar(0);
+    }
 
     if (commRcp->getRank() == 0)
         printf("SphereSTKSHOperator Applied\n");
 
     const int nCol = X.getNumVectors();
     TEUCHOS_ASSERT(nCol == Y.getNumVectors());
+
     const int nRowLocal = X.getLocalLength();
     TEUCHOS_ASSERT(nRowLocal == gridValueDofMapRcp->getNodeNumElements());
-    pointValues.clear();
-    pointValues.resize(nRowLocal, 0);
-    pointValuesApply.clear();
-    pointValuesApply.resize(nRowLocal, 0);
+    TEUCHOS_ASSERT(nRowLocal == Y.getLocalLength());
 
     auto XPtr = X.getLocalView<Kokkos::HostSpace>();
     auto YPtr = Y.getLocalView<Kokkos::HostSpace>();
     Y.modify<Kokkos::HostSpace>();
 
+    TEUCHOS_ASSERT(nRowLocal == XPtr.dimension_0());
+    TEUCHOS_ASSERT(nRowLocal == YPtr.dimension_0());
+    pointValues.resize(nRowLocal);
+    pointValuesApply.resize(nRowLocal);
+
+    TEUCHOS_ASSERT(nRowLocal == pointValues.size());
+    TEUCHOS_ASSERT(nRowLocal == pointValuesApply.size());
+    TEUCHOS_ASSERT(nRowLocal == gridCoords.size());
+    TEUCHOS_ASSERT(nRowLocal == gridNorms.size());
+    TEUCHOS_ASSERT(nRowLocal == 3 * gridWeights.size());
+
     for (int c = 0; c < nCol; c++) {
+#pragma omp parallel for
+        for (int i = 0; i < nRowLocal; i++) {
+            double temp = static_cast<double>(beta) * YPtr(i, c);
+            YPtr(i, c) = temp;
+        }
+
 #pragma omp parallel for
         for (int i = 0; i < nRowLocal; i++) {
             pointValues[i] = XPtr(i, c);
         }
+        // printf("pointValues\n");
+        // for (auto &v : pointValues) {
+        //     printf("%lf\n", v);
+        // }
         std::fill(pointValuesApply.begin(), pointValuesApply.end(), 0);
 
         // step 1, project out the linear space cannot be represented by spherical harmonics
@@ -188,17 +185,14 @@ void SphereSTKSHOperator::apply(const TMV &X, TMV &Y, Teuchos::ETransp mode, sca
         // printf("\n");
 
         // step 4, store to y
-        TEUCHOS_ASSERT(nRowLocal == pointValues.size());
-        TEUCHOS_ASSERT(nRowLocal == pointValuesApply.size());
-        TEUCHOS_ASSERT(nRowLocal == gridCoords.size());
-        TEUCHOS_ASSERT(nRowLocal == gridNorms.size());
-        TEUCHOS_ASSERT(nRowLocal == 3 * gridWeights.size());
+
 #pragma omp parallel for
         for (int i = 0; i < nRowLocal; i++) {
-
-            printf("%lf\n", YPtr(i, c));
-            YPtr(i, c) = beta * YPtr(i, c) + alpha * pointValuesApply[i];
+            // printf("%lf\n", YPtr(i, c));
+            double temp = YPtr(i, c) + static_cast<double>(alpha) * pointValuesApply[i];
+            YPtr(i, c) = temp;
         }
+        commRcp->barrier();
     }
 }
 
@@ -206,22 +200,27 @@ void SphereSTKSHOperator::apply(const TMV &X, TMV &Y, Teuchos::ETransp mode, sca
 void SphereSTKSHOperator::projectNullSpace(double *inPtr) const {
     const int nLocal = sph.size();
     TEUCHOS_ASSERT(nLocal == spherePtr->size());
-#pragma omp parallel for
-    for (int i = 0; i < nLocal; i++) {
-        // temporary data space
-        std::vector<double> spectralCoeff(sph[i].getSpectralDOF(), 0);
+#pragma omp parallel
+    {
+        std::vector<double> spectralCoeff;
+#pragma omp for
+        for (int i = 0; i < nLocal; i++) {
+            // temporary data space
+            spectralCoeff.resize(sph[i].getSpectralDOF());
+            std::fill(spectralCoeff.begin(), spectralCoeff.end(), 0);
 
-        const int indexBase = gridNumberIndex[i];
-        const int npts = gridNumberLength[i];
+            const int indexBase = gridNumberIndex[i];
+            const int npts = gridNumberLength[i];
+            // printf("i %d,indexBase %d,npts %d,coeff %d \n", i, indexBase, npts, sph[i].getSpectralDOF());
 
-        sph[i].calcSpectralCoeff(spectralCoeff.data(), inPtr + 3 * indexBase);
-        sph[i].calcGridValue(spectralCoeff.data(), inPtr + 3 * indexBase);
+            sph[i].calcSpectralCoeff(spectralCoeff.data(), inPtr + 3 * indexBase);
+            sph[i].calcGridValue(spectralCoeff.data(), inPtr + 3 * indexBase);
+        }
     }
 }
 
 void SphereSTKSHOperator::applyP2POP(const double *inPtr, double *outPtr, double cIdex, double cSLex,
                                      double cTracex) const {
-
     // ex means "extra" parameter value different from stored in the matrix.
     const int nGridPts = gridNumberMapRcp->getNodeNumElements();
 
@@ -404,6 +403,7 @@ void SphereSTKSHOperator::applyP2POP(const double *inPtr, double *outPtr, double
                                              trgValue[9 * index + 7] * gridNorms[3 * index + 1] +
                                              trgValue[9 * index + 8] * gridNorms[3 * index + 2];
                 }
+
                 for (int j = 0; j < npts; j++) {
                     const int index = indexBase + j;
 #pragma unroll
@@ -468,14 +468,14 @@ void SphereSTKSHOperator::cacheSHCoeff(double *gridValuesPtr) const {
 
     shCoeffIndex.resize(nLocal);
     shCoeffLength.resize(nLocal);
-    std::fill(shCoeffIndex.begin(), shCoeffIndex.end(), 0);
-    std::fill(shCoeffLength.begin(), shCoeffLength.end(), 0);
 
+    std::fill(shCoeffLength.begin(), shCoeffLength.end(), 0);
 #pragma omp parallel for
     for (int i = 0; i < nLocal; i++) {
         shCoeffLength[i] = sph[i].getSpectralDOF();
     }
 
+    std::fill(shCoeffIndex.begin(), shCoeffIndex.end(), 0);
     for (int i = 1; i < nLocal; i++) {
         shCoeffIndex[i] = shCoeffIndex[i - 1] + shCoeffLength[i - 1];
     }

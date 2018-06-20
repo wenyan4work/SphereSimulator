@@ -1,5 +1,5 @@
 omp threads
--6
+1
 simBox xlow ylow zlow  xhigh yhigh zhigh
 0.0 0.0 0.0 100.0 100.0 100.0
 xyz periodic (not implemented yet)
@@ -13,7 +13,7 @@ viscosity (pN/(um^2) s)
 kBT (pN * um)
 0.00411
 External Force and Torque (pN)
-0.0 0.0 -1.0 0.0 0.0 0.0
+-1.0 -1.0 -1.0 0.0 0.0 0.0
 sphereNumber
 1
 dt (s)
@@ -29,7 +29,7 @@ Monolayer (>0 for true, <=0 for false, default to be true)
 Hydrodynamics (>0 for true, <=0 for false, default to be true)
 1
 Spherical Harmonics order p (larger than 3, recommend 6~14)
-8
+6
 FMM multipole order p (even number between 6 and 16, recommend 10)
 8
 Brownian Scale (scale by this float number. 0=no Brown. default = 1, non-negative)

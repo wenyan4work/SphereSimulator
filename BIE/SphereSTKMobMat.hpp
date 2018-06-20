@@ -28,17 +28,16 @@ class SphereSTKMobMat : public TOP {
     const double viscosity;
 
     std::shared_ptr<STKFMM> fmmPtr;
+
     Teuchos::RCP<const TCOMM> commRcp;
     Teuchos::RCP<TMAP> sphereMapRcp;
     Teuchos::RCP<TMAP> mobMapRcp;
 
     // linear problem Ax = b
-    Teuchos::RCP<SphereSTKSHOperator> AOpRcp;
-    Teuchos::RCP<TMV> xRcp;
-    Teuchos::RCP<TMV> bRcp;
-
-    Teuchos::RCP<Belos::SolverManager<::TOP::scalar_type, TMV, TOP>> solverRcp;
-    Teuchos::RCP<Belos::LinearProblem<::TOP::scalar_type, TMV, TOP>> problemRcp;
+    mutable Teuchos::RCP<SphereSTKSHOperator> AOpRcp;
+    mutable Teuchos::RCP<TMV> xRcp;
+    mutable Teuchos::RCP<TMV> bRcp;
+    mutable Teuchos::RCP<TMV> resRcp;
 
     // temporary data
     mutable std::vector<double> force;

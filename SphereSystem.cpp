@@ -387,7 +387,6 @@ void SphereSystem::resolveCollision(bool manybody, double buffer) {
     auto &collector = *collisionCollectorPtr;
     collector.clear();
 
-    // if (this->sphereMapRcp->getGlobalNumElements() > 1) {
     // no collision for only 1 object
     // temporary workaround for a bug in interact manager
     std::vector<CollisionSphere> collisionSphereSrc;
@@ -408,7 +407,6 @@ void SphereSystem::resolveCollision(bool manybody, double buffer) {
     interactManagerPtr->calcNearInteraction(nearInteractorPtr, collisionSphereSrc, collisionSphereTrg, collector);
     if (commRcp->getRank() == 0)
         printf("calcNear\n");
-    // }
 
     // construct collision stepper
     collisionSolverPtr->setup(*(collector.collisionPoolPtr), sphereMobilityMapRcp, runConfig.dt, buffer);
