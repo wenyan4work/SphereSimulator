@@ -17,9 +17,8 @@ struct CollisionBlock { // the information for each collision
     double gamma; // force magnitude , could be an initial guess
     int gidI, gidJ;
     int globalIndexI, globalIndexJ;
-    bool oneSide =
-        false; // one side collision, e.g. moving obj collide with a boundary, and the boundary does not appear in
-               // the mobility matrix
+    bool oneSide = false; // one side collision, e.g. moving obj collide with a boundary, and the boundary does not
+                          // appear in the mobility matrix
     Evec3 normI, normJ; // norm vector for each particle. gvecJ = - gvecI
     Evec3 posI, posJ;   // the collision position on I and J. useless for spheres.
 
@@ -68,6 +67,8 @@ class CollisionCollector {
     CollisionCollector &operator=(const CollisionCollector &obj) = default;
     CollisionCollector &operator=(CollisionCollector &&obj) = default;
     ~CollisionCollector() = default;
+
+    bool empty() const { return collisionPoolPtr->empty(); }
 
     void clear() {
         for (int i = 0; i < collisionPoolPtr->size(); i++) {

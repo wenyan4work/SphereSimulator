@@ -48,6 +48,18 @@ class CollisionSolver {
         queueThreadIndex.clear();
     }
 
+    bool collisionIsEmpty(const CollisionBlockPool &colPool) const {
+        if (colPool.empty()) {
+            return true;
+        } else {
+            bool emptyFlag = true;
+            for (auto &c : colPool) {
+                emptyFlag = emptyFlag && c.empty();
+            }
+            return emptyFlag;
+        }
+    }
+
     void setControlLCP(double res_, int maxIte_, bool newton_) {
         res = res_;
         maxIte = maxIte_;
