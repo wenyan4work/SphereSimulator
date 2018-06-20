@@ -12,6 +12,35 @@
 
 constexpr bool testPole = true;
 
+void testSTKThreading(const int order = 12, const int samples = 1000, const int nThreads = -1) {
+    std::vector<Shexp> sh;
+    for (int i = 0; i < samples; i++) {
+        sh.emplace_back(Shexp::KIND::STK, "test", order, 2.0, Equatn::UnitRandom());
+        randomUniformFill(sh.back().gridValue, -2, 2);
+    }
+
+    const int npts = sh[0].getGridNumber();
+
+    std::vector<double> allValues(npts * samples * 3, 1);
+
+// dump to grid
+#pragma omp parallel for
+    for (int i = 0; i < samples; i++) {
+        std::vector<double> spectralCoeff(sh[i].getSpectralDOF());
+        std::vector<double> gridValues(sh[i].getGridDOF());
+        sh[i].calcSpectralCoeff(spectralCoeff.data(), allValues.data() + 3 * i * npts);
+        sh[i].calcGridValue(spectralCoeff.data(), allValues.data() + 3 * i * npts);
+    }
+
+    for (auto &v : allValues) {
+        printf("%f\n", v);
+    }
+
+    // for (int i = 0; i < samples; i++) {
+    //     sh[i].dumpGridValue();
+    // }
+}
+
 void testLAPConvert(const int order = 12, const int repeat = 1000) {
     printf("testing LAP Conversion %d times for order=%d\n", repeat, order);
     Shexp sh(Shexp::KIND::LAP, "test", order, 2.0, Equatn::UnitRandom());
@@ -501,23 +530,26 @@ int main(int argc, char **argv) {
 
     const int order = 12;
 
-#pragma omp parallel for
-    for (int i = 0; i < 100; i++) {
-        testSTKSL(order, 1000, false);
-        testSTKSL(order, 1000, true);
+    testSTKThreading(order, 10, -1);
+    testSTKThreading(order, 1000, 1);
 
-        testSTKDL(order, 1000, false);
-        testSTKDL(order, 1000, true);
+    // #pragma omp parallel for
+        for (int i = 0; i < 100; i++) {
+            testSTKSL(order, 1000, false);
+            testSTKSL(order, 1000, true);
 
-        testTrac(order, 1000, false);
-        testTrac(order, 1000, true);
+            testSTKDL(order, 1000, false);
+            testSTKDL(order, 1000, true);
 
-        testTracSelf(order, 1000, false);
-        testTracSelf(order, 1000, true);
+            testTrac(order, 1000, false);
+            testTrac(order, 1000, true);
 
-        testLAPConvert(order, 1000);
-        testSTKConvert(order, 1000);
-    }
+            testTracSelf(order, 1000, false);
+            testTracSelf(order, 1000, true);
+
+            testLAPConvert(order, 1000);
+            testSTKConvert(order, 1000);
+        }
 
     MPI_Finalize();
     return 0;

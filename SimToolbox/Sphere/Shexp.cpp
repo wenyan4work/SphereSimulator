@@ -328,10 +328,6 @@ void Shexp::getGridWithPoleCellConnect(std::vector<int32_t> &gridCellConnect, st
 // spectralCoeff pointed by coeffPtr is not modified
 void Shexp::calcGridValue(double *coeffPtr, double *valPtr) {
 
-    if (valPtr == nullptr) {
-        valPtr = gridValue.data();
-    }
-
     typedef double Real;
     // ROW_MAJOR = (order+1)(order+2)/2 complex numbers, need (order+1)(order+2) doubles per component
     const int Ncoeff = (order + 1) * (order + 2);
@@ -339,6 +335,11 @@ void Shexp::calcGridValue(double *coeffPtr, double *valPtr) {
     const int Ngrid = (order + 1) * (2 * order + 2);
 
     const int dimension = getDimension();
+
+    if (valPtr == nullptr) {
+        gridValue.resize(dimension * Ngrid);
+        valPtr = gridValue.data();
+    }
 
     const sctl::Vector<Real> coeff(Ncoeff * dimension,
                                    sctl::Ptr2Itr<Real>(coeffPtr ? coeffPtr : nullptr, Ncoeff * dimension), false);
