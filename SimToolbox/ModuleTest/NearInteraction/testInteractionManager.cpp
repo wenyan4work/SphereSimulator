@@ -331,7 +331,7 @@ void testOneSpeciesPBCX(const int NPAR) {
     std::mt19937 gen(0);
     std::uniform_real_distribution<double> dis(0, 1);
 
-    std::array<int, 3> pbcFLag = {1, 0, 0};
+    std::array<bool, 3> pbcFLag = {1, 0, 0};
     std::array<double, 3> boxLow = {10.0, 10.0, 10.0};
     std::array<double, 3> box = {10.0, 20.0, 30.0};
     std::array<double, 3> boxHigh;
@@ -468,7 +468,7 @@ void testOneSpeciesPBCYZ(const int NPAR) {
     std::mt19937 gen(0);
     std::uniform_real_distribution<double> dis(0, 1);
 
-    std::array<int, 3> pbcFLag = {0, 1, 1};
+    std::array<bool, 3> pbcFLag = {0, 1, 1};
     std::array<double, 3> boxLow = {10.0, 10.0, 10.0};
     std::array<double, 3> box = {10.0, 20.0, 30.0};
     std::array<double, 3> boxHigh;
