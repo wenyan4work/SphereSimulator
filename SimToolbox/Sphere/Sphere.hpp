@@ -10,24 +10,14 @@
 #include "Util/Buffer.hpp"
 #include "Util/IOHelper.hpp"
 
-constexpr int INVALID = -1;
-
-// class NeighborSphere {
-//   public:
-//     int gid = INVALID;
-//     double radius;
-//     double radiusCollision;
-//     Evec3 pos;
-//     Evec3 posRelative;
-//     Equatn orientation;
-//     NeighborSphere() = default;
-//     NeighborSphere(const int &gid_, const Evec3 &posRelative_) noexcept : gid(gid_), posRelative(posRelative_) {}
-// };
+#ifndef OBJ_INVALID_INDEX
+#define OBJ_INVALID_INDEX (-1)
+#endif
 
 class Sphere {
   public:
-    int gid = INVALID;
-    int globalIndex = INVALID;
+    int gid = OBJ_INVALID_INDEX;
+    int globalIndex = OBJ_INVALID_INDEX;
     double radius;
     double radiusCollision;
     Evec3 pos;

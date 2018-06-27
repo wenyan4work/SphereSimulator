@@ -8,12 +8,14 @@
 #include "Util/EigenDef.hpp"
 #include "Util/IOHelper.hpp"
 
-constexpr int INVALID = -1;
+#ifndef OBJ_INVALID_INDEX
+#define OBJ_INVALID_INDEX (-1)
+#endif
 
 class Sylinder {
   public:
-    int gid = INVALID;
-    int globalIndex = INVALID;
+    int gid = OBJ_INVALID_INDEX;
+    int globalIndex = OBJ_INVALID_INDEX;
     double radius;
     double radiusCollision;
     double length;

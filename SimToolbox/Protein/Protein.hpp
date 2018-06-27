@@ -8,11 +8,13 @@
 #include "Util/EigenDef.hpp"
 #include "Util/IOHelper.hpp"
 
-constexpr int INVALID = -1;
+#ifndef OBJ_INVALID_INDEX
+#define OBJ_INVALID_INDEX (-1)
+#endif
 
 class Protein {
   public:
-    int gid = INVALID;
+    int gid = OBJ_INVALID_INDEX;
     // bool walkOff;
     // bool bindAntiParallel;
     // bool fixedEnd0;
