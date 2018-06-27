@@ -34,10 +34,12 @@ class SphereSTKMobMat : public TOP {
     Teuchos::RCP<TMAP> mobMapRcp;
 
     // linear problem Ax = b
-    mutable Teuchos::RCP<SphereSTKSHOperator> AOpRcp;
-    mutable Teuchos::RCP<TMV> xRcp;
-    mutable Teuchos::RCP<TMV> bRcp;
-    mutable Teuchos::RCP<TMV> resRcp;
+    Teuchos::RCP<SphereSTKSHOperator> AOpRcp;
+    Teuchos::RCP<TMV> xRcp;
+    Teuchos::RCP<TMV> bRcp;
+
+    Teuchos::RCP<Belos::SolverManager<TOP::scalar_type, TMV, TOP>> solverRcp;
+    Teuchos::RCP<Belos::LinearProblem<::TOP::scalar_type, TMV, TOP>> problemRcp;
 
     // temporary data
     mutable std::vector<double> force;

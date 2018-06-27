@@ -16,7 +16,46 @@ SphereSTKMobMat::SphereSTKMobMat(std::vector<Sphere> *const spherePtr, const std
     AOpRcp = Teuchos::rcp(new SphereSTKSHOperator(spherePtr, name, fmmPtr, 0.5, 0, 1.0, 1.0));
     xRcp = Teuchos::rcp(new TMV(AOpRcp->getDomainMap(), 1, true));
     bRcp = Teuchos::rcp(new TMV(AOpRcp->getRangeMap(), 1, true));
-    resRcp = Teuchos::rcp(new TMV(AOpRcp->getRangeMap(), 1, true));
+
+    // setup temporary space
+    const auto &gridNorms = AOpRcp->getGridNorms();
+    const auto &gridCoords = AOpRcp->getGridCoords();
+    const auto &gridWeights = AOpRcp->getGridWeights();
+    const auto &gridNumberIndex = AOpRcp->getGridNumberIndex();
+    const auto &gridNumberLength = AOpRcp->getGridNumberLength();
+    const auto &sh = AOpRcp->getSH();
+
+    rho.resize(gridWeights.size() * 3);
+    b.resize(gridWeights.size() * 3);
+    force.resize(mobMapRcp->getNodeNumElements());
+    vel.resize(mobMapRcp->getNodeNumElements());
+    std::fill(rho.begin(), rho.end(), 0);
+    std::fill(b.begin(), b.end(), 0);
+    std::fill(force.begin(), force.end(), 0);
+    std::fill(vel.begin(), vel.end(), 0);
+
+    // setup the problem
+    problemRcp = Teuchos::rcp(new Belos::LinearProblem<TOP::scalar_type, TMV, TOP>(AOpRcp, xRcp, bRcp));
+
+    // testOperator();
+    Teuchos::RCP<Teuchos::ParameterList> solverParams = Teuchos::parameterList();
+    solverParams->set("Num Blocks", 50); // larger values might trigger a std::bad_alloc inside Kokkos.
+    solverParams->set("Maximum Iterations", 200);
+    solverParams->set("Maximum Restarts", 50);
+    solverParams->set("Convergence Tolerance", 1e-5);
+    // solverParams->set("Orthogonalization", "ICGS");
+    // solverParams->set("Output Style", Belos::OutputType::General);
+    // solverParams->set("Implicit Residual Scaling", "Norm of Initial Residual");
+    // solverParams->set("Explicit Residual Scaling", "Norm of Initial Residual");
+    // solverParams->set("Implicit Residual Scaling", "Norm of RHS");
+    // solverParams->set("Explicit Residual Scaling", "Norm of RHS");
+    // solverParams->set("Implicit Residual Scaling", "None"); // default is preconditioned initial residual
+    // solverParams->set("Explicit Residual Scaling", "None");
+    // solverParams->set("Output Frequency", 1);
+    solverParams->set("Timer Label", "Iterative Mobility Solution");
+    solverParams->set("Verbosity", Belos::Errors + Belos::Warnings + Belos::TimingDetails + Belos::FinalSummary);
+    Belos::SolverFactory<TOP::scalar_type, TMV, TOP> factory;
+    solverRcp = factory.create("GMRES", solverParams);
 
     // testOperator();
 
@@ -147,36 +186,13 @@ void SphereSTKMobMat::solveMob(const double *forcePtr, double *velPtr) const {
         xPtr(i, 0) = b[i];
     }
 
-    dumpTMV(bRcp, "B");
-    dumpTMV(xRcp, "Xguess");
+    // dumpTMV(bRcp, "B");
+    // dumpTMV(xRcp, "Xguess");
     // iterative solve
-    // setup the problem
-    Teuchos::RCP<Belos::LinearProblem<::TOP::scalar_type, TMV, TOP>> problemRcp =
-        Teuchos::rcp(new Belos::LinearProblem<TOP::scalar_type, TMV, TOP>(AOpRcp, xRcp, bRcp));
-    resRcp->putScalar(1.0);
+
     bool set = problemRcp->setProblem();
     TEUCHOS_TEST_FOR_EXCEPTION(!set, std::runtime_error, "*** Belos::LinearProblem failed to set up correctly! ***");
-
-    // testOperator();
-    Teuchos::RCP<Teuchos::ParameterList> solverParams = Teuchos::parameterList();
-    solverParams->set("Num Blocks", 50); // larger values might trigger a std::bad_alloc inside Kokkos.
-    solverParams->set("Maximum Iterations", 200);
-    solverParams->set("Maximum Restarts", 50);
-    solverParams->set("Convergence Tolerance", 1e-5);
-    // solverParams->set("Orthogonalization", "ICGS");
-    solverParams->set("Output Style", Belos::OutputType::General);
-    // solverParams->set("Implicit Residual Scaling", "Norm of Initial Residual");
-    // solverParams->set("Explicit Residual Scaling", "Norm of Initial Residual");
-    // solverParams->set("Implicit Residual Scaling", "Norm of RHS");
-    // solverParams->set("Explicit Residual Scaling", "Norm of RHS");
-    solverParams->set("Implicit Residual Scaling", "None"); // default is preconditioned initial residual
-    solverParams->set("Explicit Residual Scaling", "None");
-    // solverParams->set("Output Frequency", 1);
-    solverParams->set("Timer Label", "Iterative Mobility Solution");
-    solverParams->set("Verbosity", Belos::Errors + Belos::Warnings + Belos::TimingDetails + Belos::FinalSummary);
-
-    Belos::SolverFactory<TOP::scalar_type, TMV, TOP> factory;
-    Teuchos::RCP<Belos::SolverManager<TOP::scalar_type, TMV, TOP>> solverRcp = factory.create("GMRES", solverParams);
+    solverRcp->reset(Belos::Problem);
     solverRcp->setProblem(problemRcp);
 
     Belos::ReturnType result = solverRcp->solve();
@@ -184,7 +200,7 @@ void SphereSTKMobMat::solveMob(const double *forcePtr, double *velPtr) const {
     if (commRcp->getRank() == 0) {
         std::cout << "Num of Iterations in Mobility Matrix: " << numIters << std::endl;
     }
-    dumpTMV(xRcp, "Xsol");
+    // dumpTMV(xRcp, "Xsol");
 
     // step 3 compute velocity with solved density
     // rho+mu is saved in rho, the density generating the fluid velocity
@@ -226,7 +242,6 @@ void SphereSTKMobMat::solveMob(const double *forcePtr, double *velPtr) const {
 }
 
 void SphereSTKMobMat::writeBackDensitySolution() {
-    return;
     // write vector rho back to sphere
     auto &sphere = *spherePtr;
     const int nLocal = sphere.size();

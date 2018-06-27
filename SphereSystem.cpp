@@ -48,11 +48,13 @@ SphereSystem::SphereSystem(const std::string &configFile, const std::string &pos
     if (runConfig.hydro) {
         fmmPtr = std::make_shared<stkfmm::STKFMM>(runConfig.pFMM, 4000, stkfmm::PAXIS::NONE, 9);
         for (auto &s : sphere) {
-            s.addLayer("stk", Shexp::KIND::STK, runConfig.pSH, s.radius, Equatn::UnitRandom());
+            s.addLayer("stkmob", Shexp::KIND::STK, runConfig.pSH, s.radius, Equatn::UnitRandom());
+            s.addLayer("stkcol", Shexp::KIND::STK, runConfig.pSH, s.radius, Equatn::UnitRandom());
         }
         // manually initialize it on all ranks
         // VTU data always in Float64 format
-        dataFieldVTU.emplace_back(3, IOHelper::IOTYPE::Float64, "stk");
+        dataFieldVTU.emplace_back(3, IOHelper::IOTYPE::Float64, "stkmob");
+        dataFieldVTU.emplace_back(3, IOHelper::IOTYPE::Float64, "stkcol");
     }
 
     printf("local: %lu spheres on process %d\n", sphere.size(), commRcp->getRank());
@@ -209,11 +211,10 @@ void SphereSystem::partition() {
     return;
 }
 
-Teuchos::RCP<TOP> SphereSystem::getMobOperator(bool manybody) {
+Teuchos::RCP<TOP> SphereSystem::getMobOperator(bool manybody, std::string name) {
     Teuchos::RCP<TOP> mobOpRcp;
     if (manybody) {
         // get full mobility operator
-        std::string name("stk");
         fmmPtr->setBox(runConfig.simBoxLow[0], runConfig.simBoxHigh[0], runConfig.simBoxLow[1], runConfig.simBoxHigh[1],
                        runConfig.simBoxLow[2], runConfig.simBoxHigh[2]);
         mobOpRcp = Teuchos::rcp(new SphereSTKMobMat(&sphere, name, fmmPtr, runConfig.viscosity));
@@ -380,8 +381,12 @@ void SphereSystem::resolveCollision(bool manybody, double buffer) {
 
     // generate known velocity
     Teuchos::RCP<TV> forceKnownRcp = getForceKnown();
-    Teuchos::RCP<TOP> mobOpRcp = getMobOperator(manybody && runConfig.hydro);
+    Teuchos::RCP<TOP> mobOpRcp = getMobOperator(manybody && runConfig.hydro, std::string("stkmob"));
     Teuchos::RCP<TV> velocityKnownRcp = getVelocityKnown(mobOpRcp, forceKnownRcp);
+    if (runConfig.hydro && manybody) {
+        Teuchos::RCP<SphereSTKMobMat> stkmobopRcp = rcp_dynamic_cast<SphereSTKMobMat>(mobOpRcp, true);
+        stkmobopRcp->writeBackDensitySolution();
+    }
 
     // Collect collision pair blocks
     auto &collector = *collisionCollectorPtr;
@@ -411,8 +416,9 @@ void SphereSystem::resolveCollision(bool manybody, double buffer) {
     // construct collision stepper
     collisionSolverPtr->setup(*(collector.collisionPoolPtr), sphereMobilityMapRcp, runConfig.dt, buffer);
     collisionSolverPtr->setControlLCP(1e-5, 200, false); // res, maxIte, NWTN refine
-    collisionSolverPtr->solveCollision(mobOpRcp, velocityKnownRcp);
 
+    mobOpRcp = getMobOperator(manybody && runConfig.hydro, std::string("stkcol"));
+    collisionSolverPtr->solveCollision(mobOpRcp, velocityKnownRcp);
     if (runConfig.hydro && manybody) {
         Teuchos::RCP<SphereSTKMobMat> stkmobopRcp = rcp_dynamic_cast<SphereSTKMobMat>(mobOpRcp, true);
         stkmobopRcp->writeBackDensitySolution();
