@@ -8,16 +8,13 @@
 
 #include "Shexp.hpp"
 #include "Util/Buffer.hpp"
+#include "Util/GeoCommon.h"
 #include "Util/IOHelper.hpp"
-
-#ifndef OBJ_INVALID_INDEX
-#define OBJ_INVALID_INDEX (-1)
-#endif
 
 class Sphere {
   public:
-    int gid = OBJ_INVALID_INDEX;
-    int globalIndex = OBJ_INVALID_INDEX;
+    int gid = GEO_INVALID_INDEX;
+    int globalIndex = GEO_INVALID_INDEX;
     double radius;
     double radiusCollision;
     Evec3 pos;

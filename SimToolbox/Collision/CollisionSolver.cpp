@@ -218,7 +218,7 @@ void CollisionSolver::setupFcTrans(CollisionBlockPool &collision_) {
     colMapIndex.erase(std::unique(colMapIndex.begin(), colMapIndex.end()), colMapIndex.end());
 
     Teuchos::RCP<TMAP> colMapRcp = Teuchos::rcp(
-        new TMAP(objMobMapRcp->getGlobalNumElements(), colMapIndex.data(), colMapIndex.size(), 0, commRcp));
+        new TMAP(Teuchos::OrdinalTraits<int>::invalid(), colMapIndex.data(), colMapIndex.size(), 0, commRcp));
 
     // convert columnIndices from global column index to local column index according to colMap
     auto &colmap = *colMapRcp;

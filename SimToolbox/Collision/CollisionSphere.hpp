@@ -5,13 +5,12 @@
 #include "Sphere/Sphere.hpp"
 #include "Util/Buffer.hpp"
 #include "Util/EigenDef.hpp"
-
-constexpr double COLBUF = 0.3; // record collision block for sep < COLBUF*(rI+RJ)
+#include "Util/GeoCommon.h"
 
 class CollisionSphere {
   public:
-    int gid = INVALID;
-    int globalIndex = INVALID;
+    int gid = GEO_INVALID_INDEX;
+    int globalIndex = GEO_INVALID_INDEX;
     double radiusCollision;
     Evec3 pos;
 
@@ -25,7 +24,7 @@ class CollisionSphere {
     // necessary interface for Near Interaction
     const double *Coord() const { return pos.data(); }
 
-    double Rad() const { return radiusCollision * (1 + COLBUF * 2); }
+    double Rad() const { return radiusCollision * (1 + GEO_DEFAULT_COLBUF * 2); }
 
     void Pack(std::vector<char> &buff) const {
         Buffer mybuff(buff);
@@ -61,7 +60,7 @@ class CollisionSphere {
 
         // save collision block
         // save only block gidI < gidJ
-        if (sep < COLBUF * radiusCollision) {
+        if (sep < GEO_DEFAULT_COLBUF * radiusCollision) {
             // collision
             block.normI = rIJ * (-1.0 / rIJNorm);
             block.normJ = -block.normI;

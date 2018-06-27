@@ -6,14 +6,13 @@
 #include "Sylinder/Sylinder.hpp"
 #include "Util/Buffer.hpp"
 #include "Util/EigenDef.hpp"
-
-constexpr double COLBUF = 0.5; // record collision block for sep < COLBUF*(rI+rJ)
+#include "Util/GeoCommon.h"
 
 class CollisionSylinder {
     // this is a POD type, used to generate collision blocks
   public:
-    int gid = INVALID;
-    int globalIndex = INVALID;
+    int gid = GEO_INVALID_INDEX;
+    int globalIndex = GEO_INVALID_INDEX;
     double radiusCollision;
     double lengthCollision;
     double radiusSearch;
@@ -93,7 +92,7 @@ class CollisionSylinder {
 
         // save collision block
         // save only block gidI < gidJ
-        if (sep < COLBUF * (radiusCollision + sJ.radiusCollision)) {
+        if (sep < GEO_DEFAULT_COLBUF * (radiusCollision + sJ.radiusCollision)) {
             // collision
             block.normI = (Ploc - Qloc).normalized();
             block.normJ = -block.normI;
