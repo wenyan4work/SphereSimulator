@@ -32,9 +32,9 @@ void testSTKThreading(const int order = 12, const int samples = 1000, const int 
         sh[i].calcGridValue(spectralCoeff.data(), allValues.data() + 3 * i * npts);
     }
 
-    for (auto &v : allValues) {
-        printf("%f\n", v);
-    }
+    // for (auto &v : allValues) {
+    //     printf("%f\n", v);
+    // }
 
     // for (int i = 0; i < samples; i++) {
     //     sh[i].dumpGridValue();
@@ -530,7 +530,7 @@ int main(int argc, char **argv) {
 
     const int order = 12;
 
-    testSTKThreading(order, 10, -1);
+    testSTKThreading(order, 1000, -1);
     testSTKThreading(order, 1000, 1);
 
     // #pragma omp parallel for
