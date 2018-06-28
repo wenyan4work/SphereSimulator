@@ -495,7 +495,7 @@ void SphereSTKSHOperator::cacheSHCoeff(double *gridValuesPtr) const {
     for (int i = 0; i < nLocal; i++) {
         const int indexBaseCoeff = shCoeffIndex[i];
         const int indexBaseGrid = gridNumberIndex[i];
-        printf("i %d,indexBaseCoeff %d, indexBaseGrid %d \n", i, indexBaseCoeff, indexBaseGrid);
+        // printf("i %d,indexBaseCoeff %d, indexBaseGrid %d \n", i, indexBaseCoeff, indexBaseGrid);
         sh[i].calcSpectralCoeff(shCoeffValues.data() + indexBaseCoeff, gridValuesPtr + 3 * indexBaseGrid);
     }
 }
