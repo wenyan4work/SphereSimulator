@@ -25,14 +25,29 @@ SphereSTKMobMat::SphereSTKMobMat(std::vector<Sphere> *const spherePtr, const std
     const auto &gridNumberLength = AOpRcp->getGridNumberLength();
     const auto &sh = AOpRcp->getSH();
 
-    rho.resize(gridWeights.size() * 3);
-    b.resize(gridWeights.size() * 3);
-    force.resize(mobMapRcp->getNodeNumElements());
-    vel.resize(mobMapRcp->getNodeNumElements());
-    std::fill(rho.begin(), rho.end(), 0);
-    std::fill(b.begin(), b.end(), 0);
-    std::fill(force.begin(), force.end(), 0);
-    std::fill(vel.begin(), vel.end(), 0);
+#pragma omp sections
+    {
+#pragma omp section
+        {
+            rho.resize(gridWeights.size() * 3);
+            std::fill(rho.begin(), rho.end(), 0);
+        }
+#pragma omp section
+        {
+            b.resize(gridWeights.size() * 3);
+            std::fill(b.begin(), b.end(), 0);
+        }
+#pragma omp section
+        {
+            force.resize(mobMapRcp->getNodeNumElements());
+            std::fill(force.begin(), force.end(), 0);
+        }
+#pragma omp section
+        {
+            vel.resize(mobMapRcp->getNodeNumElements());
+            std::fill(vel.begin(), vel.end(), 0);
+        }
+    }
 
     // setup the problem
     problemRcp = Teuchos::rcp(new Belos::LinearProblem<TOP::scalar_type, TMV, TOP>(AOpRcp, xRcp, bRcp));
@@ -64,13 +79,21 @@ SphereSTKMobMat::SphereSTKMobMat(std::vector<Sphere> *const spherePtr, const std
 
 // Y := beta*Y + alpha*Op(A)*X
 void SphereSTKMobMat::apply(const TMV &X, TMV &Y, Teuchos::ETransp mode, scalar_type alpha, scalar_type beta) const {
+
+    TEUCHOS_ASSERT(mode == Teuchos::NO_TRANS);
+    // dumpTMV(Teuchos::rcpFromRef(X),"Xin");
+    // dumpTMV(Teuchos::rcpFromRef(Y),"Yin");
+    if (beta == Teuchos::ScalarTraits<scalar_type>::zero()) {
+        Y.putScalar(0);
+    }
+
     // solve one linear problem for each column of X and Y
     const int nCol = X.getNumVectors();
     const int nRowLocal = X.getLocalLength();
     TEUCHOS_ASSERT(nCol == Y.getNumVectors());
     TEUCHOS_ASSERT(nRowLocal == Y.getLocalLength());
 
-    // setup temporary space
+    // temporary space, should have been allocated in constructor
     force.resize(mobMapRcp->getNodeNumElements());
     vel.resize(mobMapRcp->getNodeNumElements());
 
@@ -110,6 +133,8 @@ void SphereSTKMobMat::solveMob(const double *forcePtr, double *velPtr) const {
 
     // step 1, compute rho
     const int nLocal = spherePtr->size();
+    const int nRowLocal = bRcp->getLocalLength();
+
     const auto &gridNorms = AOpRcp->getGridNorms();
     const auto &gridCoords = AOpRcp->getGridCoords();
     const auto &gridWeights = AOpRcp->getGridWeights();
@@ -117,15 +142,17 @@ void SphereSTKMobMat::solveMob(const double *forcePtr, double *velPtr) const {
     const auto &gridNumberLength = AOpRcp->getGridNumberLength();
     const auto &sh = AOpRcp->getSH();
 
+    // temporary space, should have been allocated in constructor
     rho.resize(gridWeights.size() * 3);
     b.resize(gridWeights.size() * 3);
-    std::fill(rho.begin(), rho.end(), 0);
-    std::fill(b.begin(), b.end(), 0);
+
     TEUCHOS_ASSERT(gridNorms.size() == 3 * gridWeights.size());
     TEUCHOS_ASSERT(gridCoords.size() == 3 * gridWeights.size());
     TEUCHOS_ASSERT(gridNumberIndex.size() == nLocal);
     TEUCHOS_ASSERT(gridNumberLength.size() == nLocal);
     TEUCHOS_ASSERT(sh.size() == nLocal);
+    TEUCHOS_ASSERT(nRowLocal == b.size());
+    TEUCHOS_ASSERT(nRowLocal == rho.size());
 
 #pragma omp parallel for
     for (int i = 0; i < nLocal; i++) {
@@ -147,22 +174,22 @@ void SphereSTKMobMat::solveMob(const double *forcePtr, double *velPtr) const {
         }
     }
 
-    // step 2, compute - (1/2I+K) rho
+    // step 2, compute - (1/2I+K) rho for the right side b
     std::fill(b.begin(), b.end(), 0);
     AOpRcp->applyP2POP(rho.data(), b.data(), -0.5, 0, -1.0);
+
     auto bPtr = bRcp->getLocalView<Kokkos::HostSpace>();
     bRcp->modify<Kokkos::HostSpace>();
-    const int nRowLocal = bRcp->getLocalLength();
-    TEUCHOS_ASSERT(nRowLocal == b.size());
-
 #pragma omp parallel for
     for (int i = 0; i < nRowLocal; i++) {
         bPtr(i, 0) = b[i];
     }
+    if (commRcp->getRank() == 0)
+        printf("right side b set\n");
 
-    // step 2 solve linear system
-    // fill initial guess with current value in sh
-    // use b as temporary space
+        // step 2 solve linear system
+        // fill initial guess with current value in sh
+        // use b as temporary space
 #pragma omp parallel for
     for (int i = 0; i < nLocal; i++) {
         const int indexBase = gridNumberIndex[i];
@@ -176,6 +203,7 @@ void SphereSTKMobMat::solveMob(const double *forcePtr, double *velPtr) const {
             b[3 * (index) + 2] = density[3 * j + 2] - rho[3 * (index) + 2];
         }
     }
+    // dumpTMV(bRcp, "B");
 
     AOpRcp->projectNullSpace(b.data());
     auto xPtr = xRcp->getLocalView<Kokkos::HostSpace>();
@@ -185,8 +213,9 @@ void SphereSTKMobMat::solveMob(const double *forcePtr, double *velPtr) const {
     for (int i = 0; i < nRowLocal; i++) {
         xPtr(i, 0) = b[i];
     }
+    if (commRcp->getRank() == 0)
+        printf("initial guess x set\n");
 
-    // dumpTMV(bRcp, "B");
     // dumpTMV(xRcp, "Xguess");
     // iterative solve
 

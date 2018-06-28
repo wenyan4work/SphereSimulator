@@ -30,7 +30,7 @@ class SphereSTKSHOperator : public TOP {
     const std::string name;                     // which sphere harmonics to work on
 
     // temporary data
-    mutable std::vector<Shexp> sph;
+    mutable std::vector<Shexp> sh;
     mutable std::vector<double> pointValues;      // a temporary space to store input vector
     mutable std::vector<double> pointValuesApply; // a temporary space to accumulate operator results
 
@@ -120,7 +120,7 @@ class SphereSTKSHOperator : public TOP {
     const std::vector<double> &getGridNorms() const { return gridNorms; }
     const std::vector<int> &getGridNumberIndex() const { return gridNumberIndex; }
     const std::vector<int> &getGridNumberLength() const { return gridNumberLength; }
-    const std::vector<Shexp> &getSH() const { return sph; }
+    const std::vector<Shexp> &getSH() const { return sh; }
 };
 
 #endif
