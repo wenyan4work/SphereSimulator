@@ -368,7 +368,7 @@ void SphereSystem::moveEuler(Teuchos::RCP<TV> &velocityRcp) {
         auto &s = sphere[i];
         s.vel = Evec3(vx, vy, vz);
         s.omega = Evec3(wx, wy, wz);
-        printf("%d vel: %lf,%lf,%lf, omega: %lf, %lf, %lf\n", i, vx, vy, vz, wx, wy, wz);
+        // printf("%d vel: %lf,%lf,%lf, omega: %lf, %lf, %lf\n", i, vx, vy, vz, wx, wy, wz);
         s.stepEuler(dt);
     }
 

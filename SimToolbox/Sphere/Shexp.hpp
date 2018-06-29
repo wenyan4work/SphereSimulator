@@ -40,7 +40,10 @@ class Shexp {
     std::vector<double> gridValue;
     // dimension real numbers per point, (p+1) * (2p+2) points, excluding the north and south poles
 
+    void init(const KIND kind_, const std::string &name_, const int order_, const double &radius = 1,
+              const Equatn orientation_ = Equatn::Identity());
     // constructor
+    Shexp();
     Shexp(const KIND kind_, const std::string &name_, const int order_, const double &radius = 1,
           const Equatn orientation_ = Equatn::Identity());
 

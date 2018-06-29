@@ -13,12 +13,23 @@
 
 constexpr double pi = 3.1415926535897932384626433;
 
-// constructor
-Shexp::Shexp(const KIND kind_, const std::string &name_, const int order_, const double &radius_,
-             const Equatn orientation_)
-    : kind(kind_), order(order_), name(name_), radius(radius_),
-      orientation(orientation_) { // the dimension , =1 for LAPSL, LAPDL, =3 for STKSL and STKDL
+void Shexp::init(const KIND kind_, const std::string &name_, const int order_, const double &radius_,
+                 const Equatn orientation_) {
+    // the dimension , =1 for LAPSL, LAPDL, =3 for STKSL and STKDL
+    kind = kind_;
+    name = name_;
+    order = order_;
+    radius = radius_;
+    orientation = orientation_;
     gridValue.resize(getGridDOF(), 0);
+}
+
+// constructor
+Shexp::Shexp() { init(KIND::STK, "stkdefault", 6); }
+
+Shexp::Shexp(const KIND kind_, const std::string &name_, const int order_, const double &radius_,
+             const Equatn orientation_) {
+    init(kind_, name_, order_, radius_, orientation_);
 }
 
 // move constructor
@@ -377,16 +388,16 @@ void Shexp::calcPoleValue(double *coeffPtr, double *valPtr) const {
                                    sctl::Ptr2Itr<Real>(coeffPtr ? coeffPtr : nullptr, Ncoeff * dimension), false);
     sctl::Vector<Real> val(Ngrid * dimension, sctl::Ptr2Itr<Real>(valPtr ? valPtr : nullptr, Ngrid * dimension), false);
 
-    sctl::Vector<Real> cos_theta_phi(4);
-    cos_theta_phi[0] = 1.0;  // north pole, cos theta
-    cos_theta_phi[1] = 0;    // north pole, phi
-    cos_theta_phi[2] = -1.0; // south pole, cos theta
-    cos_theta_phi[3] = 0;    // south pole, phi
+    sctl::Vector<Real> theta_phi(4);
+    theta_phi[0] = 1e-6;      // north pole, theta, nan if set to 0
+    theta_phi[1] = 0;         // north pole, phi
+    theta_phi[2] = pi - 1e-6; // south pole, theta
+    theta_phi[3] = 0;         // south pole, phi
 
     if (kind == KIND::LAP) {
-        sctl::SphericalHarmonics<Real>::SHCEval(coeff, sctl::SHCArrange::ROW_MAJOR, order, cos_theta_phi, val);
+        sctl::SphericalHarmonics<Real>::SHCEval(coeff, sctl::SHCArrange::ROW_MAJOR, order, theta_phi, val);
     } else {
-        sctl::SphericalHarmonics<Real>::VecSHCEval(coeff, sctl::SHCArrange::ROW_MAJOR, order, cos_theta_phi, val);
+        sctl::SphericalHarmonics<Real>::VecSHCEval(coeff, sctl::SHCArrange::ROW_MAJOR, order, theta_phi, val);
         rotGridValue(valPtr, 2);
     }
 }
