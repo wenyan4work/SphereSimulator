@@ -55,11 +55,11 @@ SphereSTKMobMat::SphereSTKMobMat(std::vector<Sphere> *const spherePtr, const std
 
     // testOperator();
     Teuchos::RCP<Teuchos::ParameterList> solverParams = Teuchos::parameterList();
-    solverParams->set("Num Blocks", 100); // larger values might trigger a std::bad_alloc inside Kokkos.
     solverParams->set("Maximum Iterations", 200);
-    solverParams->set("Maximum Restarts", 100);
     solverParams->set("Convergence Tolerance", 1e-5);
-    solverParams->set("Orthogonalization", "ICGS");
+    // solverParams->set("Maximum Restarts", 100);
+    // solverParams->set("Num Blocks", 100); // larger values might trigger a std::bad_alloc inside Kokkos.
+    // solverParams->set("Orthogonalization", "ICGS");
     // solverParams->set("Output Style", Belos::OutputType::General);
     // solverParams->set("Implicit Residual Scaling", "Norm of Initial Residual");
     // solverParams->set("Explicit Residual Scaling", "Norm of Initial Residual");
@@ -99,7 +99,8 @@ SphereSTKMobMat::SphereSTKMobMat(std::vector<Sphere> *const spherePtr, const std
     for (int i = 0; i < nRowLocal; i++) {
         xLastPtr(i, 0) = b[i];
     }
-    printf("MobMat constructed\n");
+    if (commRcp->getRank() == 0)
+        printf("MobMat constructed\n");
 
     return;
 }

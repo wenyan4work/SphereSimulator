@@ -192,7 +192,8 @@ void SphereSTKSHOperator::apply(const TMV &X, TMV &Y, Teuchos::ETransp mode, sca
         // projectNullSpace(pointValues.data());
 
         // step 2, run FMM
-        printf("runFMM\n");
+        if (commRcp->getRank() == 0)
+            printf("runFMM\n");
         applyP2POP(pointValues.data(), pointValuesApply.data(), cId, cSL, cTrac);
         // for (auto &v : pointValuesApply) {
         //     printf("%lf\n", v);
@@ -200,7 +201,8 @@ void SphereSTKSHOperator::apply(const TMV &X, TMV &Y, Teuchos::ETransp mode, sca
         // printf("\n");
 
         // step 3, apply the rigid body operator
-        printf("applyLOP\n");
+        if (commRcp->getRank() == 0)
+            printf("applyLOP\n");
         applyLOP(pointValues.data(), pointValuesApply.data(), cLOP);
         // for (auto &v : pointValuesApply) {
         //     printf("%lf\n", v);
