@@ -10,14 +10,103 @@
 #include <mpi.h>
 #include <omp.h>
 
+#include "MPI/InteractionManager.hpp"
 #include "STKFMM/STKFMM.h"
 #include "Sphere/Sphere.hpp"
 #include "Trilinos/TpetraUtil.hpp"
 #include "Util/EigenDef.hpp"
 #include "Util/EquatnHelper.hpp"
 #include "Util/Gauss_Legendre_Nodes_and_Weights.hpp"
+#include "Util/GeoCommon.h"
 
 using namespace stkfmm;
+
+class NearEvalSH {
+  public:
+    // int gid = GEO_INVALID_INDEX;
+    double radiusNear;
+    Evec3 pos;
+    // grid value and sh data
+    Shexp sh;
+    // spectral value
+    std::vector<double> spectralCoeff;
+    // grid
+    // grid center offset not applied to this grid Coord,
+    // to be compatible with PBC images
+    std::vector<double> gridWeight;
+    std::vector<double> gridCoord;
+    std::vector<double> gridNorm;
+
+    // necessary interface for Near Interaction
+    const double *Coord() const { return pos.data(); }
+
+    double Rad() const { return radiusNear; }
+
+    void Pack(std::vector<char> &buff) const {
+        Buffer mybuff(buff);
+        // mybuff.pack(gid);
+        mybuff.pack(radiusNear);
+        mybuff.pack(pos[0]);
+        mybuff.pack(pos[1]);
+        mybuff.pack(pos[2]);
+        // pack sh
+        mybuff.pack(static_cast<int>(sh.kind)); //    const KIND kind;
+        mybuff.pack(sh.order);                  // const int order;        // the order of expansion p
+        mybuff.pack(sh.name);
+        mybuff.pack(sh.radius);
+        const Equatn &orientation = sh.orientation;
+        mybuff.pack(std::array<double, 4>{orientation.w(), orientation.x(), orientation.y(),
+                                          orientation.z()}); // Equatn orientation;
+        mybuff.pack(sh.gridValue);
+        // pack other data
+        mybuff.pack(spectralCoeff);
+        mybuff.pack(gridWeight);
+        mybuff.pack(gridCoord);
+        mybuff.pack(gridNorm);
+    }
+
+    void Unpack(const std::vector<char> &buff) {
+        Buffer mybuff;
+        // mybuff.unpack(gid, buff);
+        mybuff.unpack(radiusNear, buff);
+        mybuff.unpack(pos[0], buff);
+        mybuff.unpack(pos[1], buff);
+        mybuff.unpack(pos[2], buff);
+        int temp;
+        mybuff.unpack(temp, buff);
+        sh.kind = static_cast<Shexp::KIND>(temp);
+        mybuff.unpack(sh.order, buff);
+        mybuff.unpack(sh.name, buff);
+        mybuff.unpack(sh.radius, buff);
+        std::array<double, 4> orientation;
+        mybuff.unpack(orientation, buff);
+        sh.orientation.w() = orientation[0];
+        sh.orientation.x() = orientation[1];
+        sh.orientation.y() = orientation[2];
+        sh.orientation.z() = orientation[3];
+        mybuff.unpack(sh.gridValue, buff);
+        mybuff.unpack(spectralCoeff, buff);
+        mybuff.unpack(gridWeight, buff);
+        mybuff.unpack(gridCoord, buff);
+        mybuff.unpack(gridNorm, buff);
+    }
+};
+
+class NearEvaluator {
+  private:
+    static std::shared_ptr<STKFMM> fmmPtr;
+
+  public:
+    // TODO: Stokes DL
+    double cSL, cTrac;
+
+    NearEvaluator(const double sl, const double trac) {
+        cSL = sl;
+        cTrac = trac;
+    }
+
+    void operator()(NearEvalSH &trg, NearEvalSH &src);
+};
 
 class SphereSTKSHOperator : public TOP {
   private:
@@ -38,6 +127,11 @@ class SphereSTKSHOperator : public TOP {
     mutable std::vector<int> shCoeffIndex;
     mutable std::vector<int> shCoeffLength;
     mutable std::vector<double> shCoeffValues;
+
+    mutable std::vector<NearEvalSH> shSrc;
+    mutable std::vector<NearEvalSH> shTrg;
+    mutable std::shared_ptr<InteractionManager<double, 3, NearEvalSH, NearEvalSH>> interactManagerPtr; // near neighbor
+    mutable std::shared_ptr<NearInteraction<double, 3>> nearInteractorPtr;
 
     // dof data
     // DofIndex: beginning index of each SphHarm
@@ -74,6 +168,10 @@ class SphereSTKSHOperator : public TOP {
     void setupDOF();
 
     void setupFMM();
+
+    void setupNearEval();
+
+    void applyNearEval(const double cSLex, const double cTracex) const;
 
     void cacheSHCoeff(double *gridValues) const;
 

@@ -2,6 +2,8 @@
 
 constexpr double pi = 3.141592653589793238462643383279;
 
+std::shared_ptr<STKFMM> NearEvaluator::fmmPtr = nullptr;
+
 SphereSTKSHOperator::SphereSTKSHOperator(const std::vector<Sphere> *const spherePtr, const std::string &name_,
                                          std::shared_ptr<STKFMM> &fmmPtr_, const double cIdentity_, const double cSL_,
                                          const double cTrac_, const double cLOP_)
@@ -21,6 +23,9 @@ SphereSTKSHOperator::SphereSTKSHOperator(const std::vector<Sphere> *const sphere
     // FMM box should have been set out of this
     // FMM active kernels should have been set out of this
     setupFMM();
+
+    // step 3 setup NearSH for Near Field Corrections
+    setupNearEval();
 }
 
 void SphereSTKSHOperator::setupDOF() {
@@ -29,9 +34,12 @@ void SphereSTKSHOperator::setupDOF() {
     const int nLocal = sphere.size();
     sphereMapRcp = getTMAPFromLocalSize(nLocal, commRcp);
 
+    sh.resize(nLocal);
+#pragma omp parallel for
     for (int i = 0; i < nLocal; i++) {
-        sh.push_back(sphere[i].getLayer(name));
+        sh[i] = sphere[i].getLayer(name);
     }
+
     TEUCHOS_ASSERT(sh.size() == sphere.size());
 
     gridNumberLength.resize(nLocal);
@@ -448,6 +456,10 @@ void SphereSTKSHOperator::applyP2POP(const double *inPtr, double *outPtr, double
             outPtr[3 * i + 2] += cIdex * inPtr[3 * i + 2];
         }
     }
+
+    if (fabs(cSLex) + fabs(cTracex) > 1e-9) {
+        applyNearEval(cSLex, cTracex);
+    }
 }
 
 void SphereSTKSHOperator::applyLOP(const double *inPtr, double *outPtr, double cLOPex) const {
@@ -500,4 +512,180 @@ void SphereSTKSHOperator::cacheSHCoeff(double *gridValuesPtr) const {
         // printf("i %d,indexBaseCoeff %d, indexBaseGrid %d \n", i, indexBaseCoeff, indexBaseGrid);
         sh[i].calcSpectralCoeff(shCoeffValues.data() + indexBaseCoeff, gridValuesPtr + 3 * indexBaseGrid);
     }
+}
+
+void SphereSTKSHOperator::setupNearEval() {
+    const int nLocal = sh.size();
+    const auto &sphere = *spherePtr;
+    shSrc.resize(nLocal);
+#pragma omp parallel for
+    for (int i = 0; i < nLocal; i++) {
+        shSrc[i].pos = sphere[i].pos;
+        shSrc[i].radiusNear = sh[i].radius * 1.5;
+        shSrc[i].sh = sh[i];
+        shSrc[i].spectralCoeff.resize(sh[i].getSpectralDOF(), 0);
+        const int indexBaseGrid = gridNumberIndex[i];
+        const int npts = gridNumberLength[i];
+        shSrc[i].gridWeight.resize(npts);
+        shSrc[i].gridCoord.resize(3 * npts);
+        shSrc[i].gridNorm.resize(3 * npts);
+        std::copy(gridCoordsRelative.cbegin() + 3 * indexBaseGrid,
+                  gridCoordsRelative.cbegin() + 3 * indexBaseGrid + 3 * npts, shSrc[i].gridCoord.begin());
+        std::copy(gridNorms.cbegin() + 3 * indexBaseGrid, gridNorms.cbegin() + 3 * indexBaseGrid + 3 * npts,
+                  shSrc[i].gridNorm.begin());
+        std::copy(gridWeights.cbegin() + indexBaseGrid, gridWeights.cbegin() + indexBaseGrid + npts,
+                  shSrc[i].gridWeight.begin());
+    }
+    shTrg = shSrc;
+    printf("shSrcTrg created\n");
+
+    interactManagerPtr = std::make_shared<InteractionManager<double, 3, NearEvalSH, NearEvalSH>>(&shSrc, &shTrg);
+    // The ESS vectors are manually set above
+    nearInteractorPtr = interactManagerPtr->getNewNearInteraction();
+    if (commRcp->getRank() == 0)
+        printf("NearEvalSH nearInteractorPtr created\n");
+
+    interactManagerPtr->setupNearInteractor(nearInteractorPtr, shSrc, shTrg);
+    if (commRcp->getRank() == 0)
+        printf("NearEvalSH Setup\n");
+}
+
+void NearEvaluator::operator()(NearEvalSH &trg, NearEvalSH &src) {
+    // this function must be thread safe
+    // buffer space
+    std::vector<double> srcCoord;
+    std::vector<double> trgCoord;
+
+    std::vector<double> srcValue;
+    std::vector<double> trgValue;
+
+    const int nptsSrc = src.gridWeight.size();
+    const int nptsTrg = trg.gridWeight.size();
+    TEUCHOS_ASSERT(nptsSrc == src.sh.getGridNumber());
+    TEUCHOS_ASSERT(nptsTrg == trg.sh.getGridNumber());
+
+    // src and trg coord
+    // all coords are relative to src center. kernel is translational invariant
+    srcCoord = src.gridCoord;
+    trgCoord.resize(3 * nptsTrg);
+    for (int i = 0; i < nptsTrg; i++) {
+        trgCoord[3 * i + 0] = trg.gridCoord[3 * i + 0] + trg.pos[0] - src.pos[0];
+        trgCoord[3 * i + 1] = trg.gridCoord[3 * i + 1] + trg.pos[1] - src.pos[1];
+        trgCoord[3 * i + 2] = trg.gridCoord[3 * i + 2] + trg.pos[2] - src.pos[2];
+    }
+
+    // SL Stokes PVel FMM
+    if (fabs(cSL) > 1e-9) {
+        // src and trg value
+        srcValue.clear();
+        srcValue.resize(nptsSrc * 4, 0);
+        for (int i = 0; i < nptsSrc; i++) {
+            srcValue[4 * i + 0] = src.sh.gridValue[3 * i + 0] * src.gridWeight[i];
+            srcValue[4 * i + 1] = src.sh.gridValue[3 * i + 1] * src.gridWeight[i];
+            srcValue[4 * i + 2] = src.sh.gridValue[3 * i + 2] * src.gridWeight[i];
+            srcValue[4 * i + 3] = 0;
+        }
+
+        trgValue.clear();
+        trgValue.resize(nptsTrg * 4, 0); // trg value = PVel
+
+        std::vector<double> fmmvalue(4 * nptsTrg, 0);
+        std::vector<double> shvalue(3 * nptsTrg, 0);
+        std::vector<double> shcoeff = src.spectralCoeff;
+        std::vector<double> gridCoordRelative = trgCoord;
+
+        // the fmm value
+        fmmPtr->evaluateKernel(1, PPKERNEL::SLS2T, nptsSrc, srcCoord.data(), srcValue.data(), nptsTrg,
+                               gridCoordRelative.data(), fmmvalue.data(), KERNEL::PVel);
+        // printf("fmmvalue SL, sph %d\n", i);
+        // for (auto &v : fmmvalue) {
+        //     printf("%lf\n", v);
+        // }
+        // this is not scaled by cSLex
+        src.sh.calcSDLNF(shcoeff.data(), nptsTrg, gridCoordRelative.data(), shvalue.data(), false, true);
+        // printf("sphvalue SL, sph %d\n", i);
+        // for (auto &v : shvalue) {
+        //     printf("%lf\n", v);
+        // }
+        for (int j = 0; j < nptsTrg; j++) {
+            trg.sh.gridValue[3 * j + 0] += cSL * (shvalue[3 * j + 0] - fmmvalue[4 * j + 1]);
+            trg.sh.gridValue[3 * j + 1] += cSL * (shvalue[3 * j + 1] - fmmvalue[4 * j + 2]);
+            trg.sh.gridValue[3 * j + 2] += cSL * (shvalue[3 * j + 2] - fmmvalue[4 * j + 3]);
+        }
+    }
+
+    // Traction, Stokes Traction FMM
+    if (fabs(cTrac) > 1e-9) {
+        // src and trg value
+        srcValue.clear();
+        srcValue.resize(nptsSrc * 4, 0);
+        for (int i = 0; i < nptsSrc; i++) {
+            srcValue[4 * i + 0] = src.sh.gridValue[3 * i + 0] * src.gridWeight[i];
+            srcValue[4 * i + 1] = src.sh.gridValue[3 * i + 1] * src.gridWeight[i];
+            srcValue[4 * i + 2] = src.sh.gridValue[3 * i + 2] * src.gridWeight[i];
+            srcValue[4 * i + 3] = 0;
+        }
+
+        trgValue.clear();
+        trgValue.resize(nptsTrg * 9, 0); // trg value = PVel
+
+        std::vector<double> fmmvalue(9 * nptsTrg, 0);
+        std::vector<double> shvalue(3 * nptsTrg, 0);
+        std::vector<double> shcoeff = src.spectralCoeff;
+        std::vector<double> gridCoordRelative = trgCoord;
+        std::vector<double> gridNorm = trg.gridNorm;
+        std::vector<double> gridNorm2 = trg.gridNorm;
+
+        // the fmm value
+        fmmPtr->evaluateKernel(1, PPKERNEL::SLS2T, nptsSrc, srcCoord.data(), srcValue.data(), nptsTrg,
+                               gridCoordRelative.data(), fmmvalue.data(), KERNEL::Traction);
+        // printf("fmmvalue SL, sph %d\n", i);
+        // for (auto &v : fmmvalue) {
+        //     printf("%lf\n", v);
+        // }
+        // this is not scaled by cSLex
+        src.sh.calcKNF(shcoeff.data(), nptsTrg, gridCoordRelative.data(), gridNorm2.data(), shvalue.data(), false);
+        // printf("sphvalue SL, sph %d\n", i);
+        // for (auto &v : shvalue) {
+        //     printf("%lf\n", v);
+        // }
+        for (int j = 0; j < nptsTrg; j++) {
+            trg.sh.gridValue[3 * j + 0] +=
+                cTrac * (shvalue[3 * j + 0] - (trgValue[9 * j + 0] * gridNorm[0] + trgValue[9 * j + 1] * gridNorm[1] +
+                                               trgValue[9 * j + 2] * gridNorm[2]));
+            trg.sh.gridValue[3 * j + 1] +=
+                cTrac * (shvalue[3 * j + 1] - (trgValue[9 * j + 3] * gridNorm[0] + trgValue[9 * j + 4] * gridNorm[1] +
+                                               trgValue[9 * j + 5] * gridNorm[2]));
+            trg.sh.gridValue[3 * j + 2] +=
+                cTrac * (shvalue[3 * j + 2] - (trgValue[9 * j + 6] * gridNorm[0] + trgValue[9 * j + 7] * gridNorm[1] +
+                                               trgValue[9 * j + 8] * gridNorm[2]));
+        }
+    }
+}
+void SphereSTKSHOperator::applyNearEval(const double cSLex, const double cTracex) const {
+    // get cached spectral and grid value to src
+    const int nLocal = sh.size();
+#pragma omp parallel for
+    for (int i = 0; i < nLocal; i++) {
+        const int indexBaseCoeff = shCoeffIndex[i];
+        const int indexBaseGrid = gridNumberIndex[i];
+        // printf("i %d,indexBaseCoeff %d, indexBaseGrid %d \n", i, indexBaseCoeff, indexBaseGrid);
+        shSrc[i].spectralCoeff.resize(shSrc[i].sh.getSpectralDOF());
+        std::copy(shCoeffValues.data() + indexBaseCoeff, shCoeffValues.data() + indexBaseCoeff + shCoeffLength[i],
+                  shSrc[i].spectralCoeff.begin());
+        shSrc[i].sh.gridValue.resize(shSrc[i].sh.getGridNumber() * 3);
+        std::copy(pointValues.data() + 3 * indexBaseGrid,
+                  pointValues.data() + 3 * indexBaseGrid + 3 * gridNumberLength[i], shSrc[i].sh.gridValue.begin());
+    }
+    // clear trg
+#pragma omp parallel for
+    for (int i = 0; i < nLocal; i++) {
+        std::fill(shTrg[i].sh.gridValue.begin(), shTrg[i].sh.gridValue.end(), 0);
+        std::fill(shTrg[i].spectralCoeff.begin(), shTrg[i].spectralCoeff.end(), 0);
+    }
+
+    NearEvaluator nearEvalor(cSLex, cTracex);
+    interactManagerPtr->calcNearInteraction(nearInteractorPtr, shSrc, shTrg, nearEvalor);
+    if (commRcp->getRank() == 0)
+        printf("calcNear\n");
 }
