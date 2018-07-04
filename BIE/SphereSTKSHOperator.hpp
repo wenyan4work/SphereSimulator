@@ -93,11 +93,9 @@ class NearEvalSH {
 };
 
 class NearEvaluator {
-  private:
-    static std::shared_ptr<STKFMM> fmmPtr;
-
   public:
     // TODO: Stokes DL
+    static std::shared_ptr<STKFMM> fmmPtr;
     double cSL, cTrac;
 
     NearEvaluator(const double sl, const double trac) {

@@ -63,7 +63,7 @@ CXXFLAGS += -DSCTL_HAVE_MPI
 endif
 
 # CXXFLAGS += -DSCTL_MEMDEBUG # Enable memory checks
-CXXFLAGS += -DSCTL_GLOBAL_MEM_BUFF=2048 # Global memory buffer size in MB
+CXXFLAGS += -DSCTL_GLOBAL_MEM_BUFF=256 # Global memory buffer size in MB
 # CXXFLAGS += -DSCTL_PROFILE=5 -DSCTL_VERBOSE # Enable profiling
 # CXXFLAGS += -DSCTL_QUAD_T=__float128 # Enable quadruple precision
 

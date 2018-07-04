@@ -458,7 +458,20 @@ void SphereSTKSHOperator::applyP2POP(const double *inPtr, double *outPtr, double
     }
 
     if (fabs(cSLex) + fabs(cTracex) > 1e-9) {
+        // printf("start near eval\n");
         applyNearEval(cSLex, cTracex);
+// apply near corrections
+#pragma omp parallel for
+        for (int i = 0; i < nLocal; i++) {
+            const int indexBase = gridNumberIndex[i];
+            const int npts = gridNumberLength[i];
+            for (int j = 0; j < npts; j++) {
+                const int index = indexBase + j;
+                outPtr[3 * index + 0] += shTrg[i].sh.gridValue[3 * j + 0];
+                outPtr[3 * index + 1] += shTrg[i].sh.gridValue[3 * j + 1];
+                outPtr[3 * index + 2] += shTrg[i].sh.gridValue[3 * j + 2];
+            }
+        }
     }
 }
 
@@ -515,13 +528,14 @@ void SphereSTKSHOperator::cacheSHCoeff(double *gridValuesPtr) const {
 }
 
 void SphereSTKSHOperator::setupNearEval() {
+    NearEvaluator::fmmPtr = fmmPtr;
     const int nLocal = sh.size();
     const auto &sphere = *spherePtr;
     shSrc.resize(nLocal);
 #pragma omp parallel for
     for (int i = 0; i < nLocal; i++) {
         shSrc[i].pos = sphere[i].pos;
-        shSrc[i].radiusNear = sh[i].radius * 1.5;
+        shSrc[i].radiusNear = sh[i].radius * 2;
         shSrc[i].sh = sh[i];
         shSrc[i].spectralCoeff.resize(sh[i].getSpectralDOF(), 0);
         const int indexBaseGrid = gridNumberIndex[i];
@@ -537,7 +551,6 @@ void SphereSTKSHOperator::setupNearEval() {
                   shSrc[i].gridWeight.begin());
     }
     shTrg = shSrc;
-    printf("shSrcTrg created\n");
 
     interactManagerPtr = std::make_shared<InteractionManager<double, 3, NearEvalSH, NearEvalSH>>(&shSrc, &shTrg);
     // The ESS vectors are manually set above
@@ -634,7 +647,6 @@ void NearEvaluator::operator()(NearEvalSH &trg, NearEvalSH &src) {
         std::vector<double> shcoeff = src.spectralCoeff;
         std::vector<double> gridCoordRelative = trgCoord;
         std::vector<double> gridNorm = trg.gridNorm;
-        std::vector<double> gridNorm2 = trg.gridNorm;
 
         // the fmm value
         fmmPtr->evaluateKernel(1, PPKERNEL::SLS2T, nptsSrc, srcCoord.data(), srcValue.data(), nptsTrg,
@@ -644,42 +656,47 @@ void NearEvaluator::operator()(NearEvalSH &trg, NearEvalSH &src) {
         //     printf("%lf\n", v);
         // }
         // this is not scaled by cSLex
-        src.sh.calcKNF(shcoeff.data(), nptsTrg, gridCoordRelative.data(), gridNorm2.data(), shvalue.data(), false);
+        src.sh.calcKNF(shcoeff.data(), nptsTrg, gridCoordRelative.data(), gridNorm.data(), shvalue.data(), false);
         // printf("sphvalue SL, sph %d\n", i);
         // for (auto &v : shvalue) {
         //     printf("%lf\n", v);
         // }
         for (int j = 0; j < nptsTrg; j++) {
-            trg.sh.gridValue[3 * j + 0] +=
-                cTrac * (shvalue[3 * j + 0] - (trgValue[9 * j + 0] * gridNorm[0] + trgValue[9 * j + 1] * gridNorm[1] +
-                                               trgValue[9 * j + 2] * gridNorm[2]));
-            trg.sh.gridValue[3 * j + 1] +=
-                cTrac * (shvalue[3 * j + 1] - (trgValue[9 * j + 3] * gridNorm[0] + trgValue[9 * j + 4] * gridNorm[1] +
-                                               trgValue[9 * j + 5] * gridNorm[2]));
-            trg.sh.gridValue[3 * j + 2] +=
-                cTrac * (shvalue[3 * j + 2] - (trgValue[9 * j + 6] * gridNorm[0] + trgValue[9 * j + 7] * gridNorm[1] +
-                                               trgValue[9 * j + 8] * gridNorm[2]));
+            trg.sh.gridValue[3 * j + 0] += cTrac * (shvalue[3 * j + 0] - (trgValue[9 * j + 0] * trg.gridNorm[0] +
+                                                                          trgValue[9 * j + 1] * trg.gridNorm[1] +
+                                                                          trgValue[9 * j + 2] * trg.gridNorm[2]));
+            trg.sh.gridValue[3 * j + 1] += cTrac * (shvalue[3 * j + 1] - (trgValue[9 * j + 3] * trg.gridNorm[0] +
+                                                                          trgValue[9 * j + 4] * trg.gridNorm[1] +
+                                                                          trgValue[9 * j + 5] * trg.gridNorm[2]));
+            trg.sh.gridValue[3 * j + 2] += cTrac * (shvalue[3 * j + 2] - (trgValue[9 * j + 6] * trg.gridNorm[0] +
+                                                                          trgValue[9 * j + 7] * trg.gridNorm[1] +
+                                                                          trgValue[9 * j + 8] * trg.gridNorm[2]));
         }
     }
 }
 void SphereSTKSHOperator::applyNearEval(const double cSLex, const double cTracex) const {
     // get cached spectral and grid value to src
     const int nLocal = sh.size();
+    TEUCHOS_ASSERT(nLocal == shSrc.size());
+    TEUCHOS_ASSERT(nLocal == shTrg.size());
+
 #pragma omp parallel for
     for (int i = 0; i < nLocal; i++) {
         const int indexBaseCoeff = shCoeffIndex[i];
         const int indexBaseGrid = gridNumberIndex[i];
-        // printf("i %d,indexBaseCoeff %d, indexBaseGrid %d \n", i, indexBaseCoeff, indexBaseGrid);
+        TEUCHOS_ASSERT(shCoeffLength[i] == shSrc[i].sh.getSpectralDOF());
         shSrc[i].spectralCoeff.resize(shSrc[i].sh.getSpectralDOF());
         std::copy(shCoeffValues.data() + indexBaseCoeff, shCoeffValues.data() + indexBaseCoeff + shCoeffLength[i],
                   shSrc[i].spectralCoeff.begin());
         shSrc[i].sh.gridValue.resize(shSrc[i].sh.getGridNumber() * 3);
-        std::copy(pointValues.data() + 3 * indexBaseGrid,
-                  pointValues.data() + 3 * indexBaseGrid + 3 * gridNumberLength[i], shSrc[i].sh.gridValue.begin());
+        shSrc[i].sh.calcGridValue(shSrc[i].spectralCoeff.data());
     }
+
     // clear trg
+    shTrg.resize(nLocal);
 #pragma omp parallel for
     for (int i = 0; i < nLocal; i++) {
+        shTrg[i] = shSrc[i];
         std::fill(shTrg[i].sh.gridValue.begin(), shTrg[i].sh.gridValue.end(), 0);
         std::fill(shTrg[i].spectralCoeff.begin(), shTrg[i].spectralCoeff.end(), 0);
     }
