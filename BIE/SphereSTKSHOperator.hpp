@@ -169,7 +169,8 @@ class SphereSTKSHOperator : public TOP {
 
     void setupNearEval();
 
-    void applyNearEval(const double cSLex, const double cTracex) const;
+    void applyNearEval(const double *spectralCoeffPtr, const double *gridValuePtr, const double cSLex,
+                       const double cTracex) const;
 
     void cacheSHCoeff(double *gridValues) const;
 

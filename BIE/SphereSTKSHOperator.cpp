@@ -459,7 +459,7 @@ void SphereSTKSHOperator::applyP2POP(const double *inPtr, double *outPtr, double
 
     if (fabs(cSLex) + fabs(cTracex) > 1e-9) {
         // printf("start near eval\n");
-        applyNearEval(cSLex, cTracex);
+        applyNearEval(shCoeffValues.data(), inPtr, cSLex, cTracex);
 // apply near corrections
 #pragma omp parallel for
         for (int i = 0; i < nLocal; i++) {
@@ -535,7 +535,7 @@ void SphereSTKSHOperator::setupNearEval() {
 #pragma omp parallel for
     for (int i = 0; i < nLocal; i++) {
         shSrc[i].pos = sphere[i].pos;
-        shSrc[i].radiusNear = sh[i].radius * 2;
+        shSrc[i].radiusNear = sh[i].radius * 1.5;
         shSrc[i].sh = sh[i];
         shSrc[i].spectralCoeff.resize(sh[i].getSpectralDOF(), 0);
         const int indexBaseGrid = gridNumberIndex[i];
@@ -564,6 +564,17 @@ void SphereSTKSHOperator::setupNearEval() {
 }
 
 void NearEvaluator::operator()(NearEvalSH &trg, NearEvalSH &src) {
+
+    // printf("src gridValue\n");
+    // for (auto &v : src.sh.gridValue) {
+    //     printf("%lf\n", v);
+    // }
+    // src.sh.calcSpectralCoeff(src.spectralCoeff.data());
+    // printf("src spectralCoeff\n");
+    // for (auto &v : src.spectralCoeff) {
+    //     printf("%lf\n", v);
+    // }
+
     // this function must be thread safe
     // buffer space
     std::vector<double> srcCoord;
@@ -602,28 +613,26 @@ void NearEvaluator::operator()(NearEvalSH &trg, NearEvalSH &src) {
         trgValue.clear();
         trgValue.resize(nptsTrg * 4, 0); // trg value = PVel
 
-        std::vector<double> fmmvalue(4 * nptsTrg, 0);
         std::vector<double> shvalue(3 * nptsTrg, 0);
         std::vector<double> shcoeff = src.spectralCoeff;
         std::vector<double> gridCoordRelative = trgCoord;
 
         // the fmm value
         fmmPtr->evaluateKernel(1, PPKERNEL::SLS2T, nptsSrc, srcCoord.data(), srcValue.data(), nptsTrg,
-                               gridCoordRelative.data(), fmmvalue.data(), KERNEL::PVel);
+                               gridCoordRelative.data(), trgValue.data(), KERNEL::PVel);
         // printf("fmmvalue SL, sph %d\n", i);
         // for (auto &v : fmmvalue) {
         //     printf("%lf\n", v);
         // }
-        // this is not scaled by cSLex
         src.sh.calcSDLNF(shcoeff.data(), nptsTrg, gridCoordRelative.data(), shvalue.data(), false, true);
         // printf("sphvalue SL, sph %d\n", i);
         // for (auto &v : shvalue) {
         //     printf("%lf\n", v);
         // }
         for (int j = 0; j < nptsTrg; j++) {
-            trg.sh.gridValue[3 * j + 0] += cSL * (shvalue[3 * j + 0] - fmmvalue[4 * j + 1]);
-            trg.sh.gridValue[3 * j + 1] += cSL * (shvalue[3 * j + 1] - fmmvalue[4 * j + 2]);
-            trg.sh.gridValue[3 * j + 2] += cSL * (shvalue[3 * j + 2] - fmmvalue[4 * j + 3]);
+            trg.sh.gridValue[3 * j + 0] += cSL * (shvalue[3 * j + 0] - trgValue[4 * j + 1]);
+            trg.sh.gridValue[3 * j + 1] += cSL * (shvalue[3 * j + 1] - trgValue[4 * j + 2]);
+            trg.sh.gridValue[3 * j + 2] += cSL * (shvalue[3 * j + 2] - trgValue[4 * j + 3]);
         }
     }
 
@@ -642,7 +651,6 @@ void NearEvaluator::operator()(NearEvalSH &trg, NearEvalSH &src) {
         trgValue.clear();
         trgValue.resize(nptsTrg * 9, 0); // trg value = PVel
 
-        std::vector<double> fmmvalue(9 * nptsTrg, 0);
         std::vector<double> shvalue(3 * nptsTrg, 0);
         std::vector<double> shcoeff = src.spectralCoeff;
         std::vector<double> gridCoordRelative = trgCoord;
@@ -650,31 +658,34 @@ void NearEvaluator::operator()(NearEvalSH &trg, NearEvalSH &src) {
 
         // the fmm value
         fmmPtr->evaluateKernel(1, PPKERNEL::SLS2T, nptsSrc, srcCoord.data(), srcValue.data(), nptsTrg,
-                               gridCoordRelative.data(), fmmvalue.data(), KERNEL::Traction);
+                               gridCoordRelative.data(), trgValue.data(), KERNEL::Traction);
         // printf("fmmvalue SL, sph %d\n", i);
         // for (auto &v : fmmvalue) {
         //     printf("%lf\n", v);
         // }
-        // this is not scaled by cSLex
         src.sh.calcKNF(shcoeff.data(), nptsTrg, gridCoordRelative.data(), gridNorm.data(), shvalue.data(), false);
-        // printf("sphvalue SL, sph %d\n", i);
+        // printf("sphvalue SL, sph %d\n", shvalue.size());
         // for (auto &v : shvalue) {
         //     printf("%lf\n", v);
         // }
         for (int j = 0; j < nptsTrg; j++) {
-            trg.sh.gridValue[3 * j + 0] += cTrac * (shvalue[3 * j + 0] - (trgValue[9 * j + 0] * trg.gridNorm[0] +
-                                                                          trgValue[9 * j + 1] * trg.gridNorm[1] +
-                                                                          trgValue[9 * j + 2] * trg.gridNorm[2]));
-            trg.sh.gridValue[3 * j + 1] += cTrac * (shvalue[3 * j + 1] - (trgValue[9 * j + 3] * trg.gridNorm[0] +
-                                                                          trgValue[9 * j + 4] * trg.gridNorm[1] +
-                                                                          trgValue[9 * j + 5] * trg.gridNorm[2]));
-            trg.sh.gridValue[3 * j + 2] += cTrac * (shvalue[3 * j + 2] - (trgValue[9 * j + 6] * trg.gridNorm[0] +
-                                                                          trgValue[9 * j + 7] * trg.gridNorm[1] +
-                                                                          trgValue[9 * j + 8] * trg.gridNorm[2]));
+            double fmmx, fmmy, fmmz;
+            fmmx = (trgValue[9 * j + 0] * trg.gridNorm[3 * j + 0] + trgValue[9 * j + 1] * trg.gridNorm[3 * j + 1] +
+                    trgValue[9 * j + 2] * trg.gridNorm[3 * j + 2]);
+            fmmy = (trgValue[9 * j + 3] * trg.gridNorm[3 * j + 0] + trgValue[9 * j + 4] * trg.gridNorm[3 * j + 1] +
+                    trgValue[9 * j + 5] * trg.gridNorm[3 * j + 2]);
+            fmmz = (trgValue[9 * j + 6] * trg.gridNorm[3 * j + 0] + trgValue[9 * j + 7] * trg.gridNorm[3 * j + 1] +
+                    trgValue[9 * j + 8] * trg.gridNorm[3 * j + 2]);
+            trg.sh.gridValue[3 * j + 0] += cTrac * (shvalue[3 * j + 0] - fmmx);
+            trg.sh.gridValue[3 * j + 1] += cTrac * (shvalue[3 * j + 1] - fmmy);
+            trg.sh.gridValue[3 * j + 2] += cTrac * (shvalue[3 * j + 2] - fmmz);
+            // printf("%lf,%lf,%lf,%lf,%lf,%lf\n", shvalue[3 * j + 0], shvalue[3 * j + 1], shvalue[3 * j + 2], fmmx, fmmy,
+            //        fmmz);
         }
     }
 }
-void SphereSTKSHOperator::applyNearEval(const double cSLex, const double cTracex) const {
+void SphereSTKSHOperator::applyNearEval(const double *spectralCoeffPtr, const double *gridValuePtr, const double cSLex,
+                                        const double cTracex) const {
     // get cached spectral and grid value to src
     const int nLocal = sh.size();
     TEUCHOS_ASSERT(nLocal == shSrc.size());
@@ -684,12 +695,15 @@ void SphereSTKSHOperator::applyNearEval(const double cSLex, const double cTracex
     for (int i = 0; i < nLocal; i++) {
         const int indexBaseCoeff = shCoeffIndex[i];
         const int indexBaseGrid = gridNumberIndex[i];
+        const int npts = gridNumberLength[i];
         TEUCHOS_ASSERT(shCoeffLength[i] == shSrc[i].sh.getSpectralDOF());
         shSrc[i].spectralCoeff.resize(shSrc[i].sh.getSpectralDOF());
-        std::copy(shCoeffValues.data() + indexBaseCoeff, shCoeffValues.data() + indexBaseCoeff + shCoeffLength[i],
+        std::copy(spectralCoeffPtr + indexBaseCoeff, spectralCoeffPtr + indexBaseCoeff + shCoeffLength[i],
                   shSrc[i].spectralCoeff.begin());
-        shSrc[i].sh.gridValue.resize(shSrc[i].sh.getGridNumber() * 3);
-        shSrc[i].sh.calcGridValue(shSrc[i].spectralCoeff.data());
+        // shSrc[i].sh.calcGridValue(shSrc[i].spectralCoeff.data());
+        std::copy(gridValuePtr + 3 * indexBaseGrid, gridValuePtr + 3 * indexBaseGrid + 3 * npts,
+                  shSrc[i].sh.gridValue.begin());
+        // shSrc[i].sh.calcSpectralCoeff(shSrc[i].spectralCoeff.data());
     }
 
     // clear trg
