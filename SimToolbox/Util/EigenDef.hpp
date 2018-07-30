@@ -11,7 +11,6 @@
 #include <cmath>
 #include <vector>
 
-#define EIGEN_DONT_PARALLELIZE // 1 thread for any eigen stuff
 #include <Eigen/Cholesky>
 #include <Eigen/Dense>
 #include <Eigen/Sparse>

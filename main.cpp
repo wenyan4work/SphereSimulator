@@ -9,8 +9,6 @@
 #include "Util/EigenDef.hpp"
 
 int main(int argc, char **argv) {
-    Eigen::initParallel();
-    Eigen::setNbThreads(1); // disable threading in eigen
 
     MPI_Init(&argc, &argv);
 

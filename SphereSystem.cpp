@@ -17,6 +17,10 @@ SphereSystem::SphereSystem(const std::string &configFile, const std::string &pos
     MPI_Initialized(&mpiflag);
     assert(mpiflag);
 
+    Eigen::initParallel();
+    Eigen::setNbThreads(1);   // disable threading in eigen
+    srand(runConfig.rngSeed); // Eigen uses srand internally
+
     commRcp = getMPIWORLDTCOMM();
 
     stepCount = 0;
@@ -368,7 +372,7 @@ void SphereSystem::moveEuler(Teuchos::RCP<TV> &velocityRcp) {
         auto &s = sphere[i];
         s.vel = Evec3(vx, vy, vz);
         s.omega = Evec3(wx, wy, wz);
-        // printf("%d vel: %lf,%lf,%lf, omega: %lf, %lf, %lf\n", i, vx, vy, vz, wx, wy, wz);
+        printf("%d vel: %lf,%lf,%lf, omega: %lf, %lf, %lf\n", i, vx, vy, vz, wx, wy, wz);
         s.stepEuler(dt);
     }
 
