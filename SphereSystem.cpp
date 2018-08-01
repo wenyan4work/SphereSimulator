@@ -422,7 +422,6 @@ void SphereSystem::resolveCollision(bool manybody, double buffer) {
     if (commRcp->getRank() == 0)
         printf("calcNear\n");
 
-    collector.clear();
     // construct collision stepper
     collisionSolverPtr->setup(*(collector.collisionPoolPtr), sphereMobilityMapRcp, runConfig.dt, buffer);
     collisionSolverPtr->setControlLCP(1e-5, 200, false); // res, maxIte, NWTN refine

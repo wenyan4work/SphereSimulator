@@ -87,12 +87,12 @@ void CollisionSolver::solveCollision(Teuchos::RCP<TOP> &matMobilityRcp_, Teuchos
     if (commRcp->getRank() == 0)
         printf("col force velocity saved\n");
 
-#ifdef DEBUGLCPCOL
     if (commRcp->getRank() == 0 && history.size() > 0) {
         for (auto &p : history) {
             std::cout << p[0] << " " << p[1] << " " << p[2] << " " << p[3] << " " << p[4] << std::endl;
         }
     }
+#ifdef DEBUGLCPCOL
     dumpTV(forceColRcp, "forceCol");
     dumpTV(gammaRcp, "gammaSolLCP");
 #endif
