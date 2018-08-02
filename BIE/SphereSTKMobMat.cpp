@@ -56,9 +56,10 @@ SphereSTKMobMat::SphereSTKMobMat(std::vector<Sphere> *const spherePtr, const std
     // testOperator();
     Teuchos::RCP<Teuchos::ParameterList> solverParams = Teuchos::parameterList();
     solverParams->set("Maximum Iterations", 200);
-    solverParams->set("Convergence Tolerance", 1e-5);
+    solverParams->set("Convergence Tolerance", 1e-7);
     // solverParams->set("Maximum Restarts", 100);
     // solverParams->set("Num Blocks", 100); // larger values might trigger a std::bad_alloc inside Kokkos.
+    solverParams->set("Num Recycled Blocks", 15); // for GCRODR
     // solverParams->set("Orthogonalization", "ICGS");
     // solverParams->set("Output Style", Belos::OutputType::General);
     // solverParams->set("Implicit Residual Scaling", "Norm of Initial Residual");
@@ -236,7 +237,7 @@ void SphereSTKMobMat::solveMob(const double *forcePtr, double *velPtr) const {
     Belos::ReturnType result = solverRcp->solve();
     int numIters = solverRcp->getNumIters();
     if (commRcp->getRank() == 0) {
-        std::cout << "Num of Iterations in Mobility Matrix: " << numIters << std::endl;
+        std::cout << "RECORD: Num of Iterations in Mobility Matrix: " << numIters << std::endl;
     }
     // save result
     xLastRcp->update(1.0, *xRcp, 0);

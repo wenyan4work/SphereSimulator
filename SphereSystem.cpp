@@ -385,6 +385,8 @@ void SphereSystem::moveEuler(Teuchos::RCP<TV> &velocityRcp) {
 }
 
 void SphereSystem::resolveCollision(bool manybody, double buffer) {
+
+    std::cout << "RECORD: TIMESTEP " << stepCount << " TIME " << stepCount * runConfig.dt << std::endl;
     // positive buffer value means sphere collision radius is effectively smaller
     // i.e., less likely to collide
 

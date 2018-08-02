@@ -350,6 +350,9 @@ void Sphere::writePVTU(const std::vector<IOHelper::FieldVTU> &dataFields, const 
 void Sphere::stepEuler(double dt) {
     pos += vel * dt;
     EquatnHelper::rotateEquatn(orientation, omega, dt);
+    for (auto &layer : this->sphLayer) {
+        EquatnHelper::rotateEquatn(layer.second->orientation, omega, dt);
+    }
 }
 
 Shexp &Sphere::getLayer(const std::string &name) { return *(sphLayer.find(name)->second); }

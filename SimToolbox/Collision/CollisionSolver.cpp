@@ -89,7 +89,12 @@ void CollisionSolver::solveCollision(Teuchos::RCP<TOP> &matMobilityRcp_, Teuchos
 
     if (commRcp->getRank() == 0 && history.size() > 0) {
         for (auto &p : history) {
-            std::cout << p[0] << " " << p[1] << " " << p[2] << " " << p[3] << " " << p[4] << std::endl;
+            std::cout << "RECORD: LCP Iteration ";
+            for(auto & r:p){
+                std::cout<<" "<<r;
+            } 
+            std::cout<<std::endl;
+            // << p[0] << " " << p[1] << " " << p[2] << " " << p[3] << " " << p[4] << " " << p[5] << std::endl;
         }
     }
 #ifdef DEBUGLCPCOL
