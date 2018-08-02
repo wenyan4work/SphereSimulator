@@ -535,7 +535,7 @@ void SphereSTKSHOperator::setupNearEval() {
 #pragma omp parallel for
     for (int i = 0; i < nLocal; i++) {
         shSrc[i].pos = sphere[i].pos;
-        shSrc[i].radiusNear = sh[i].radius * 1.5;
+        shSrc[i].radiusNear = sh[i].radius * 2;
         shSrc[i].sh = sh[i];
         shSrc[i].spectralCoeff.resize(sh[i].getSpectralDOF(), 0);
         const int indexBaseGrid = gridNumberIndex[i];
