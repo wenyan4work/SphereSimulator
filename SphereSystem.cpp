@@ -376,11 +376,6 @@ void SphereSystem::moveEuler(Teuchos::RCP<TV> &velocityRcp) {
         s.vel = Evec3(vx, vy, vz);
         s.omega = Evec3(wx, wy, wz);
         printf("gap: %lf, id %d vel: %.14g,%.14g,%.14g, omega: %.14g, %.14g, %.14g\n", gap, i, vx, vy, vz, wx, wy, wz);
-        // take an random orientation
-        for (auto &l : s.sphLayer) {
-            EquatnHelper::setUnitRandomEquatn(l.second->orientation, rngPoolPtr->getU01(), rngPoolPtr->getU01(),
-                                              rngPoolPtr->getU01());
-        }
     }
     if (gap > 1.0) {
         sphere[1].pos[0] -= 0.2;
@@ -396,6 +391,14 @@ void SphereSystem::moveEuler(Teuchos::RCP<TV> &velocityRcp) {
 }
 
 void SphereSystem::resolveCollision(bool manybody, double buffer) {
+
+    for (auto &s : sphere) {
+        // take an random orientation
+        for (auto &l : s.sphLayer) {
+            EquatnHelper::setUnitRandomEquatn(l.second->orientation, rngPoolPtr->getU01(), rngPoolPtr->getU01(),
+                                              rngPoolPtr->getU01());
+        }
+    }
 
     std::cout << "RECORD: TIMESTEP " << stepCount << " TIME " << stepCount * runConfig.dt << std::endl;
     // positive buffer value means sphere collision radius is effectively smaller
