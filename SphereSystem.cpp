@@ -377,8 +377,10 @@ void SphereSystem::moveEuler(Teuchos::RCP<TV> &velocityRcp) {
         s.omega = Evec3(wx, wy, wz);
         printf("gap: %lf, id %d vel: %.6g,%.6g,%.6g, omega: %.6g, %.6g, %.6g\n", gap, i, vx, vy, vz, wx, wy, wz);
         // take an random orientation
-        s.getLayer("stkmob").orientation = Equatn::UnitRandom();
-        s.getLayer("stkcol").orientation = Equatn::UnitRandom();
+        for (auto &l : s.sphLayer) {
+            EquatnHelper::setUnitRandomEquatn(l.second->orientation, rngPoolPtr->getU01(), rngPoolPtr->getU01(),
+                                              rngPoolPtr->getU01());
+        }
     }
     if (gap > 1.0) {
         sphere[1].pos[0] -= 0.2;

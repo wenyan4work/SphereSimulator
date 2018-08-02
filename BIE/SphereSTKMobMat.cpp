@@ -56,7 +56,7 @@ SphereSTKMobMat::SphereSTKMobMat(std::vector<Sphere> *const spherePtr, const std
     // testOperator();
     Teuchos::RCP<Teuchos::ParameterList> solverParams = Teuchos::parameterList();
     solverParams->set("Maximum Iterations", 200);
-    solverParams->set("Convergence Tolerance", 1e-7);
+    solverParams->set("Convergence Tolerance", 1e-10);
     // solverParams->set("Maximum Restarts", 100);
     // solverParams->set("Num Blocks", 100); // larger values might trigger a std::bad_alloc inside Kokkos.
     solverParams->set("Num Recycled Blocks", 15); // for GCRODR
