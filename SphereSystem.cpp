@@ -93,14 +93,13 @@ void SphereSystem::setInitial(const std::string &initPosFile) {
 
     for (int i = 0; i < nSphereGlobal; i++) {
         double radius = runConfig.sphereRadiusSigmaHydro > 0 ? rngPoolPtr->getLN(0) : runConfig.sphereRadiusHydro;
-        double px = rngPoolPtr->getU01(0) * (runConfig.simBoxHigh[0] - runConfig.simBoxLow[0]) +
-        runConfig.simBoxLow[0]; double py = rngPoolPtr->getU01(0) * (runConfig.simBoxHigh[1] -
-        runConfig.simBoxLow[1]) + runConfig.simBoxLow[1]; double pz = rngPoolPtr->getU01(0) *
-        (runConfig.simBoxHigh[2] - runConfig.simBoxLow[2]) + runConfig.simBoxLow[2]; Equatn orientation;
+        double px = rngPoolPtr->getU01(0) * (runConfig.simBoxHigh[0] - runConfig.simBoxLow[0]) + runConfig.simBoxLow[0];
+        double py = rngPoolPtr->getU01(0) * (runConfig.simBoxHigh[1] - runConfig.simBoxLow[1]) + runConfig.simBoxLow[1];
+        double pz = rngPoolPtr->getU01(0) * (runConfig.simBoxHigh[2] - runConfig.simBoxLow[2]) + runConfig.simBoxLow[2];
+        Equatn orientation;
         EquatnHelper::setUnitRandomEquatn(orientation, rngPoolPtr->getU01(0), rngPoolPtr->getU01(0),
                                           rngPoolPtr->getU01(0));
-        sphere.emplace_back(i, radius, radius * runConfig.sphereRadiusCollisionRatio, Evec3(px, py, pz),
-        orientation);
+        sphere.emplace_back(i, radius, radius * runConfig.sphereRadiusCollisionRatio, Evec3(px, py, pz), orientation);
     }
 
     // check volume fraction
@@ -377,8 +376,15 @@ void SphereSystem::moveEuler(Teuchos::RCP<TV> &velocityRcp) {
         s.vel = Evec3(vx, vy, vz);
         s.omega = Evec3(wx, wy, wz);
         printf("gap: %lf, id %d vel: %.6g,%.6g,%.6g, omega: %.6g, %.6g, %.6g\n", gap, i, vx, vy, vz, wx, wy, wz);
+        // take an random orientation
+        s.getLayer("stkmob").orientation = Equatn::UnitRandom();
+        s.getLayer("stkcol").orientation = Equatn::UnitRandom();
     }
-    sphere[1].pos[0] -= 0.01;
+    if (gap > 1.0) {
+        sphere[1].pos[0] -= 0.2;
+    } else {
+        sphere[1].pos[0] -= 0.01;
+    }
     gap = sphere[1].pos[0] - sphere[0].pos[0] - sphere[1].radius - sphere[0].radius;
     if (gap < mingap) {
         exit(0);
