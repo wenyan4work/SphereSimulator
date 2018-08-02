@@ -11,6 +11,8 @@
 #include "Util/EquatnHelper.hpp"
 #include "Util/IOHelper.hpp"
 
+constexpr double mingap = 0.01;
+
 SphereSystem::SphereSystem(const std::string &configFile, const std::string &posFile, int argc, char **argv)
     : runConfig(configFile) {
     int mpiflag;
@@ -91,13 +93,14 @@ void SphereSystem::setInitial(const std::string &initPosFile) {
 
     for (int i = 0; i < nSphereGlobal; i++) {
         double radius = runConfig.sphereRadiusSigmaHydro > 0 ? rngPoolPtr->getLN(0) : runConfig.sphereRadiusHydro;
-        double px = rngPoolPtr->getU01(0) * (runConfig.simBoxHigh[0] - runConfig.simBoxLow[0]) + runConfig.simBoxLow[0];
-        double py = rngPoolPtr->getU01(0) * (runConfig.simBoxHigh[1] - runConfig.simBoxLow[1]) + runConfig.simBoxLow[1];
-        double pz = rngPoolPtr->getU01(0) * (runConfig.simBoxHigh[2] - runConfig.simBoxLow[2]) + runConfig.simBoxLow[2];
-        Equatn orientation;
+        double px = rngPoolPtr->getU01(0) * (runConfig.simBoxHigh[0] - runConfig.simBoxLow[0]) +
+        runConfig.simBoxLow[0]; double py = rngPoolPtr->getU01(0) * (runConfig.simBoxHigh[1] -
+        runConfig.simBoxLow[1]) + runConfig.simBoxLow[1]; double pz = rngPoolPtr->getU01(0) *
+        (runConfig.simBoxHigh[2] - runConfig.simBoxLow[2]) + runConfig.simBoxLow[2]; Equatn orientation;
         EquatnHelper::setUnitRandomEquatn(orientation, rngPoolPtr->getU01(0), rngPoolPtr->getU01(0),
                                           rngPoolPtr->getU01(0));
-        sphere.emplace_back(i, radius, radius * runConfig.sphereRadiusCollisionRatio, Evec3(px, py, pz), orientation);
+        sphere.emplace_back(i, radius, radius * runConfig.sphereRadiusCollisionRatio, Evec3(px, py, pz),
+        orientation);
     }
 
     // check volume fraction
@@ -301,10 +304,6 @@ Teuchos::RCP<TV> SphereSystem::getForceKnown() const {
             forcePtr(6 * i + 4, c) = runConfig.extTorque[1];
             forcePtr(6 * i + 5, c) = runConfig.extTorque[2];
         }
-
-        // simple shear motion for a pair
-        forcePtr(0, c) += 1.0;
-        forcePtr(6, c) += -1.0;
     }
 
     commRcp->barrier();
@@ -362,7 +361,7 @@ void SphereSystem::moveEuler(Teuchos::RCP<TV> &velocityRcp) {
 
     const int c = 0; // only 1 column in the TV
     const double dt = runConfig.dt;
-
+    double gap = sphere[1].pos[0] - sphere[0].pos[0] - sphere[1].radius - sphere[0].radius;
 #pragma omp parallel for schedule(dynamic, 1024)
     for (int i = 0; i < sphereLocalNumber; i++) {
         // translation
@@ -377,8 +376,12 @@ void SphereSystem::moveEuler(Teuchos::RCP<TV> &velocityRcp) {
         auto &s = sphere[i];
         s.vel = Evec3(vx, vy, vz);
         s.omega = Evec3(wx, wy, wz);
-        printf("%d vel: %lf,%lf,%lf, omega: %lf, %lf, %lf\n", i, vx, vy, vz, wx, wy, wz);
-        s.stepEuler(dt);
+        printf("gap: %lf, id %d vel: %.6g,%.6g,%.6g, omega: %.6g, %.6g, %.6g\n", gap, i, vx, vy, vz, wx, wy, wz);
+    }
+    sphere[1].pos[0] -= 0.01;
+    gap = sphere[1].pos[0] - sphere[0].pos[0] - sphere[1].radius - sphere[0].radius;
+    if (gap < mingap) {
+        exit(0);
     }
 
     return;
@@ -424,6 +427,7 @@ void SphereSystem::resolveCollision(bool manybody, double buffer) {
     if (commRcp->getRank() == 0)
         printf("calcNear\n");
 
+    collector.clear(); // no collision
     // construct collision stepper
     collisionSolverPtr->setup(*(collector.collisionPoolPtr), sphereMobilityMapRcp, runConfig.dt, buffer);
     collisionSolverPtr->setControlLCP(1e-5, 200, false); // res, maxIte, NWTN refine
