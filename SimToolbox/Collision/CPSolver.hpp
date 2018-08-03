@@ -18,8 +18,8 @@ class CPMatOp : public TOP {
         this->forceVecRcp = Teuchos::rcp(new TV(mobRcp->getRangeMap().getConst(), true));
         this->velVecRcp = Teuchos::rcp(new TV(mobRcp->getRangeMap().getConst(), true));
         // explicit transpose
-        // Tpetra::RowMatrixTransposer<TCMAT::scalar_type, TCMAT::local_ordinal_type, TCMAT::global_ordinal_type> transposer(fcTransRcp);
-        // fcRcp = transposer.createTranspose();
+        // Tpetra::RowMatrixTransposer<TCMAT::scalar_type, TCMAT::local_ordinal_type, TCMAT::global_ordinal_type>
+        // transposer(fcTransRcp); fcRcp = transposer.createTranspose();
     }
 
     void apply(const TMV &X, TMV &Y, Teuchos::ETransp mode = Teuchos::NO_TRANS,
@@ -78,32 +78,26 @@ class CPMatOp : public TOP {
 
 class CPSolver {
   public:
-    CPSolver(const Teuchos::RCP<const TOP> &, const Teuchos::RCP<const TV> &);
-    CPSolver(int);
+    CPSolver(const Teuchos::RCP<const TOP> &A_, const Teuchos::RCP<const TV> &b_);
+    CPSolver(int localSize, double diagonal = 1.0);
 
     // Nesterov Acceleration
-    int LCP_APGD(Teuchos::RCP<TV> &, const double, const int, IteHistory &) const;
+    int LCP_APGD(Teuchos::RCP<TV> &xsolRcp, const double tol, const int iteMax, IteHistory &history) const;
 
     // Barzilai-Borwein step length
-    int LCP_BBPGD(Teuchos::RCP<TV> &, const double, const int, IteHistory &) const;
+    int LCP_BBPGD(Teuchos::RCP<TV> &xsolRcp, const double tol, const int iteMax, IteHistory &history) const;
 
     // Minimum-Map Newtom
-    int LCP_mmNewton(Teuchos::RCP<TV> &, const double, const int, IteHistory &) const;
+    int LCP_mmNewton(Teuchos::RCP<TV> &xsolRcp, const double tol, const int iteMax, IteHistory &history) const;
 
     // Test driver
-    int test_LCP(double, int, int);
+    int test_LCP(double tol, int maxIte, int solverChoice);
 
   private:
     Teuchos::RCP<const TOP> ARcp;
     Teuchos::RCP<const TV> bRcp;
-    Teuchos::RCP<const TMAP> mapRcp;
+    Teuchos::RCP<const TMAP> mapRcp; // map for the distribution of xsolRcp / bRcp / ARcp->rowMap
     Teuchos::RCP<const TCOMM> commRcp;
-    // int localSize;
-    // int globalSize;
-    // int myRank;
-    // int numProcs;
-    // int globalIndexMinOnLocal;
-    // int globalIndexMaxOnLocal;
 
     // functions for internal use
     void clipZero(Teuchos::RCP<TV> &) const;

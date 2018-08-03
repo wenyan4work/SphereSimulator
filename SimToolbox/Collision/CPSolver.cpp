@@ -1,9 +1,14 @@
 
-#include <chrono>
 
 #include "CPSolver.hpp"
 #include "Trilinos/TpetraUtil.hpp"
-#include "mpi.h"
+
+#include <mpi.h>
+#include <omp.h>
+
+#include <chrono>
+#include <limits>
+#include <random>
 
 void CPSolver::clipZero(Teuchos::RCP<TV> &vecRcp) const {
     auto x_2d = vecRcp->getLocalView<Kokkos::HostSpace>(); // LeftLayout
@@ -176,19 +181,20 @@ CPSolver::CPSolver(const Teuchos::RCP<const TOP> &A_, const Teuchos::RCP<const T
 }
 
 // constructor to set random A and b with given size
-CPSolver::CPSolver(int globalSize) {
+CPSolver::CPSolver(int localSize, double diagonal) {
     // set up comm
-    Teuchos::RCP<const TCOMM> commRcp = Teuchos::rcp(new Teuchos::MpiComm<int>(MPI_COMM_WORLD));
-    // set up row and col maps
-    Teuchos::RCP<const TMAP> colMapRcp = Teuchos::rcp(new TMAP(globalSize, 0, commRcp));
-    Teuchos::RCP<const TMAP> rowMapRcp = Teuchos::rcp(new TMAP(globalSize, 0, commRcp));
+    commRcp = getMPIWORLDTCOMM();
+    // set up row and col maps, contiguous and evenly distributed
+    Teuchos::RCP<const TMAP> rowMapRcp = getTMAPFromLocalSize(localSize, commRcp);
     mapRcp = rowMapRcp;
+
     if (commRcp->getRank() == 0) {
         std::cout << "Total number of processes: " << commRcp->getSize() << std::endl;
         std::cout << "rank: " << commRcp->getRank() << std::endl;
         std::cout << "global size: " << mapRcp->getGlobalNumElements() << std::endl;
         std::cout << "local size: " << mapRcp->getNodeNumElements() << std::endl;
     }
+
     std::cout << "map: " << mapRcp->description() << std::endl;
 
     // make sure A and b match the map and comm specified
@@ -199,21 +205,30 @@ CPSolver::CPSolver(int globalSize) {
 
     // generate a local random matrix
     // Create an empty matrix
-    const int localSize = mapRcp->getNodeNumElements();
     Teuchos::SerialDenseMatrix<int, double> ArootLocal(localSize, localSize, true); // zeroOut
+
+    std::random_device rd;  // Will be used to obtain a seed for the random number engine
+    std::mt19937 gen(rd()); // Standard mersenne_twister_engine seeded with rd()
+    std::uniform_real_distribution<> dis(-0.5, 0.5);
+
     for (int i = 0; i < localSize; i++) {
         for (int j = 0; j < 5; j++) {
             int rowIndex = i;
-            int colIndex = drand48() * localSize;
-            ArootLocal(rowIndex, colIndex) = drand48() - 0.5;
+            // pick a random column index
+            int colIndex = fabs(dis(gen) * localSize);
+            colIndex = std::max(0, colIndex);
+            colIndex = std::min(colIndex, localSize - 1);
+            ArootLocal(rowIndex, colIndex) = dis(gen);
         }
-        ArootLocal(i, i) += 1; // add value to diagonal. Otherwise  solvers fail
+        ArootLocal(i, i) += diagonal; // add value to diagonal to maintain SPD
     }
 
     Teuchos::SerialDenseMatrix<int, double> ALocal(localSize, localSize);
     ALocal.multiply(Teuchos::TRANS, Teuchos::NO_TRANS, 1.0, ArootLocal, ArootLocal, 0.0);
 
     // use ALocal as local matrix to fill TCMAT A
+    // block diagonal distribution of A
+
     double droptol = 1e-7;
     Kokkos::View<size_t *> rowCount("rowCount", localSize);
     Kokkos::View<size_t *> rowPointers("rowPointers", localSize + 1);
@@ -243,15 +258,31 @@ CPSolver::CPSolver(int globalSize) {
         }
     }
 
+    const int myRank = commRcp->getRank();
+    const int colIndexCount = rowPointers[localSize];
+    std::vector<int> colMapIndex(colIndexCount);
+#pragma omp parallel for
+    for (int i = 0; i < colIndexCount; i++) {
+        colMapIndex[i] = columnIndices[i] + myRank * localSize;
+    }
+
+    // sort and unique
+    std::sort(colMapIndex.begin(), colMapIndex.end());
+    colMapIndex.erase(std::unique(colMapIndex.begin(), colMapIndex.end()), colMapIndex.end());
+
+    Teuchos::RCP<TMAP> colMapRcp = Teuchos::rcp(
+        new TMAP(Teuchos::OrdinalTraits<int>::invalid(), colMapIndex.data(), colMapIndex.size(), 0, commRcp));
+
     // fill matrix Aroot
     Teuchos::RCP<TCMAT> Atemp = Teuchos::rcp(new TCMAT(rowMapRcp, colMapRcp, rowPointers, columnIndices, values));
     Atemp->fillComplete(rowMapRcp, rowMapRcp);
     this->ARcp = Teuchos::rcp_dynamic_cast<const TOP>(Atemp, true);
+    // ARcp = Atemp;
     std::cout << "ARcp" << ARcp->description() << std::endl;
 
     // dump matrix
     dumpTCMAT(Atemp, "Amat");
-    dumpTV(this->bRcp, "bvec");
+    dumpTV(bRcp, "bvec");
 }
 
 int CPSolver::LCP_BBPGD(Teuchos::RCP<TV> &xsolRcp, const double tol, const int iteMax, IteHistory &history) const {
@@ -265,106 +296,90 @@ int CPSolver::LCP_BBPGD(Teuchos::RCP<TV> &xsolRcp, const double tol, const int i
     // map must match
     TEUCHOS_TEST_FOR_EXCEPTION(!this->mapRcp->isSameAs(*(xsolRcp->getMap())), std::invalid_argument,
                                "xsolrcp and A operator do not have the same Map.");
-    Teuchos::RCP<TV> xkm1Rcp = Teuchos::rcp(new TV(this->mapRcp.getConst(), true)); // zero out
-    Teuchos::RCP<TV> ykm1Rcp = Teuchos::rcp(new TV(this->mapRcp.getConst(), true)); // zero out
-    Teuchos::RCP<TV> xkRcp = Teuchos::rcp(new TV(*xsolRcp, Teuchos::Copy));         // deep copy, xk=x0
-    Teuchos::RCP<TV> ykRcp = Teuchos::rcp(new TV(this->mapRcp.getConst(), true));
-    Teuchos::RCP<TV> xkp1Rcp = Teuchos::rcp(new TV(this->mapRcp.getConst(), true));
-    Teuchos::RCP<TV> ykp1Rcp = Teuchos::rcp(new TV(this->mapRcp.getConst(), true));
+    Teuchos::RCP<TV> xkRcp = Teuchos::rcp(new TV(*xsolRcp, Teuchos::Copy));   // deep copy, xk=x0
+    Teuchos::RCP<TV> xkm1Rcp = Teuchos::rcp(new TV(*xsolRcp, Teuchos::Copy)); // deep copy, xkm1=x0
 
-    Teuchos::RCP<TV> tempVecRcp = Teuchos::rcp(new TV(this->mapRcp.getConst(), true));
-    Teuchos::RCP<TV> ykmykm1Rcp = Teuchos::rcp(new TV(this->mapRcp.getConst(), true));
-    Teuchos::RCP<TV> xkmxkm1Rcp = Teuchos::rcp(new TV(this->mapRcp.getConst(), true));
+    Teuchos::RCP<TV> gradkRcp = Teuchos::rcp(new TV(this->mapRcp.getConst(), true));   // the grad vector
+    Teuchos::RCP<TV> gradkm1Rcp = Teuchos::rcp(new TV(this->mapRcp.getConst(), true)); // the grad vector
 
-    ARcp->apply(*xkm1Rcp, *ykm1Rcp); // ykm1=A.dot(xkm1)
+    Teuchos::RCP<TV> gkdiffRcp = Teuchos::rcp(new TV(this->mapRcp.getConst(), true)); // gkdiff = gk - gkm1
+    Teuchos::RCP<TV> xkdiffRcp = Teuchos::rcp(new TV(this->mapRcp.getConst(), true)); // xkdiff = xk - xkm1
+
+    // compute grad
+    ARcp->apply(*xkm1Rcp, *gradkm1Rcp); // gkm1 = A.dot(xkm1)
     mvCount++;
-    tempVecRcp->update(1.0, *bRcp, 1.0, *ykm1Rcp, 0.0); // tempVec=A.dot(xkm1)+b
-    // first step, use the step size (x^T A g + 0.5*b^T g) / (g^T A g), global minimum of line search along g
-    // use ykp1 and xkp1 as temporary space
-    ARcp->apply(*tempVecRcp, *ykp1Rcp); // ykp1 =  A*tempVec = Ag
+    gradkm1Rcp->update(1.0, *bRcp, 1.0); // gkm1 = A.dot(xkm1)+b
+
+    // first step, simple Gradient Descent stepsize = g^T g / g^T A g
+    // use xkdiffRcp as temporary space
+    ARcp->apply(*gradkm1Rcp, *xkdiffRcp); // Avec = A * gkm1
     mvCount++;
-    double xTAg = xkm1Rcp->dot(*ykp1Rcp);
-    double bTg = bRcp->dot(*ykp1Rcp);
-    double gTAg = tempVecRcp->dot(*ykp1Rcp);
-    if (commRcp->getRank() == 0) {
-        std::cout << "             " << xTAg << " " << bTg << "  " << gTAg << std::endl;
+
+    double gTAg = gradkm1Rcp->dot(*xkdiffRcp);
+    double gTg = pow(gradkm1Rcp->norm2(), 2);
+
+    if (fabs(gTAg) < 10 * std::numeric_limits<double>::epsilon()) {
+        gTAg += 10 * std::numeric_limits<double>::epsilon(); // prevent div 0 error
     }
-    if (fabs(gTAg) < 1e-14) {
-        gTAg += 1e-14; // prevent div 0 error
-    }
-    xkRcp->update(0.001 * (xTAg + 0.5 * bTg) / gTAg, *tempVecRcp, 1.0); //  xk=x0 - 0.001*(A.dot(xkm1)+b)
-                                                                        // magic number 0.001 to start iteration
-
-    ARcp->apply(*xkRcp, *ykRcp); // ykm1=A.dot(xkm1)
-    mvCount++;
-    ykmykm1Rcp->update(1.0, *ykRcp, -1.0, *ykm1Rcp, 0.0); // ykmykm1=yk-ykm1
-    xkmxkm1Rcp->update(1.0, *xkRcp, -1.0, *xkm1Rcp, 0.0); // xkmxkm1=xk-xkm1
 
     int iteCount = 0;
+    double alpha = gTg / gTAg;
+
     while (iteCount < iteMax) {
         iteCount++;
-        // Barzilai-Borwein step size Choice 2
-        // alphak=(xk-xkm1).dot(ykmykm1)/(ykmykm1).dot(ykmykm1)
-        // double a = xkmxkm1Rcp->dot(*ykmykm1Rcp);
-        // double b = ykmykm1Rcp->dot(*ykmykm1Rcp);
 
-        // Barzilai-Borwein step size Choice 1, converges faster
-        // alphak=(xk-xkm1).dot(xkmxkm1)/(xkmxkm1).dot(ykmykm1)
-        double a = 0, b = 0;
+        // update xk
+        xkRcp->update(-alpha, *gradkm1Rcp, 1.0, *xkm1Rcp, 0.0); //  xk = xkm1 - alpha*gkm1
+        clipZero(xkRcp);                                        // Projection xk >= 0
 
-        commRcp->barrier();
-        a = xkmxkm1Rcp->dot(*xkmxkm1Rcp);
-        b = xkmxkm1Rcp->dot(*ykmykm1Rcp);
-
-        if (fabs(b) < 1e-14) {
-            b = b + 1e-14; // prevent div 0 error
-        }
-        double alphak = a / b;
-        // for debug
-        // std::cout << a << " " << b << " " << alphak << std::endl;
-        if (alphak < 1e-3 * tol) {
-            // step size too small
-            history.push_back(std::array<double, 6>{{1.0 * iteCount, 0, 0, alphak, 0}});
-            break;
-        }
-
-        // xkp1=xk-alphak*(yk+b) # gradient descent
-        xkp1Rcp->update(alphak, *ykRcp, alphak, *bRcp, 0.0);
-        xkp1Rcp->update(1.0, *xkRcp, -1.0);
-        clipZero(xkp1Rcp); // Projection xkp1 >= 0
-
-        // update
-        ARcp->apply(*xkp1Rcp, *ykp1Rcp); // ykp1=A.dot(xkp1)
+        // compute new grad with xk
+        ARcp->apply(*xkRcp, *gradkRcp); // gk = A.dot(xk)
         mvCount++;
-        ykmykm1Rcp->update(1.0, *ykp1Rcp, -1.0, *ykRcp, 0.0); // yerror
-        xkmxkm1Rcp->update(1.0, *xkp1Rcp, -1.0, *xkRcp, 0.0); // xerror
+        gradkRcp->update(1.0, *bRcp, 1.0); // gk = A.dot(xk)+b
+
+        // check convergence, use xkdiffRcp as temporary space
+        double resPhi = checkResiduePhi(xkRcp, gradkRcp, xkdiffRcp);
+
 #ifdef DEBUGLCPCOL
-        // detailed tolerance for debug build
         // check convergence
         double resxMax = xkmxkm1Rcp->normInf();
         double resAxbMax = ykmykm1Rcp->normInf();
-        double resPhi = checkResiduePhi(xkp1Rcp, ykp1Rcp, bRcp, tempVecRcp);
         history.push_back(std::array<double, 6>{{1.0 * iteCount, resxMax, resAxbMax, alphak, resPhi, 1.0 * mvCount}});
         if (fabs(resxMax) < tol && fabs(resAxbMax) < tol && fabs(resPhi) < tol) {
             break;
         }
 #else
         // use simple phi tolerance check
-        double resPhi = checkResiduePhi(xkp1Rcp, ykp1Rcp, bRcp, tempVecRcp);
-        history.push_back(std::array<double, 6>{{1.0 * iteCount, 0, 0, alphak, resPhi, 1.0 * mvCount}});
+        history.push_back(std::array<double, 6>{{1.0 * iteCount, 0, 0, alpha, resPhi, 1.0 * mvCount}});
         if (fabs(resPhi) < tol) {
             break;
         }
 #endif
+        xkdiffRcp->update(1.0, *xkRcp, -1.0, *xkm1Rcp, 0.0);       // xk - xkm1
+        gkdiffRcp->update(1.0, *gradkRcp, -1.0, *gradkm1Rcp, 0.0); // gk - gkm1
+
+        double a = 0, b = 0;
+        // Barzilai-Borwein step size Choice 1
+        a = pow(xkdiffRcp->norm2(), 2);
+        b = xkdiffRcp->dot(*gkdiffRcp);
+
+        // Barzilai-Borwein step size Choice 2
+        // a = xkdiffRcp->dot(*gkdiffRcp);
+        // b = pow(gkdiffRcp->norm2(),2);
+
+        if (fabs(b) < 10 * std::numeric_limits<double>::epsilon()) {
+            b += 10 * std::numeric_limits<double>::epsilon(); // prevent div 0 error
+        }
+
+        alpha = a / b; // new step size
 
         // prepare next iteration
         // swap the contents of pointers directly, be careful
-        ykm1Rcp.swap(ykRcp); // ykm1=yk
-        xkm1Rcp.swap(xkRcp); // xkm1=xk
-        ykRcp.swap(ykp1Rcp); // yk=ykp1, ykp1 to be updated;
-        xkRcp.swap(xkp1Rcp); // xk=xkp1, xkp1 to be updated;
+        xkm1Rcp.swap(xkRcp);
+        gradkm1Rcp.swap(gradkRcp);
     }
-    xsolRcp = xkp1Rcp; // return solution
+
+    xsolRcp = xkRcp; // return solution
     // Teuchos::TimeMonitor::summarize();
 
     return 0;
@@ -632,8 +647,8 @@ int CPSolver::LCP_mmNewton(Teuchos::RCP<TV> &xsolRcp, const double tol, const in
     double oldErr;
     double tk = 0;
     while (iteCount++ < iteMax) {
-    // check convergence
-    // xkRcp, ykRcp saves last step
+        // check convergence
+        // xkRcp, ykRcp saves last step
 
 #ifdef DEBUGLCPCOL
         // detailed tolerance for debug build
@@ -757,22 +772,41 @@ int CPSolver::test_LCP(double tol, int maxIte, int solverChoice) {
 
     Teuchos::RCP<TV> xsolRcp = Teuchos::rcp(new TV(this->mapRcp.getConst(), true)); // zero initial guess
 
+    if (commRcp->getRank() == 0) {
+        std::cout << "START TEST" << std::endl;
+    }
+
     std::chrono::high_resolution_clock::time_point t1 = std::chrono::high_resolution_clock::now();
     switch (solverChoice) {
     case 0:
+        if (commRcp->getRank() == 0) {
+            std::cout << "Solving mmNewton" << std::endl;
+        }
         LCP_mmNewton(xsolRcp, tol, maxIte, history);
         break;
     case 1:
+        if (commRcp->getRank() == 0) {
+            std::cout << "Solving APGD" << std::endl;
+        }
         LCP_APGD(xsolRcp, tol, maxIte, history);
         break;
     case 2:
+        if (commRcp->getRank() == 0) {
+            std::cout << "Solving BBPGD" << std::endl;
+        }
         LCP_BBPGD(xsolRcp, tol, maxIte, history);
         break;
     case 3:
+        if (commRcp->getRank() == 0) {
+            std::cout << "Solving APGD+mmNewton" << std::endl;
+        }
         LCP_APGD(xsolRcp, 100 * tol, maxIte, history);
         LCP_mmNewton(xsolRcp, tol, maxIte, history);
         break;
     case 4:
+        if (commRcp->getRank() == 0) {
+            std::cout << "Solving BBPGD+mmNewton" << std::endl;
+        }
         LCP_BBPGD(xsolRcp, 100 * tol, maxIte, history);
         LCP_mmNewton(xsolRcp, tol, maxIte, history);
         break;
@@ -785,8 +819,8 @@ int CPSolver::test_LCP(double tol, int maxIte, int solverChoice) {
     Teuchos::RCP<TV> AxbRcp = Teuchos::rcp(new TV(this->mapRcp.getConst(), false));
     ARcp->apply(*xsolRcp, *AxbRcp);  // Ax
     AxbRcp->update(1.0, *bRcp, 1.0); // Ax+b
-    dumpTV(xsolRcp, "xsol");
-    dumpTV(AxbRcp, "Axb");
+    // dumpTV(xsolRcp, "xsol");
+    // dumpTV(AxbRcp, "Axb");
     auto xView = xsolRcp->getLocalView<Kokkos::HostSpace>();
     auto yView = AxbRcp->getLocalView<Kokkos::HostSpace>();
 
