@@ -79,7 +79,7 @@ class CPMatOp : public TOP {
 class CPSolver {
   public:
     CPSolver(const Teuchos::RCP<const TOP> &A_, const Teuchos::RCP<const TV> &b_);
-    CPSolver(int localSize, double diagonal = 1.0);
+    CPSolver(int localSize, double diagonal = 0.0);
 
     // Nesterov Acceleration
     int LCP_APGD(Teuchos::RCP<TV> &xsolRcp, const double tol, const int iteMax, IteHistory &history) const;

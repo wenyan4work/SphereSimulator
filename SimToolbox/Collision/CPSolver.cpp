@@ -193,38 +193,41 @@ CPSolver::CPSolver(int localSize, double diagonal) {
         std::cout << "rank: " << commRcp->getRank() << std::endl;
         std::cout << "global size: " << mapRcp->getGlobalNumElements() << std::endl;
         std::cout << "local size: " << mapRcp->getNodeNumElements() << std::endl;
+        std::cout << "map: " << mapRcp->description() << std::endl;
     }
-
-    std::cout << "map: " << mapRcp->description() << std::endl;
 
     // make sure A and b match the map and comm specified
     // set A and b randomly. maintain SPD of A
     Teuchos::RCP<TV> btemp = Teuchos::rcp(new TV(rowMapRcp, false));
-    btemp->randomize(-0.5, 0.5);
+    btemp->randomize(-1, 1);
     bRcp = btemp.getConst();
 
     // generate a local random matrix
-    // Create an empty matrix
-    Teuchos::SerialDenseMatrix<int, double> ArootLocal(localSize, localSize, true); // zeroOut
 
     std::random_device rd;  // Will be used to obtain a seed for the random number engine
     std::mt19937 gen(rd()); // Standard mersenne_twister_engine seeded with rd()
-    std::uniform_real_distribution<> dis(-0.5, 0.5);
+    std::uniform_real_distribution<> dis(0, 1);
+
+    // a random matrix
+    Teuchos::SerialDenseMatrix<int, double> BLocal(localSize, localSize, true); // zeroOut
+    for (int i = 0; i < localSize; i++) {
+        for (int j = 0; j < localSize; j++) {
+            BLocal(i, j) = dis(gen);
+        }
+    }
+    // a random diagonal matrix
+    Teuchos::SerialDenseMatrix<int, double> ALocal(localSize, localSize);
+    Teuchos::SerialDenseMatrix<int, double> DLocal(localSize, localSize);
+    for (int i = 0; i < localSize; i++) {
+        DLocal(i, i) = fabs(dis(gen));
+    }
+    // compute B^T A B
+    ALocal.multiply(Teuchos::NO_TRANS, Teuchos::NO_TRANS, 1.0, DLocal, BLocal, 0.0); // A = DB
+    ALocal.multiply(Teuchos::TRANS, Teuchos::NO_TRANS, 1.0, BLocal, ALocal, 0.0);    // A = B^T DB
 
     for (int i = 0; i < localSize; i++) {
-        for (int j = 0; j < 5; j++) {
-            int rowIndex = i;
-            // pick a random column index
-            int colIndex = fabs(dis(gen) * localSize);
-            colIndex = std::max(0, colIndex);
-            colIndex = std::min(colIndex, localSize - 1);
-            ArootLocal(rowIndex, colIndex) = dis(gen);
-        }
-        ArootLocal(i, i) += diagonal; // add value to diagonal to maintain SPD
+        ALocal(i, i) += diagonal;
     }
-
-    Teuchos::SerialDenseMatrix<int, double> ALocal(localSize, localSize);
-    ALocal.multiply(Teuchos::TRANS, Teuchos::NO_TRANS, 1.0, ArootLocal, ArootLocal, 0.0);
 
     // use ALocal as local matrix to fill TCMAT A
     // block diagonal distribution of A
@@ -773,7 +776,7 @@ int CPSolver::test_LCP(double tol, int maxIte, int solverChoice) {
     Teuchos::RCP<TV> xsolRcp = Teuchos::rcp(new TV(this->mapRcp.getConst(), true)); // zero initial guess
 
     if (commRcp->getRank() == 0) {
-        std::cout << "START TEST" << std::endl;
+        std::cout << "START TEST";
     }
 
     std::chrono::high_resolution_clock::time_point t1 = std::chrono::high_resolution_clock::now();
@@ -813,7 +816,8 @@ int CPSolver::test_LCP(double tol, int maxIte, int solverChoice) {
     }
     std::chrono::high_resolution_clock::time_point t2 = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> time_span = std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1);
-    std::cout << "Solving time: " << time_span.count() << " seconds." << std::endl;
+    if (commRcp->getRank() == 0)
+        std::cout << "Solving time: " << time_span.count() << " seconds." << std::endl;
 
     // test result
     Teuchos::RCP<TV> AxbRcp = Teuchos::rcp(new TV(this->mapRcp.getConst(), false));
