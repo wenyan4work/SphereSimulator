@@ -159,7 +159,7 @@ void SphereSystem::writeXYZ(const std::string &baseFolder) {
     }
 
     for (const auto &s : sphere) {
-        fprintf(fptr, "S\t%8d\t%.6g\t%.6g\t%.6g\t%.6g\n", s.gid, s.radius, s.pos[0], s.pos[1], s.pos[2]);
+        fprintf(fptr, "S\t%d\t%.14g\t%.14g\t%.14g\t%.14g\n", s.gid, s.radius, s.pos[0], s.pos[1], s.pos[2]);
     }
 
     fclose(fptr);
@@ -377,7 +377,7 @@ void SphereSystem::moveEuler(Teuchos::RCP<TV> &velocityRcp) {
         auto &s = sphere[i];
         s.vel = Evec3(vx, vy, vz);
         s.omega = Evec3(wx, wy, wz);
-        printf("%d vel: %lf,%lf,%lf, omega: %lf, %lf, %lf\n", i, vx, vy, vz, wx, wy, wz);
+        printf("%d vel: %.14g,%.14g,%.14g, omega: %.14g, %.14g, %.14g\n", i, vx, vy, vz, wx, wy, wz);
         s.stepEuler(dt);
     }
 
