@@ -302,9 +302,15 @@ Teuchos::RCP<TV> SphereSystem::getForceKnown() const {
             forcePtr(6 * i + 5, c) = runConfig.extTorque[2];
         }
 
-        // simple shear motion for a pair
-        forcePtr(0, c) += 1.0;
-        forcePtr(6, c) += -1.0;
+        // simple shear motion for three spheres
+        // s0, no force
+        forcePtr(0, c) += 0.0;
+        // s1, -0.7071067811865476, 0.7071067811865476,0, 
+        forcePtr(6, c) += -sqrt(2)/2;
+        forcePtr(7, c) += sqrt(2)/2;
+        // s2, 0.7071067811865476,-0.7071067811865476,0
+        forcePtr(12, c) += sqrt(2)/2;
+        forcePtr(13, c) += -sqrt(2)/2;
     }
 
     commRcp->barrier();
@@ -423,6 +429,8 @@ void SphereSystem::resolveCollision(bool manybody, double buffer) {
     interactManagerPtr->calcNearInteraction(nearInteractorPtr, collisionSphereSrc, collisionSphereTrg, collector);
     if (commRcp->getRank() == 0)
         printf("calcNear\n");
+
+    collector.clear();
 
     // construct collision stepper
     collisionSolverPtr->setup(*(collector.collisionPoolPtr), sphereMobilityMapRcp, runConfig.dt, buffer);
