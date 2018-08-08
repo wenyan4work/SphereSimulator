@@ -56,7 +56,7 @@ SphereSTKMobMat::SphereSTKMobMat(std::vector<Sphere> *const spherePtr, const std
     // testOperator();
     Teuchos::RCP<Teuchos::ParameterList> solverParams = Teuchos::parameterList();
     solverParams->set("Maximum Iterations", 200);
-    solverParams->set("Convergence Tolerance", 1e-7);
+    solverParams->set("Convergence Tolerance", 1e-10);
     // solverParams->set("Maximum Restarts", 100);
     // solverParams->set("Num Blocks", 100); // larger values might trigger a std::bad_alloc inside Kokkos.
     solverParams->set("Num Recycled Blocks", 15); // for GCRODR
@@ -136,7 +136,6 @@ void SphereSTKMobMat::apply(const TMV &X, TMV &Y, Teuchos::ETransp mode, scalar_
     Y.modify<Kokkos::HostSpace>();
     TEUCHOS_ASSERT(XPtr.dimension_0() == nRowLocal);
     TEUCHOS_ASSERT(YPtr.dimension_0() == nRowLocal);
-    TEUCHOS_ASSERT(nCol == 1);
 
     for (int c = 0; c < nCol; c++) {
 #pragma omp parallel for

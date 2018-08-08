@@ -304,14 +304,14 @@ Teuchos::RCP<TV> SphereSystem::getForceKnown() const {
         }
 
         // simple shear motion for three spheres
-        // s0, no force
-        forcePtr(0, c) += 0.0;
-        // s1, -0.7071067811865476, 0.7071067811865476,0, 
-        forcePtr(6, c) += -sqrt(2)/2;
-        forcePtr(7, c) += sqrt(2)/2;
-        // s2, 0.7071067811865476,-0.7071067811865476,0
-        forcePtr(12, c) += sqrt(2)/2;
-        forcePtr(13, c) += -sqrt(2)/2;
+        // // s0, no force
+        // forcePtr(0, c) += 0.0;
+        // // s1, -0.7071067811865476, 0.7071067811865476,0,
+        // forcePtr(6, c) += -sqrt(2)/2;
+        // forcePtr(7, c) += sqrt(2)/2;
+        // // s2, 0.7071067811865476,-0.7071067811865476,0
+        // forcePtr(12, c) += sqrt(2)/2;
+        // forcePtr(13, c) += -sqrt(2)/2;
     }
 
     commRcp->barrier();
@@ -400,6 +400,7 @@ void SphereSystem::resolveCollision(bool manybody, double buffer) {
     // generate known velocity
     Teuchos::RCP<TV> forceKnownRcp = getForceKnown();
     Teuchos::RCP<TOP> mobOpRcp = getMobOperator(manybody && runConfig.hydro, std::string("stkmob"));
+    dumpTOP(mobOpRcp, "MobilityMatrix");
     Teuchos::RCP<TV> velocityKnownRcp = getVelocityKnown(mobOpRcp, forceKnownRcp);
     if (runConfig.hydro && manybody) {
         Teuchos::RCP<SphereSTKMobMat> stkmobopRcp = rcp_dynamic_cast<SphereSTKMobMat>(mobOpRcp, true);

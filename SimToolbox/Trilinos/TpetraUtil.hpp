@@ -73,6 +73,7 @@ class OperatorTraits<::TOP::scalar_type, ::TMV, ::TOP> {
 void dumpTCMAT(const Teuchos::RCP<const TCMAT> &A, std::string filename);
 void dumpTMV(const Teuchos::RCP<const TMV> &A, std::string filename);
 void dumpTV(const Teuchos::RCP<const TV> &A, std::string filename);
+void dumpTOP(const Teuchos::RCP<const TOP> &A, std::string filename);
 
 // the default TCOMM corresponding to MPI_COMM_WORLD
 Teuchos::RCP<const TCOMM> getMPIWORLDTCOMM();
