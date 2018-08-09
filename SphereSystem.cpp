@@ -301,10 +301,6 @@ Teuchos::RCP<TV> SphereSystem::getForceKnown() const {
             forcePtr(6 * i + 4, c) = runConfig.extTorque[1];
             forcePtr(6 * i + 5, c) = runConfig.extTorque[2];
         }
-
-        // simple shear motion for a pair
-        forcePtr(0, c) += 1.0;
-        forcePtr(6, c) += -1.0;
     }
 
     commRcp->barrier();
