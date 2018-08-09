@@ -72,7 +72,7 @@ SphereSTKMobMat::SphereSTKMobMat(std::vector<Sphere> *const spherePtr, const std
     solverParams->set("Timer Label", "Iterative Mobility Solution");
     solverParams->set("Verbosity", Belos::Errors + Belos::Warnings + Belos::TimingDetails + Belos::FinalSummary);
     Belos::SolverFactory<TOP::scalar_type, TMV, TOP> factory;
-    solverRcp = factory.create("GCRODR", solverParams); // recycle Krylov space for collision
+    solverRcp = factory.create("GMRES", solverParams); // recycle Krylov space for collision
 
     // testOperator();
 
