@@ -290,6 +290,7 @@ CPSolver::CPSolver(int localSize, double diagonal) {
 
 int CPSolver::LCP_BBPGD(Teuchos::RCP<TV> &xsolRcp, const double tol, const int iteMax, IteHistory &history) const {
     int mvCount = 0; // count matrix-vector multiplications
+    int iteCount = 0;
     if (commRcp->getRank() == 0) {
         std::cout << "solving BBPGD" << std::endl;
         std::cout << "ARcp" << ARcp->description() << std::endl;
@@ -313,6 +314,15 @@ int CPSolver::LCP_BBPGD(Teuchos::RCP<TV> &xsolRcp, const double tol, const int i
     mvCount++;
     gradkm1Rcp->update(1.0, *bRcp, 1.0); // gkm1 = A.dot(xkm1)+b
 
+    // check if initial guess works, use xkdiffRcp as temporary space
+    double resPhi = checkResiduePhi(xkm1Rcp, gradkm1Rcp, xkdiffRcp);
+    history.push_back(std::array<double, 6>{{1.0 * iteCount, 0, 0, 0, resPhi, 1.0 * mvCount}});
+    if (fabs(resPhi) < tol) {
+        // initial guess works, return
+        xsolRcp = xkm1Rcp;
+        return 0;
+    }
+
     // first step, simple Gradient Descent stepsize = g^T g / g^T A g
     // use xkdiffRcp as temporary space
     ARcp->apply(*gradkm1Rcp, *xkdiffRcp); // Avec = A * gkm1
@@ -325,7 +335,6 @@ int CPSolver::LCP_BBPGD(Teuchos::RCP<TV> &xsolRcp, const double tol, const int i
         gTAg += 10 * std::numeric_limits<double>::epsilon(); // prevent div 0 error
     }
 
-    int iteCount = 0;
     double alpha = gTg / gTAg;
 
     while (iteCount < iteMax) {
