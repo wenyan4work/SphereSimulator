@@ -70,7 +70,7 @@ void CollisionSolver::solveCollision(Teuchos::RCP<TOP> &matMobilityRcp_, Teuchos
     if (commRcp->getRank() == 0) {
         printf("start solving\n");
     }
-    myLCPSolver.LCP_BBPGD(gammaRcp, res, maxIte, history);
+    myLCPSolver.LCP_APGD(gammaRcp, res, maxIte, history);
 
     if (commRcp->getRank() == 0 && history.size() > 0) {
         auto &p = history.back();
