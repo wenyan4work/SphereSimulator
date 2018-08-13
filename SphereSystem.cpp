@@ -400,7 +400,7 @@ void SphereSystem::resolveCollision(bool manybody, double buffer) {
     // generate known velocity
     Teuchos::RCP<TV> forceKnownRcp = getForceKnown();
     Teuchos::RCP<TOP> mobOpRcp = getMobOperator(manybody && runConfig.hydro, std::string("stkmob"));
-    dumpTOP(mobOpRcp, "MobilityMatrix");
+    // dumpTOP(mobOpRcp, "MobilityMatrix");
     Teuchos::RCP<TV> velocityKnownRcp = getVelocityKnown(mobOpRcp, forceKnownRcp);
     if (runConfig.hydro && manybody) {
         Teuchos::RCP<SphereSTKMobMat> stkmobopRcp = rcp_dynamic_cast<SphereSTKMobMat>(mobOpRcp, true);
