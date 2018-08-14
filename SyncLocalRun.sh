@@ -2,4 +2,9 @@
 RUNPATH=/local1/RunLocal/SphereVWX
 
 # copy to cluster run path
-rsync -avz --delete-after --exclude='*.d' --exclude='*.o' --exclude='*.png' --exclude='*.vtp' --exclude='*.xyz' --exclude='*.vtk' --exclude=".*" ./* $RUNPATH/
+rsync -avz --delete-after --exclude='*.d' --exclude='*.o' \
+           --exclude='*.png' --exclude='*.xyz' --exclude='*.mtx' \
+           --exclude='*.log' --exclude='*.vtr' --exclude='*.pvtr' \
+           --exclude='*.vtk' --exclude='*.vtp' --exclude='*.vtu' \
+           --exclude='*.pvtk' --exclude='*.pvtp' --exclude='*.pvtu' \
+           --exclude=".*" ./* $RUNPATH/
