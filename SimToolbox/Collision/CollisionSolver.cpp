@@ -70,7 +70,7 @@ void CollisionSolver::solveCollision(Teuchos::RCP<TOP> &matMobilityRcp_, Teuchos
     if (commRcp->getRank() == 0) {
         printf("start solving\n");
     }
-    myLCPSolver.LCP_APGD(gammaRcp, res, maxIte, history);
+    myLCPSolver.LCP_BBPGD(gammaRcp, res, maxIte, history);
 
     if (commRcp->getRank() == 0 && history.size() > 0) {
         auto &p = history.back();
@@ -90,10 +90,10 @@ void CollisionSolver::solveCollision(Teuchos::RCP<TOP> &matMobilityRcp_, Teuchos
     if (commRcp->getRank() == 0 && history.size() > 0) {
         for (auto &p : history) {
             std::cout << "RECORD: LCP Iteration ";
-            for(auto & r:p){
-                std::cout<<" "<<r;
-            } 
-            std::cout<<std::endl;
+            for (auto &r : p) {
+                std::cout << " " << r;
+            }
+            std::cout << std::endl;
             // << p[0] << " " << p[1] << " " << p[2] << " " << p[3] << " " << p[4] << " " << p[5] << std::endl;
         }
     }
