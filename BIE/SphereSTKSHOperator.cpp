@@ -22,10 +22,16 @@ SphereSTKSHOperator::SphereSTKSHOperator(const std::vector<Sphere> *const sphere
     // step 2 setup FMM tree and temporary space
     // FMM box should have been set out of this
     // FMM active kernels should have been set out of this
-    setupFMM();
+    {
+        Teuchos::TimeMonitor mon(*fmmSetupTimer);
+        setupFMM();
+    }
 
     // step 3 setup NearSH for Near Field Corrections
-    setupNearEval();
+    {
+        Teuchos::TimeMonitor mon(*nearSetupTimer);
+        setupNearEval();
+    }
 }
 
 void SphereSTKSHOperator::setupDOF() {
@@ -266,6 +272,7 @@ void SphereSTKSHOperator::applyP2POP(const double *inPtr, double *outPtr, double
 
     // SL Stokes PVel FMM
     if (fabs(cSLex) > 1e-9) {
+        Teuchos::TimeMonitor mon(*fmmRunTimer);
         // step 1 setup value
         srcSLValue.clear();
         srcSLValue.resize(nGridPts * 4, 0);
@@ -346,6 +353,7 @@ void SphereSTKSHOperator::applyP2POP(const double *inPtr, double *outPtr, double
 
     // Traction, Stokes Traction FMM
     if (fabs(cTracex) > 1e-9) {
+        Teuchos::TimeMonitor mon(*fmmRunTimer);
         srcSLValue.resize(nGridPts * 4);
 #pragma omp parallel for
         for (int i = 0; i < nGridPts; i++) {
@@ -458,6 +466,7 @@ void SphereSTKSHOperator::applyP2POP(const double *inPtr, double *outPtr, double
     }
 
     if (fabs(cSLex) + fabs(cTracex) > 1e-9) {
+        Teuchos::TimeMonitor mon(*nearRunTimer);
         // printf("start near eval\n");
         applyNearEval(shCoeffValues.data(), inPtr, cSLex, cTracex);
 // apply near corrections
@@ -679,8 +688,8 @@ void NearEvaluator::operator()(NearEvalSH &trg, NearEvalSH &src) {
             trg.sh.gridValue[3 * j + 0] += cTrac * (shvalue[3 * j + 0] - fmmx);
             trg.sh.gridValue[3 * j + 1] += cTrac * (shvalue[3 * j + 1] - fmmy);
             trg.sh.gridValue[3 * j + 2] += cTrac * (shvalue[3 * j + 2] - fmmz);
-            // printf("%lf,%lf,%lf,%lf,%lf,%lf\n", shvalue[3 * j + 0], shvalue[3 * j + 1], shvalue[3 * j + 2], fmmx, fmmy,
-            //        fmmz);
+            // printf("%lf,%lf,%lf,%lf,%lf,%lf\n", shvalue[3 * j + 0], shvalue[3 * j + 1], shvalue[3 * j + 2], fmmx,
+            // fmmy, fmmz);
         }
     }
 }

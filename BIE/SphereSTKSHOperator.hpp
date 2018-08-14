@@ -218,6 +218,12 @@ class SphereSTKSHOperator : public TOP {
     const std::vector<int> &getGridNumberIndex() const { return gridNumberIndex; }
     const std::vector<int> &getGridNumberLength() const { return gridNumberLength; }
     const std::vector<Shexp> &getSH() const { return sh; }
+
+    // timing
+    Teuchos::RCP<Teuchos::Time> fmmSetupTimer = Teuchos::TimeMonitor::getNewCounter("FMM Setup");
+    Teuchos::RCP<Teuchos::Time> fmmRunTimer = Teuchos::TimeMonitor::getNewCounter("FMM Run");
+    Teuchos::RCP<Teuchos::Time> nearSetupTimer = Teuchos::TimeMonitor::getNewCounter("Near Correction Setup");
+    Teuchos::RCP<Teuchos::Time> nearRunTimer = Teuchos::TimeMonitor::getNewCounter("Near Correction Run");
 };
 
 #endif
