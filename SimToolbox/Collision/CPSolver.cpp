@@ -407,135 +407,130 @@ int CPSolver::LCP_APGD(Teuchos::RCP<TV> &xsolRcp, const double tol, const int it
     // map must match
     TEUCHOS_TEST_FOR_EXCEPTION(!this->mapRcp->isSameAs(*(xsolRcp->getMap())), std::invalid_argument,
                                "xsolrcp and A operator do not have the same Map.");
+
+    // allocate vectors
     Teuchos::RCP<TV> xkRcp = Teuchos::rcp(new TV(*xsolRcp, Teuchos::Copy)); // deep copy
     Teuchos::RCP<TV> ykRcp = Teuchos::rcp(new TV(*xsolRcp, Teuchos::Copy)); // deep copy, yk=xk
-    Teuchos::RCP<TV> xhatkRcp = Teuchos::rcp(new TV(this->mapRcp.getConst(), false));
+
+    Teuchos::RCP<TV> xkp1Rcp = Teuchos::rcp(new TV(this->mapRcp.getConst(), true));
+    Teuchos::RCP<TV> ykp1Rcp = Teuchos::rcp(new TV(this->mapRcp.getConst(), true));
+
+    Teuchos::RCP<TV> gVecRcp = Teuchos::rcp(new TV(this->mapRcp.getConst(), true));
+
+    Teuchos::RCP<TV> tempVecRcp = Teuchos::rcp(new TV(this->mapRcp.getConst(), true)); // temporary result holder
+
+    Teuchos::RCP<TV> xhatkRcp = Teuchos::rcp(new TV(this->mapRcp.getConst(), true));
     xhatkRcp->putScalar(1.0);
+    // if (commRcp()->getRank() == 0)
+    //     std::cout << "initial vector allocated" << std::endl;
 
     double thetak = 1;
     double thetakp1 = 1;
-    Teuchos::RCP<TV> xkdiffRcp = Teuchos::rcp(new TV(this->mapRcp.getConst(), false));
-    xkdiffRcp->update(1.0, *(xhatkRcp.getConst()), -1.0, *(xkRcp.getConst()), 0.0);
-    if (commRcp()->getRank() == 0)
-        std::cout << "initial vector allocated" << std::endl;
 
-    Teuchos::RCP<TV> tempVecRcp = Teuchos::rcp(new TV(this->mapRcp.getConst(), false));
+    Teuchos::RCP<TV> xkdiffRcp = Teuchos::rcp(new TV(this->mapRcp.getConst(), true));
+    xkdiffRcp->update(-1.0, *xhatkRcp, 1.0, *xkRcp, 0.0);
 
-    // std::cout << "tempVec allocated" << std::endl;
     ARcp->apply(*xkdiffRcp, *tempVecRcp);
     mvCount++;
-    // std::cout << "A op applied" << std::endl;
 
     const double tempNorm2 = tempVecRcp->norm2();
     const double xkdiffNorm2 = xkdiffRcp->norm2();
     double Lk = (tempNorm2 / xkdiffNorm2);
     double tk = 1.0 / Lk;
-    // std::cout << "initial step length calculated" << std::endl;
-    // std::cout << "tk: " << tk << std::endl;
 
-    // allocate other vectors
-    Teuchos::RCP<TV> gVecRcp = Teuchos::rcp(new TV(this->mapRcp.getConst(), false));
-    Teuchos::RCP<TV> xkp1Rcp = Teuchos::rcp(new TV(this->mapRcp.getConst(), false));
-    Teuchos::RCP<TV> ykp1Rcp = Teuchos::rcp(new TV(this->mapRcp.getConst(), false));
     Teuchos::RCP<TV> AxbRcp = Teuchos::rcp(new TV(this->mapRcp.getConst(), false));
-    Teuchos::RCP<TV> Axbkp1Rcp = Teuchos::rcp(new TV(this->mapRcp.getConst(), false));
-    Teuchos::RCP<TV> resxRcp = Teuchos::rcp(new TV(this->mapRcp.getConst(), false));
-    Teuchos::RCP<TV> resAxbRcp = Teuchos::rcp(new TV(this->mapRcp.getConst(), false));
+    Teuchos::RCP<TV> Axbkp1Rcp = Teuchos::rcp(new TV(this->mapRcp.getConst(), true));
+
     history.push_back(std::array<double, 6>{{0, 0, 0, tk, 0, 1.0 * mvCount}});
 
-    ARcp->apply(*xsolRcp, *AxbRcp); // Ax
-    mvCount++;
-    AxbRcp->update(1.0, *bRcp, 1.0); // Ax+b
     // enter main loop
     int iteCount = 0;
+    double resmin = std::numeric_limits<double>::max();
+
     while (iteCount < iteMax) {
         iteCount++;
-        commRcp->barrier();
-        ARcp->apply(*ykRcp, *gVecRcp);
-        mvCount++;
-        gVecRcp->update(1.0, *bRcp, 1.0); // g=A.dot(yk)+b
-        bool smallStepFlag = false;
-        while (smallStepFlag == false) {
-            // update and projection, xkp1=(yk-tk*g).clip(min=0)
-            xkp1Rcp->update(1.0, *ykRcp, -tk, *gVecRcp, 0);
-            clipZero(xkp1Rcp);
-            // dumpTV(xkp1Rcp, "xkp1Proj");
 
+        // line 7 of Mazhar, 2015, g=A.dot(yk)+b
+        ARcp->apply(*ykRcp, *AxbRcp); // Axb = A yk, this does not change in the following Lifshitz loop
+        mvCount++;
+        gVecRcp->update(1.0, *bRcp, 1.0, *AxbRcp, 0.0);
+        // line 8 of Mazhar, 2015
+        xkp1Rcp->update(1.0, *ykRcp, -tk, *gVecRcp, 0);
+        clipZero(xkp1Rcp);
+
+        double rightTerm1 = ykRcp->dot(*AxbRcp) * 0.5; // yk.dot(A.dot(yk))*0.5
+        double rightTerm2 = ykRcp->dot(*bRcp);         // yk.dot(b)
+
+        while (1) {
             //  xkdiff=xkp1-yk
             xkdiffRcp->update(1.0, *xkp1Rcp, -1.0, *ykRcp, 0.0);
 
             //  calc Lifshitz condition
-            ARcp->apply(*xkp1Rcp, *tempVecRcp);
+            ARcp->apply(*xkp1Rcp, *Axbkp1Rcp);
             mvCount++;
-            Axbkp1Rcp->update(1.0, *tempVecRcp, 1.0, *bRcp, 0.0); // Ax+b
-            double leftTerm1 = xkp1Rcp->dot(*tempVecRcp) * 0.5;   // xkp1.dot(A.dot(xkp1))*0.5
-            double leftTerm2 = xkp1Rcp->dot(*bRcp);               // xkp1.dot(b)
+            double leftTerm1 = xkp1Rcp->dot(*Axbkp1Rcp) * 0.5; // xkp1.dot(A.dot(xkp1))*0.5
+            double leftTerm2 = xkp1Rcp->dot(*bRcp);            // xkp1.dot(b)
 
-            ARcp->apply(*ykRcp, *tempVecRcp);
-            mvCount++;
-            double rightTerm1 = ykRcp->dot(*tempVecRcp) * 0.5;         // yk.dot(A.dot(yk))*0.5
-            double rightTerm2 = ykRcp->dot(*bRcp);                     // yk.dot(b)
             double rightTerm3 = gVecRcp->dot(*xkdiffRcp);              // g.dot(xkdiff)
             double rightTerm4 = 0.5 * Lk * pow(xkdiffRcp->norm2(), 2); // 0.5*Lk*(xkdiff).dot(xkdiff)
-            if ((leftTerm1 + leftTerm2) < (rightTerm1 + rightTerm2 + rightTerm3 + rightTerm4)) {
+            if ((leftTerm1 + leftTerm2) <= (rightTerm1 + rightTerm2 + rightTerm3 + rightTerm4)) {
                 break;
             }
+            // line 10 & 11 of Mazhar, 2015
             Lk *= 2;
             tk = 1 / Lk;
-            if (tk < 1e-8) {
-                smallStepFlag = true;
-            }
-        }
-        if (smallStepFlag == true) {
-            history.push_back(std::array<double, 6>{{1.0 * iteCount, 0, 0, tk, 0, 1.0 * mvCount}});
-            break; // 1 for message 'step too small'
+            // if (tk < std::numeric_limits<double>::epsilon() * 10) {
+            //     tk += std::numeric_limits<double>::epsilon() * 10;
+            // }
+            std::cout << Lk << " " << tk << std::endl;
+            // line 12 of Mazhar, 2015
+            xkp1Rcp->update(1.0, *ykRcp, -tk, *gVecRcp, 0.0);
+            clipZero(xkp1Rcp);
         }
 
-        // APGD iterations
-        resxRcp->update(1.0, *xkp1Rcp, -1.0, *xkRcp, 0.0);      // resx=xkp1-xk
-        resAxbRcp->update(1.0, *Axbkp1Rcp, -1.0, *AxbRcp, 0.0); // resAxb = A.dot(xkp1) - A.dot(xkp)
-        double AxbDotx = Axbkp1Rcp->dot(*xkp1Rcp);
-#ifdef DEBUGLCPCOL
-        // detailed tolerance for debug build
-        // check convergence
-        double resxMax = resxRcp->normInf();
-        double resAxbMax = resAxbRcp->normInf();
+        // line 14-16, Mazhar, 2015
+        thetakp1 = (-thetak * thetak + thetak * sqrt(4 + thetak * thetak)) / 2;
+        double betakp1 = thetak * (1 - thetak) / (thetak * thetak + thetakp1);
+        // ykp1=xkp1+betakp1*(xkp1-xk)
+        ykp1Rcp->update((1 + betakp1), *xkp1Rcp, -betakp1, *xkRcp, 0);
+
+        // check convergence, line 17, Mazhar, 2015. Replace the metric with the minimum-map function
+        // ARcp->apply(*xkp1Rcp, *Axbkp1Rcp);
+        // mvCount++;
+        Axbkp1Rcp->update(1.0, *bRcp, 1.0); // Axkp1 = A*xkp1 in the Lifshitz loop
         double resPhi = checkResiduePhi(xkp1Rcp, Axbkp1Rcp, tempVecRcp);
-        history.push_back(std::array<double, 6>{{1.0 * iteCount, resxMax, resAxbMax, tk, resPhi, 1.0 * mvCount}});
-        if (fabs(resxMax) < tol && fabs(resAxbMax) < tol && fabs(resPhi) < tol) {
-            break;
+        resPhi = fabs(resPhi);
+
+        // line 18-21, Mazhar, 2015
+        if (resPhi < resmin) {
+            resmin = resPhi;
+            xhatkRcp->update(1.0, *xkp1Rcp, 0.0);
         }
-#else
-        // use simple phi tolerance check
-        double resPhi = checkResiduePhi(xkp1Rcp, Axbkp1Rcp, tempVecRcp);
+
+        // line 22-24, Mazhar, 2015
         history.push_back(std::array<double, 6>{{1.0 * iteCount, 0, 0, tk, resPhi, 1.0 * mvCount}});
-        if (fabs(resPhi) < tol) {
+        if (resPhi < tol) {
             break;
         }
-#endif
 
-        if (gVecRcp->dot(*resxRcp) > 0) {
+        // line 25-28, Mazhar, 2015
+        tempVecRcp->update(1.0, *xkp1Rcp, -1.0, *xkRcp, 0.0);
+        if (gVecRcp->dot(*tempVecRcp) > 0) {
             ykp1Rcp->scale(1.0, *xkp1Rcp); // ykp1=xkp1
             thetakp1 = 1;
-        } else {
-            thetakp1 = (-thetak * thetak + thetak * sqrt(4 + thetak * thetak)) / 2;
-            double betakp1 = thetak * (1 - thetak) / (thetak * thetak + thetakp1);
-            // ykp1=xkp1+betakp1*(xkp1-xk)
-            ykp1Rcp->update((1 + betakp1), *xkp1Rcp, -betakp1, *xkRcp, 0);
         }
+
+        // line 29-30, Mazhar, 2015
+        Lk *= 0.9;
+        tk = 1 / Lk;
 
         // next iteration
         // swap the contents of pointers directly, be careful
-        ykRcp.swap(ykp1Rcp);    // yk=ykp1, ykp1 to be updated;
-        xkRcp.swap(xkp1Rcp);    // xk=xkp1, xkp1 to be updated;
-        AxbRcp.swap(Axbkp1Rcp); // Axbk=Axbkp1, Axbkp1 to be updated;
-
+        ykRcp.swap(ykp1Rcp); // yk=ykp1, ykp1 to be updated;
+        xkRcp.swap(xkp1Rcp); // xk=xkp1, xkp1 to be updated;
         thetak = thetakp1;
-        Lk *= 0.9;
-        tk = 1 / Lk;
     }
-    commRcp->barrier();
-    xsolRcp = xkp1Rcp;
+    xsolRcp = xhatkRcp;
 
     return 0;
 }
