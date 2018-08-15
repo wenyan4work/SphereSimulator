@@ -42,8 +42,6 @@ echo "------------------------------"
 
 rm -rf ./result/result*-*
 rm -rf ./result/ResultAll
-make clean
-make -j14
 rm ./*.o
 rm ./*.d
 
