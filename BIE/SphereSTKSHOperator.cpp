@@ -272,7 +272,7 @@ void SphereSTKSHOperator::applyP2POP(const double *inPtr, double *outPtr, double
 
     // SL Stokes PVel FMM
     if (fabs(cSLex) > 1e-9) {
-        Teuchos::TimeMonitor mon(*fmmRunTimer);
+        Teuchos::TimeMonitor mon(*fmmSLRunTimer);
         // step 1 setup value
         srcSLValue.clear();
         srcSLValue.resize(nGridPts * 4, 0);
@@ -353,7 +353,7 @@ void SphereSTKSHOperator::applyP2POP(const double *inPtr, double *outPtr, double
 
     // Traction, Stokes Traction FMM
     if (fabs(cTracex) > 1e-9) {
-        Teuchos::TimeMonitor mon(*fmmRunTimer);
+        Teuchos::TimeMonitor mon(*fmmTracRunTimer);
         srcSLValue.resize(nGridPts * 4);
 #pragma omp parallel for
         for (int i = 0; i < nGridPts; i++) {

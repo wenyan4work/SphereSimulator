@@ -221,7 +221,8 @@ class SphereSTKSHOperator : public TOP {
 
     // timing
     Teuchos::RCP<Teuchos::Time> fmmSetupTimer = Teuchos::TimeMonitor::getNewCounter("FMM Setup");
-    Teuchos::RCP<Teuchos::Time> fmmRunTimer = Teuchos::TimeMonitor::getNewCounter("FMM Run");
+    Teuchos::RCP<Teuchos::Time> fmmSLRunTimer = Teuchos::TimeMonitor::getNewCounter("FMM Run SL");
+    Teuchos::RCP<Teuchos::Time> fmmTracRunTimer = Teuchos::TimeMonitor::getNewCounter("FMM Run Trac");
     Teuchos::RCP<Teuchos::Time> nearSetupTimer = Teuchos::TimeMonitor::getNewCounter("Near Correction Setup");
     Teuchos::RCP<Teuchos::Time> nearRunTimer = Teuchos::TimeMonitor::getNewCounter("Near Correction Run");
 };
