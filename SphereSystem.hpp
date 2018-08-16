@@ -76,6 +76,7 @@ class SphereSystem {
     Teuchos::RCP<TV> getForceKnown() const;
 
     void calcBoundaryCollision();
+    void fitFMMBox();
 };
 
 #endif

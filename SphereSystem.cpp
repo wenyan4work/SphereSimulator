@@ -219,8 +219,6 @@ Teuchos::RCP<TOP> SphereSystem::getMobOperator(bool manybody, std::string name) 
     Teuchos::RCP<TOP> mobOpRcp;
     if (manybody) {
         // get full mobility operator
-        fmmPtr->setBox(runConfig.simBoxLow[0], runConfig.simBoxHigh[0], runConfig.simBoxLow[1], runConfig.simBoxHigh[1],
-                       runConfig.simBoxLow[2], runConfig.simBoxHigh[2]);
         mobOpRcp = Teuchos::rcp(new SphereSTKMobMat(&sphere, name, fmmPtr, runConfig.viscosity));
     } else {
         Teuchos::RCP<TCMAT> mobMatRcp;
@@ -435,6 +433,9 @@ void SphereSystem::resolveCollision(bool manybody, double buffer) {
 }
 
 void SphereSystem::step() {
+    if (fmmPtr) {
+        fitFMMBox();
+    }
     resolveCollision(true, 0);
     // move forward
     Teuchos::RCP<TV> velocityRcp = Teuchos::rcp(new TV(*(collisionSolverPtr->getVelocityCol()), Teuchos::Copy));
@@ -489,4 +490,50 @@ void SphereSystem::calcBoundaryCollision() {
             }
         }
     }
+}
+
+void SphereSystem::fitFMMBox() {
+    if (runConfig.xPeriodic * runConfig.yPeriodic * runConfig.zPeriodic != 0) {
+        // if any direction is periodic, use the value set in runConfig.txt
+        fmmPtr->setBox(runConfig.simBoxLow[0], runConfig.simBoxHigh[0], runConfig.simBoxLow[1], runConfig.simBoxHigh[1],
+                       runConfig.simBoxLow[2], runConfig.simBoxHigh[2]);
+    }
+
+    // otherwise, automatically fit the periodic box
+    double xlow, ylow, zlow;
+    double xhigh, yhigh, zhigh;
+    xlow = ylow = zlow = std::numeric_limits<double>::max();
+    xhigh = yhigh = zhigh = -std::numeric_limits<double>::max();
+    const int nLocal = sphere.size();
+#pragma omp parallel for reduction(min : xlow, ylow, zlow) reduction(max : xhigh, yhigh, zhigh)
+    for (int i = 0; i < nLocal; i++) {
+        xlow = std::min(xlow, sphere[i].pos[0] - sphere[i].radius);
+        ylow = std::min(ylow, sphere[i].pos[1] - sphere[i].radius);
+        zlow = std::min(zlow, sphere[i].pos[2] - sphere[i].radius);
+        xhigh = std::max(xhigh, sphere[i].pos[0] + sphere[i].radius);
+        yhigh = std::max(yhigh, sphere[i].pos[1] + sphere[i].radius);
+        zhigh = std::max(zhigh, sphere[i].pos[2] + sphere[i].radius);
+    }
+
+    // global min/max
+    double localLow[3] = {xlow, ylow, zlow};
+    double localHigh[3] = {xhigh, yhigh, zhigh};
+    double globalLow[3] = {xlow, ylow, zlow};
+    double globalHigh[3] = {xhigh, yhigh, zhigh};
+
+    Teuchos::reduceAll(*commRcp, Teuchos::MinValueReductionOp<int, double>(), 3, localLow, globalLow);
+    Teuchos::reduceAll(*commRcp, Teuchos::MaxValueReductionOp<int, double>(), 3, localHigh, globalHigh);
+
+    // add some buffer around the box
+    constexpr double buffer = 1.0;
+    for (int k = 0; k < 3; k++) {
+        globalLow[k] -= buffer;
+        globalHigh[k] += buffer;
+        if (globalLow[k] >= globalHigh[k]) {
+            printf("Box bound error\n");
+            exit(1);
+        }
+    }
+
+    fmmPtr->setBox(globalLow[0], globalHigh[0], globalLow[1], globalHigh[1], globalLow[2], globalHigh[2]);
 }
