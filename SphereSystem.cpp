@@ -379,10 +379,11 @@ void SphereSystem::moveEuler(Teuchos::RCP<TV> &velocityRcp) {
 }
 
 void SphereSystem::resolveCollision(bool manybody, double buffer) {
-    if (commRcp->getRank() == 0)
-        std::cout << "RECORD: TIMESTEP " << stepCount << " TIME " << stepCount * runConfig.dt << std::endl;
     // positive buffer value means sphere collision radius is effectively smaller
     // i.e., less likely to collide
+    if (fmmPtr) {
+        fitFMMBox();
+    }
 
     // generate known velocity
     Teuchos::RCP<TV> forceKnownRcp = getForceKnown();
@@ -433,9 +434,9 @@ void SphereSystem::resolveCollision(bool manybody, double buffer) {
 }
 
 void SphereSystem::step() {
-    if (fmmPtr) {
-        fitFMMBox();
-    }
+    if (commRcp->getRank() == 0)
+        std::cout << "RECORD: TIMESTEP " << stepCount << " TIME " << stepCount * runConfig.dt << std::endl;
+
     resolveCollision(true, 0);
     // move forward
     Teuchos::RCP<TV> velocityRcp = Teuchos::rcp(new TV(*(collisionSolverPtr->getVelocityCol()), Teuchos::Copy));
@@ -497,6 +498,7 @@ void SphereSystem::fitFMMBox() {
         // if any direction is periodic, use the value set in runConfig.txt
         fmmPtr->setBox(runConfig.simBoxLow[0], runConfig.simBoxHigh[0], runConfig.simBoxLow[1], runConfig.simBoxHigh[1],
                        runConfig.simBoxLow[2], runConfig.simBoxHigh[2]);
+        return;
     }
 
     // otherwise, automatically fit the periodic box
@@ -504,15 +506,17 @@ void SphereSystem::fitFMMBox() {
     double xhigh, yhigh, zhigh;
     xlow = ylow = zlow = 1e9;
     xhigh = yhigh = zhigh = -1e9;
+
     const int nLocal = sphere.size();
 #pragma omp parallel for reduction(min : xlow, ylow, zlow) reduction(max : xhigh, yhigh, zhigh)
     for (int i = 0; i < nLocal; i++) {
-        xlow = std::min(xlow, sphere[i].pos[0] - sphere[i].radius * 2);
-        ylow = std::min(ylow, sphere[i].pos[1] - sphere[i].radius * 2);
-        zlow = std::min(zlow, sphere[i].pos[2] - sphere[i].radius * 2);
-        xhigh = std::max(xhigh, sphere[i].pos[0] + sphere[i].radius * 2);
-        yhigh = std::max(yhigh, sphere[i].pos[1] + sphere[i].radius * 2);
-        zhigh = std::max(zhigh, sphere[i].pos[2] + sphere[i].radius * 2);
+        const auto &s = sphere[i];
+        xlow = std::min(xlow, s.pos[0] - s.radius * 2);
+        ylow = std::min(ylow, s.pos[1] - s.radius * 2);
+        zlow = std::min(zlow, s.pos[2] - s.radius * 2);
+        xhigh = std::max(xhigh, s.pos[0] + s.radius * 2);
+        yhigh = std::max(yhigh, s.pos[1] + s.radius * 2);
+        zhigh = std::max(zhigh, s.pos[2] + s.radius * 2);
     }
 
     // global min/max
@@ -526,18 +530,17 @@ void SphereSystem::fitFMMBox() {
         const double buffer = fabs(0.1 * (localHigh[k] - localLow[k]));
         localLow[k] -= buffer;
         localHigh[k] += buffer;
-        if (localLow[k] >= globalLow[k] || localHigh[k] <= globalHigh[k]) {
-            printf("Box bound error\n");
-            exit(1);
-        }
     }
+
+    // printf("Local box bound low: %lf,%lf,%lf\n", localLow[0], localLow[1], localLow[2]);
+    // printf("Local box bound high: %lf,%lf,%lf\n", localHigh[0], localHigh[1], localHigh[2]);
 
     Teuchos::reduceAll(*commRcp, Teuchos::MinValueReductionOp<int, double>(), 3, localLow, globalLow);
     Teuchos::reduceAll(*commRcp, Teuchos::MaxValueReductionOp<int, double>(), 3, localHigh, globalHigh);
 
     if (commRcp->getRank() == 0) {
-        printf("%lf,%lf,%lf,%lf,%lf,%lf", globalLow[0], globalLow[1], globalLow[2], globalHigh[0], globalHigh[1],
-               globalHigh[2]);
+        printf("Global box bound low: %lf,%lf,%lf\n", globalLow[0], globalLow[1], globalLow[2]);
+        printf("Global box bound high: %lf,%lf,%lf\n", globalHigh[0], globalHigh[1], globalHigh[2]);
     }
 
     fmmPtr->setBox(globalLow[0], globalHigh[0], globalLow[1], globalHigh[1], globalLow[2], globalHigh[2]);
