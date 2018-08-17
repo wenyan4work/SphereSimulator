@@ -572,7 +572,7 @@ void SphereSTKSHOperator::setupNearEval() {
         printf("NearEvalSH Setup\n");
 }
 
-void NearEvaluator::operator()(NearEvalSH &trg, NearEvalSH &src) {
+void NearEvaluator::operator()(NearEvalSH &trg, NearEvalSH &src, const std::array<double, 3> &srcShift) {
 
     // printf("src gridValue\n");
     // for (auto &v : src.sh.gridValue) {

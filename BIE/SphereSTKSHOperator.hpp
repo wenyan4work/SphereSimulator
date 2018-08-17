@@ -103,7 +103,8 @@ class NearEvaluator {
         cTrac = trac;
     }
 
-    void operator()(NearEvalSH &trg, NearEvalSH &src);
+    void operator()(NearEvalSH &trg, NearEvalSH &src,
+                    const std::array<double, 3> &srcShift = std::array<double, 3>{0.0, 0.0, 0.0});
 };
 
 class SphereSTKSHOperator : public TOP {
