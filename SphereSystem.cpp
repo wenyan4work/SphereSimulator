@@ -502,17 +502,17 @@ void SphereSystem::fitFMMBox() {
     // otherwise, automatically fit the periodic box
     double xlow, ylow, zlow;
     double xhigh, yhigh, zhigh;
-    xlow = ylow = zlow = std::numeric_limits<double>::max();
-    xhigh = yhigh = zhigh = -std::numeric_limits<double>::max();
+    xlow = ylow = zlow = 1e9;
+    xhigh = yhigh = zhigh = -1e9;
     const int nLocal = sphere.size();
 #pragma omp parallel for reduction(min : xlow, ylow, zlow) reduction(max : xhigh, yhigh, zhigh)
     for (int i = 0; i < nLocal; i++) {
-        xlow = std::min(xlow, sphere[i].pos[0] - sphere[i].radius);
-        ylow = std::min(ylow, sphere[i].pos[1] - sphere[i].radius);
-        zlow = std::min(zlow, sphere[i].pos[2] - sphere[i].radius);
-        xhigh = std::max(xhigh, sphere[i].pos[0] + sphere[i].radius);
-        yhigh = std::max(yhigh, sphere[i].pos[1] + sphere[i].radius);
-        zhigh = std::max(zhigh, sphere[i].pos[2] + sphere[i].radius);
+        xlow = std::min(xlow, sphere[i].pos[0] - sphere[i].radius * 2);
+        ylow = std::min(ylow, sphere[i].pos[1] - sphere[i].radius * 2);
+        zlow = std::min(zlow, sphere[i].pos[2] - sphere[i].radius * 2);
+        xhigh = std::max(xhigh, sphere[i].pos[0] + sphere[i].radius * 2);
+        yhigh = std::max(yhigh, sphere[i].pos[1] + sphere[i].radius * 2);
+        zhigh = std::max(zhigh, sphere[i].pos[2] + sphere[i].radius * 2);
     }
 
     // global min/max
@@ -521,18 +521,23 @@ void SphereSystem::fitFMMBox() {
     double globalLow[3] = {xlow, ylow, zlow};
     double globalHigh[3] = {xhigh, yhigh, zhigh};
 
-    Teuchos::reduceAll(*commRcp, Teuchos::MinValueReductionOp<int, double>(), 3, localLow, globalLow);
-    Teuchos::reduceAll(*commRcp, Teuchos::MaxValueReductionOp<int, double>(), 3, localHigh, globalHigh);
-
     // add some buffer around the box
-    constexpr double buffer = 1.0;
     for (int k = 0; k < 3; k++) {
-        globalLow[k] -= buffer;
-        globalHigh[k] += buffer;
-        if (globalLow[k] >= globalHigh[k]) {
+        const double buffer = fabs(0.1 * (localHigh[k] - localLow[k]));
+        localLow[k] -= buffer;
+        localHigh[k] += buffer;
+        if (localLow[k] >= globalLow[k] || localHigh[k] <= globalHigh[k]) {
             printf("Box bound error\n");
             exit(1);
         }
+    }
+
+    Teuchos::reduceAll(*commRcp, Teuchos::MinValueReductionOp<int, double>(), 3, localLow, globalLow);
+    Teuchos::reduceAll(*commRcp, Teuchos::MaxValueReductionOp<int, double>(), 3, localHigh, globalHigh);
+
+    if (commRcp->getRank() == 0) {
+        printf("%lf,%lf,%lf,%lf,%lf,%lf", globalLow[0], globalLow[1], globalLow[2], globalHigh[0], globalHigh[1],
+               globalHigh[2]);
     }
 
     fmmPtr->setBox(globalLow[0], globalHigh[0], globalLow[1], globalHigh[1], globalLow[2], globalHigh[2]);
