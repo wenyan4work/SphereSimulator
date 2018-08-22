@@ -7,19 +7,14 @@
 
 #SBATCH --nodes=1
 #SBATCH --exclusive
-
-# for one mpi rank per node 
-#SBATCH --ntasks-per-node=1
-#SBATCH --cpus-per-task=44
+#SBATCH --export=ALL
 
 # for one mpi rank per socket
-#//SBATCH --ntasks-per-socket=1
-#//SBATCH --cpus-per-task=14
+#SBATCH --ntasks-per-socket=1
+#SBATCH --cpus-per-task=14
 
 find ./ -type f -name 'outrunLog*' -a ! -name "outrunLog.$SLURM_JOBID.*" -delete 
 find ./ -type f -name 'errrunLog*' -a ! -name "errrunLog.$SLURM_JOBID.*" -delete 
-
-source ~/.bashrc
 
 date
 hostname
