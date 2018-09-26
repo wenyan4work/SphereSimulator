@@ -37,8 +37,9 @@ echo "------------------------------"
 
 rm -rf ./result/result*-*
 rm -rf ./result/ResultAll
-rm ./*.o
-rm ./*.d
+find . -type f -name '*.o' -delete
+find . -type f -name '*.d' -delete
+
 
 which mpirun
 which mpiexec
