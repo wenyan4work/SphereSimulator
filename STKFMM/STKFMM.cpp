@@ -116,7 +116,7 @@ FMMData::FMMData(KERNEL kernelChoice_, PAXIS periodicity_, int multOrder_, int m
     : kernelChoice(kernelChoice_), periodicity(periodicity_), multOrder(multOrder_), maxPts(maxPts_), treePtr(nullptr),
       matrixPtr(nullptr), treeDataPtr(nullptr) {
     comm = MPI_COMM_WORLD;
-    matrixPtr = new pvfmm::PtFMM();
+    matrixPtr = new pvfmm::PtFMM<double>();
     // choose a kernel
     switch (kernelChoice) {
     case KERNEL::PVel:
@@ -136,7 +136,7 @@ FMMData::FMMData(KERNEL kernelChoice_, PAXIS periodicity_, int multOrder_, int m
         break;
     }
     setKernel();
-    treeDataPtr = new pvfmm::PtFMM_Data;
+    treeDataPtr = new pvfmm::PtFMM_Data<double>;
     // treeDataPtr remain nullptr after constructor
 
     // load periodicity M2L data
@@ -223,7 +223,7 @@ void FMMData::setupTree(const std::vector<double> &srcSLCoord, const std::vector
     treeDataPtr->trg_value.Resize(nTrg * kdimTrg);
 
     // construct tree
-    treePtr = new pvfmm::PtFMM_Tree(comm);
+    treePtr = new pvfmm::PtFMM_Tree<double>(comm);
     // printf("tree alloc\n");
     treePtr->Initialize(treeDataPtr);
     // printf("tree init\n");
@@ -467,12 +467,6 @@ void STKFMM::setupCoord(const int npts, const double *coordInPtr, std::vector<do
     }
     coord.resize(npts * 3);
 
-    // printf("shift: %g,%g,%g     scale: %g\n", xshift, yshift, zshift, scaleFactor);
-
-    // for (int i = 0; i < npts; i++) {
-    //     printf("ptsInPtr: %g,%g,%g\n", coordInPtr[3 * i], coordInPtr[3 * i + 1], coordInPtr[3 * i + 2]);
-    // }
-
     const double xs = this->xshift;
     const double ys = this->yshift;
     const double zs = this->zshift;
@@ -485,10 +479,6 @@ void STKFMM::setupCoord(const int npts, const double *coordInPtr, std::vector<do
         coord[3 * i + 1] = (coordInPtr[3 * i + 1] + ys) * sF;
         coord[3 * i + 2] = (coordInPtr[3 * i + 2] + zs) * sF;
     }
-
-    // for (int i = 0; i < npts; i++) {
-    //     printf("pts: %g,%g,%g\n", coord[3 * i], coord[3 * i + 1], coord[3 * i + 2]);
-    // }
 
     // wrap periodic images
     if (pbc == PAXIS::PX) {
