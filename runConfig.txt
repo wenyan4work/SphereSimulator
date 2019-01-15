@@ -1,7 +1,7 @@
 omp threads
--1
+12
 simBox xlow ylow zlow  xhigh yhigh zhigh
-0.0 0.0 0.0 600.0 2.0 600.0
+0.0 0.0 0.0 100.0 100.0 10.0
 xyz periodic (not implemented yet)
 0 0 0
 sphereRadius LogNormal distribution (average, sigma < 0 for same radius)
@@ -13,13 +13,13 @@ viscosity (pN/(um^2) s)
 kBT (pN * um)
 0.00411
 External Force and Torque (pN)
-0.0 0.0 -0.1 0.0 0.0 0.0
+0.0 0.0 0.0 0.0 0.0 1.0
 sphereNumber
-100000
+10000
 dt (s)
 0.001
 timeTotal (s)
-0.01
+1000.0
 snapFreq (int)
 1
 RngSeed

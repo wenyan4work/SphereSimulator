@@ -171,11 +171,14 @@ void SphereSystem::writeVTK(const std::string &baseFolder) {
         Sphere::writePVTP(baseFolder, std::to_string(snapID), commRcp->getSize());
         // dataFields on all ranks should have been setup during initialization
         Sphere::writePVTU(dataFieldVTU, baseFolder, std::to_string(snapID), commRcp->getSize());
+        CollisionCollector::writePVTP(baseFolder, std::to_string(snapID), commRcp->getSize());
     }
 
     // write files from each rank
     Sphere::writeVTP(sphere, baseFolder, std::to_string(snapID), commRcp->getRank());
     Sphere::writeVTU(sphere, dataFieldVTU, baseFolder, std::to_string(snapID), commRcp->getRank());
+    CollisionCollector::writeVTP(*(collisionCollectorPtr->collisionPoolPtr), baseFolder, std::to_string(snapID),
+                                 commRcp->getRank());
 }
 
 void SphereSystem::output() {
@@ -276,7 +279,7 @@ Teuchos::RCP<TV> SphereSystem::getVelocityKnown(Teuchos::RCP<TOP> &mobilityOpRcp
     return velocityKnownRcp;
 }
 
-Teuchos::RCP<TV> SphereSystem::getForceKnown() const {
+Teuchos::RCP<TV> SphereSystem::getForceKnown() {
     // 6 dof per sphere, force+torque
     Teuchos::RCP<TV> forceKnownRcp = Teuchos::rcp<TV>(new TV(sphereMobilityMapRcp, true));
 
@@ -291,13 +294,13 @@ Teuchos::RCP<TV> SphereSystem::getForceKnown() const {
 #pragma omp parallel for schedule(dynamic, 1024)
         for (int i = 0; i < sphereLocalNumber; i++) {
             // force
-            forcePtr(6 * i, c) = runConfig.extForce[0];
-            forcePtr(6 * i + 1, c) = runConfig.extForce[1];
-            forcePtr(6 * i + 2, c) = runConfig.extForce[2];
+            sphere[i].forceNonCol[0] = (forcePtr(6 * i, c) = runConfig.extForce[0]);
+            sphere[i].forceNonCol[1] = (forcePtr(6 * i + 1, c) = runConfig.extForce[1]);
+            sphere[i].forceNonCol[2] = (forcePtr(6 * i + 2, c) = runConfig.extForce[2]);
             // torque
-            forcePtr(6 * i + 3, c) = runConfig.extTorque[0];
-            forcePtr(6 * i + 4, c) = runConfig.extTorque[1];
-            forcePtr(6 * i + 5, c) = runConfig.extTorque[2];
+            sphere[i].torqueNonCol[0] = (forcePtr(6 * i + 3, c) = runConfig.extTorque[0]);
+            sphere[i].torqueNonCol[1] = (forcePtr(6 * i + 4, c) = runConfig.extTorque[1]);
+            sphere[i].torqueNonCol[2] = (forcePtr(6 * i + 5, c) = runConfig.extTorque[2]);
         }
     }
 
@@ -421,13 +424,30 @@ void SphereSystem::resolveCollision(bool manybody, double buffer) {
 
     // construct collision stepper
     collisionSolverPtr->setup(*(collector.collisionPoolPtr), sphereMobilityMapRcp, runConfig.dt, buffer);
-    collisionSolverPtr->setControlLCP(1e-5, 200, false); // res, maxIte, NWTN refine
+    collisionSolverPtr->setControlLCP(1e-5, 2000, false); // res, maxIte, NWTN refine
 
     mobOpRcp = getMobOperator(manybody && runConfig.hydro, std::string("stkcol"));
     collisionSolverPtr->solveCollision(mobOpRcp, velocityKnownRcp);
+    collisionSolverPtr->writebackGamma(*(collisionCollectorPtr->collisionPoolPtr));
     if (runConfig.hydro && manybody) {
         Teuchos::RCP<SphereSTKMobMat> stkmobopRcp = rcp_dynamic_cast<SphereSTKMobMat>(mobOpRcp, true);
         stkmobopRcp->writeBackDensitySolution();
+    }
+
+    // writeBack force torque solution
+    const int nLocal = sphere.size();
+    auto forceColRcp = collisionSolverPtr->getForceCol();
+
+    auto forceColPtr = forceColRcp->getLocalView<Kokkos::HostSpace>();
+    forceColRcp->modify<Kokkos::HostSpace>();
+#pragma omp parallel for
+    for (int i = 0; i < nLocal; i++) {
+        sphere[i].forceCol[0] = forceColPtr(6 * i + 0, 0);
+        sphere[i].forceCol[1] = forceColPtr(6 * i + 1, 0);
+        sphere[i].forceCol[2] = forceColPtr(6 * i + 2, 0);
+        sphere[i].torqueCol[0] = forceColPtr(6 * i + 3, 0);
+        sphere[i].torqueCol[1] = forceColPtr(6 * i + 4, 0);
+        sphere[i].torqueCol[2] = forceColPtr(6 * i + 5, 0);
     }
 
     return;
@@ -438,16 +458,17 @@ void SphereSystem::step() {
         std::cout << "RECORD: TIMESTEP " << stepCount << " TIME " << stepCount * runConfig.dt << std::endl;
 
     resolveCollision(true, 0);
-    // move forward
-    Teuchos::RCP<TV> velocityRcp = Teuchos::rcp(new TV(*(collisionSolverPtr->getVelocityCol()), Teuchos::Copy));
-    Teuchos::RCP<TV> velocityKnownRcp = collisionSolverPtr->getVelocityKnown();
-    velocityRcp->update(1.0, *velocityKnownRcp, 1.0);
-    moveEuler(velocityRcp);
 
     stepCount++;
     if (stepCount % runConfig.snapFreq == 0) {
         output();
     }
+
+    // move forward
+    Teuchos::RCP<TV> velocityRcp = Teuchos::rcp(new TV(*(collisionSolverPtr->getVelocityCol()), Teuchos::Copy));
+    Teuchos::RCP<TV> velocityKnownRcp = collisionSolverPtr->getVelocityKnown();
+    velocityRcp->update(1.0, *velocityKnownRcp, 1.0);
+    moveEuler(velocityRcp);
 }
 
 void SphereSystem::calcBoundaryCollision() {
