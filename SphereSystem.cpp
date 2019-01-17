@@ -61,14 +61,26 @@ SphereSystem::SphereSystem(const std::string &configFile, const std::string &pos
         dataFieldVTU.emplace_back(3, IOHelper::IOTYPE::Float64, "stkcol");
     }
 
+    // initialize force calculate tree
+    // initial resolve and reset move to zero
+    applyMonoLayer();
+
     printf("local: %lu spheres on process %d\n", sphere.size(), commRcp->getRank());
     output();
 
-    // initialize force calculate tree
-    // initial resolve and reset move to zero
-    // 5 pass to resolve initial overlaps
-
     printf("SphereSystem initialized on process: %d \n", commRcp->getRank());
+}
+
+void SphereSystem::applyMonoLayer() {
+    if (!runConfig.monolayer) {
+        return;
+    }
+    const int nLocal = sphere.size();
+    const double monoZ = 0.5 * (runConfig.simBoxLow[2] + runConfig.simBoxHigh[2]);
+#pragma omp parallel for
+    for (int i = 0; i < nLocal; i++) {
+        sphere[i].pos[2] = monoZ;
+    }
 }
 
 void SphereSystem::setInitial(const std::string &initPosFile) {
@@ -378,7 +390,7 @@ void SphereSystem::moveEuler(Teuchos::RCP<TV> &velocityRcp) {
         s.stepEuler(dt);
     }
 
-    return;
+    applyMonoLayer();
 }
 
 void SphereSystem::resolveCollision(bool manybody, double buffer) {

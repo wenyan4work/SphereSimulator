@@ -73,10 +73,12 @@ class SphereSystem {
     Teuchos::RCP<TOP> getMobOperator(bool manybody, std::string name);
     Teuchos::RCP<TV> getVelocityKnown(Teuchos::RCP<TOP> &mobilityOpRcp, Teuchos::RCP<TV> &forceRcp) const;
     Teuchos::RCP<TV> getVelocityBrown() const;
-    Teuchos::RCP<TV> getForceKnown() ;
+    Teuchos::RCP<TV> getForceKnown();
 
     void calcBoundaryCollision();
     void fitFMMBox();
+
+    void applyMonoLayer();
 };
 
 #endif
