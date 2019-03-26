@@ -1,4 +1,4 @@
-SFTPATH:=$(HOME)/local
+SFTPATH:=/mnt/home/wyan/local
 
 # inherit flags, includes and libs from Trilinos and pvfmm
 include $(SFTPATH)/include/Makefile.export.Trilinos

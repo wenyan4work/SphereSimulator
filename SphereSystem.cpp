@@ -405,7 +405,7 @@ void SphereSystem::resolveCollision(bool manybody, double buffer) {
     Teuchos::RCP<TOP> mobOpRcp = getMobOperator(manybody && runConfig.hydro, std::string("stkmob"));
     Teuchos::RCP<TV> velocityKnownRcp = getVelocityKnown(mobOpRcp, forceKnownRcp);
     if (runConfig.hydro && manybody) {
-        Teuchos::RCP<SphereSTKMobMat> stkmobopRcp = rcp_dynamic_cast<SphereSTKMobMat>(mobOpRcp, true);
+        Teuchos::RCP<SphereSTKMobMat> stkmobopRcp = Teuchos::rcp_dynamic_cast<SphereSTKMobMat>(mobOpRcp, true);
         stkmobopRcp->writeBackDensitySolution();
     }
 
@@ -442,7 +442,7 @@ void SphereSystem::resolveCollision(bool manybody, double buffer) {
     collisionSolverPtr->solveCollision(mobOpRcp, velocityKnownRcp);
     collisionSolverPtr->writebackGamma(*(collisionCollectorPtr->collisionPoolPtr));
     if (runConfig.hydro && manybody) {
-        Teuchos::RCP<SphereSTKMobMat> stkmobopRcp = rcp_dynamic_cast<SphereSTKMobMat>(mobOpRcp, true);
+        Teuchos::RCP<SphereSTKMobMat> stkmobopRcp = Teuchos::rcp_dynamic_cast<SphereSTKMobMat>(mobOpRcp, true);
         stkmobopRcp->writeBackDensitySolution();
     }
 

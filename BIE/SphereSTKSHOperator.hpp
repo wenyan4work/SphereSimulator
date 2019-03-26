@@ -10,10 +10,11 @@
 #include <mpi.h>
 #include <omp.h>
 
-#include "MPI/InteractionManager.hpp"
+#include "Trilinos/TpetraUtil.hpp"
+
 #include "STKFMM/STKFMM.h"
 #include "Sphere/Sphere.hpp"
-#include "Trilinos/TpetraUtil.hpp"
+#include "MPI/InteractionManager.hpp"
 #include "Util/EigenDef.hpp"
 #include "Util/EquatnHelper.hpp"
 #include "Util/Gauss_Legendre_Nodes_and_Weights.hpp"
