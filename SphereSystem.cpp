@@ -50,7 +50,7 @@ SphereSystem::SphereSystem(const std::string &configFile, const std::string &pos
 
     // activate PVel and Traction operator
     if (runConfig.hydro) {
-        fmmPtr = std::make_shared<stkfmm::STKFMM>(runConfig.pFMM, 4000, stkfmm::PAXIS::NONE, 9);
+        fmmPtr = std::make_shared<stkfmm::STKFMM>(runConfig.pFMM, 2000, stkfmm::PAXIS::NONE, 9);
         for (auto &s : sphere) {
             s.addLayer("stkmob", Shexp::KIND::STK, runConfig.pSH, s.radius, Equatn::UnitRandom());
             s.addLayer("stkcol", Shexp::KIND::STK, runConfig.pSH, s.radius, Equatn::UnitRandom());
