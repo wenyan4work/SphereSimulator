@@ -1,3 +1,6 @@
 [submodule "SimToolbox"]
 	path = SimToolbox
 	url = https://github.com/wenyan4work/SimToolbox.git
+[submodule "STKFMM"]
+	path = STKFMM
+	url = https://github.com/wenyan4work/STKFMM.git
