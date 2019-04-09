@@ -5,8 +5,8 @@ include $(SFTPATH)/include/Makefile.export.Trilinos
 include $(PVFMM_DIR)/MakeVariables
 
 # internal includes
-SCTL := ${CURDIR}/SCTL/include
-SIMTOOLBOX := ${CURDIR}/SimToolbox/
+SCTL := ${CURDIR}/../../SCTL/include
+SIMTOOLBOX := ${CURDIR}/../../SimToolbox/
 
 # external libraries
 TRNG = $(SFTPATH)/include/trng
@@ -25,7 +25,7 @@ CXX= mpicxx
 LINK= $(CXX)
 
 # optimized
-CXXFLAGS= $(CXXFLAGS_PVFMM) -xHost
+CXXFLAGS= $(CXXFLAGS_PVFMM) -ipo -xHost
 LINKFLAGS= $(CXXFLAGS) $(LDLIBS_PVFMM) $(Trilinos_EXTRA_LD_FLAGS)
 
 # remove some flags for debugging
