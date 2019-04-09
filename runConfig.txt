@@ -1,5 +1,5 @@
 omp threads
-1
+-1
 simBox xlow ylow zlow  xhigh yhigh zhigh
 0.0 0.0 0.0 320.0 320.0 320.0
 xyz periodic (not implemented yet)
@@ -7,7 +7,7 @@ xyz periodic (not implemented yet)
 sphereRadius LogNormal distribution (average, sigma < 0 for same radius)
 1.0 -0.2
 sphere collision Radius ratio (radius*ratio=collision radius)
-1.1
+1.12
 viscosity (pN/(um^2) s)
 0.001
 kBT (pN * um)
@@ -25,15 +25,15 @@ snapFreq (int)
 RngSeed
 1234
 Monolayer (>0 for true, <=0 for false, default to be true)
-0
-Hydrodynamics (>0 for true, <=0 for false, default to be true)
 1
+Hydrodynamics (>0 for true, <=0 for false, default to be true)
+0
 Spherical Harmonics order p (larger than 3, recommend 6~14)
 6
 FMM multipole order p (even number between 6 and 16, recommend 10)
 10
 Brownian Scale (scale by this float number. 0=no Brown. default = 1, non-negative)
-0.0
+1.0
 Stokes Regularization Parameter (fraction of half fiber length, no effect)
 0.02
 Dump Flow (>0 for true, <0 for false )

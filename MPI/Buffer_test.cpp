@@ -1,7 +1,8 @@
-#include <iostream>
 
+#include "Buffer.hpp"
 #include "Sphere/Sphere.hpp"
-#include "Util/Buffer.hpp"
+
+#include <iostream>
 
 void testSimple() {
     std::string name("SPHERE");

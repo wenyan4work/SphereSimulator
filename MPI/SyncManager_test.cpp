@@ -1,5 +1,5 @@
-#include "MPI/SyncManager.hpp"
-#include "Util/Buffer.hpp"
+#include "Buffer.hpp"
+#include "SyncManager.hpp"
 
 #include <cstdio>
 #include <vector>

@@ -1,6 +1,6 @@
-#include "../../Sphere/Shexp.hpp"
+#include "Shexp.hpp"
 
-#include "PointDistribution.h"
+#include "SimToolbox/Util/PointDistribution.hpp"
 
 #include <cmath>
 #include <cstdio>

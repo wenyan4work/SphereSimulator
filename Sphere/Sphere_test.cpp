@@ -1,12 +1,12 @@
+#include "Shexp.hpp"
+#include "Sphere.hpp"
+
+#include "SimToolbox/Util/IOHelper.hpp"
 
 #include <cstdio>
 #include <fstream>
 #include <iostream>
 #include <vector>
-
-#include "Sphere/Shexp.hpp"
-#include "Sphere/Sphere.hpp"
-#include "Util/IOHelper.hpp"
 
 void testVTK() {
     const int num = 200;

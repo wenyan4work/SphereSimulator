@@ -2,8 +2,8 @@
 // Test 1 species, partition, multiple interaction & multiple essential types
 // Test 2 species, partition, multiple interaction & multiple essential types
 
-#include "MPI/InteractionManager.hpp"
-#include "Util/Buffer.hpp"
+#include "Buffer.hpp"
+#include "InteractionManager.hpp"
 
 #include <random>
 

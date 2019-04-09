@@ -1,20 +1,5 @@
 include MakefileInc.mk
 
-# set of libraries to correctly link to the target
-USERINC_DIRS = -I$(TRNG) -I$(EIGEN) -I$(SCTL) -I$(SIMTOOLBOX) $(PVFMM_INCLUDES) $(FFTW_INCLUDES_PVFMM)
-USERLIB_DIRS = -L$(SFTPATH)/lib
-USERLIBS = -ltrng4
-
-INCLUDE_DIRS = $(Trilinos_INCLUDE_DIRS) $(Trilinos_TPL_INCLUDE_DIRS) $(USERINC_DIRS) -I$(CURDIR) 
-LIBRARY_DIRS = $(Trilinos_LIBRARY_DIRS) $(Trilinos_TPL_LIBRARY_DIRS) $(USERLIB_DIRS)
-LIBRARIES = $(LDLIBS_PVFMM) $(Trilinos_LIBRARIES) $(Trilinos_TPL_LIBRARIES) $(USERLIBS)
-
-# System-specific settings
-SHELL = /bin/sh
-SYSLIB =	
-SIZE =	size
-
-
 # Files
 SRC =  \
 SRC/Config.cpp \
@@ -43,9 +28,8 @@ LFLAG = $(LINKFLAGS) $(SYSLIB) $(LIBRARY_DIRS) $(LIBRARIES)
 
 # Link rule
 $(EXE):	$(OBJ)
-	$(LINK) $(OBJ)  -o $(EXE) $(LFLAG)
+	$(LINK) $(OBJ) -o $(EXE) $(LFLAG)
 	$(SIZE) $(EXE)
-
 
 # use the trick from
 # http://scottmcpeak.com/autodepend/autodepend.html

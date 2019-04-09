@@ -2,9 +2,9 @@
 
 import numpy as np
 
-nparticle = 100
-radius = 15
-height = 1
+nparticle = 20000
+radius = 180
+height = 0.1
 
 # make a simple unit circle
 theta = np.linspace(0, 2*np.pi, nparticle)
@@ -22,6 +22,7 @@ for i in range(len(size)):
         size[i] = 0.5
     elif size[i] > 2:
         size[i] = 2
+    size[i]=1.0
 
 print(nparticle)
 print("min radius = "+str(np.min(size)))

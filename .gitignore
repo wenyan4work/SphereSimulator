@@ -26,3 +26,4 @@ Test/FMM/randomPoints
 **.vtp
 **.pvtp
 **.log
+build/**
