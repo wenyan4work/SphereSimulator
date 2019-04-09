@@ -8,6 +8,7 @@
 #SBATCH --nodes=1
 #SBATCH --exclusive
 #SBATCH --export=ALL
+#SBATCH --constraint=broadwell
 
 # for one mpi rank per socket
 #SBATCH --ntasks-per-socket=1
@@ -40,7 +41,6 @@ rm -rf ./result/ResultAll
 find . -type f -name '*.o' -delete
 find . -type f -name '*.d' -delete
 
-
 which mpirun
 which mpiexec
 which srun
@@ -51,7 +51,7 @@ date
 # if -bind-to or -map-to parameters exist, job is suspended every 30 seconds for unknown reasons
 echo "hosts:"
 echo $SLURM_JOB_NODELIST
-mpiexec -host $(scontrol show hostname $SLURM_NODELIST | tr '\n' ',') -perhost $SLURM_TASKS_PER_NODE ./SphereSimulator.X
-
+#mpiexec -host $(scontrol show hostname $SLURM_NODELIST | tr '\n' ',') -perhost $SLURM_TASKS_PER_NODE ./SphereSimulator.X
+mpirun ./SphereSimulator.X
 
 date

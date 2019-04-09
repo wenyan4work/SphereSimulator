@@ -1,5 +1,5 @@
 #! /bin/bash
-CLUSTERRUNPATH=/mnt/ceph/users/wyan/RunCluster/SphereVWX
+RUNPATH=/local1/RunLocal/SphereSimulator
 
 # copy to cluster run path
 rsync -avz --delete-after --exclude='*.d' --exclude='*.o' \
@@ -7,4 +7,4 @@ rsync -avz --delete-after --exclude='*.d' --exclude='*.o' \
            --exclude='*.log' --exclude='*.vtr' --exclude='*.pvtr' \
            --exclude='*.vtk' --exclude='*.vtp' --exclude='*.vtu' \
            --exclude='*.pvtk' --exclude='*.pvtp' --exclude='*.pvtu' \
-           --exclude=".*" ./ $CLUSTERRUNPATH
+           --exclude=".*" ./ $RUNPATH
