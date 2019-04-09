@@ -1,6 +1,17 @@
 #ifndef SPHERESTKSHOPERATOR_HPP_
 #define SPHERESTKSHOPERATOR_HPP_
 
+#include "MPI/InteractionManager.hpp"
+#include "Sphere/Sphere.hpp"
+
+#include "STKFMM/STKFMM.h"
+
+#include "SimToolbox/Trilinos/TpetraUtil.hpp"
+#include "SimToolbox/Util/EigenDef.hpp"
+#include "SimToolbox/Util/EquatnHelper.hpp"
+#include "SimToolbox/Util/Gauss_Legendre_Nodes_and_Weights.hpp"
+#include "SimToolbox/Util/GeoCommon.h"
+
 #include <cassert>
 #include <cmath>
 #include <cstdio>
@@ -9,16 +20,6 @@
 
 #include <mpi.h>
 #include <omp.h>
-
-#include "Trilinos/TpetraUtil.hpp"
-
-#include "STKFMM/STKFMM.h"
-#include "Sphere/Sphere.hpp"
-#include "MPI/InteractionManager.hpp"
-#include "Util/EigenDef.hpp"
-#include "Util/EquatnHelper.hpp"
-#include "Util/Gauss_Legendre_Nodes_and_Weights.hpp"
-#include "Util/GeoCommon.h"
 
 using namespace stkfmm;
 

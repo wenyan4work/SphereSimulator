@@ -19,19 +19,19 @@ class Config {
     bool dumpflow;
     bool shell;
     int pFMM;            // mult_order p for PVFMM
-    int pSH;            // mult_order p for Spherical Harmonics
+    int pSH;             // mult_order p for Spherical Harmonics
     double dumpFlowMesh; // flow dump mesh size
 
     // physical setting
     double sphereRadiusHydro;          // um
     double sphereRadiusSigmaHydro;     // sigma for log normal distribution
     double sphereRadiusCollisionRatio; // ratio*radiusHydro=radiusCollision
-    double extForce[3]; //pN
-    double extTorque[3]; //pN
+    double extForce[3];                // pN
+    double extTorque[3];               // pN
 
     // physical constant
-    double viscosity;       // pN/(um^2 s)
-    double kBT;             // pN.um
+    double viscosity; // pN/(um^2 s)
+    double kBT;       // pN.um
 
     // number
     int sphereNumber;

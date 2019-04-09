@@ -1,6 +1,17 @@
 #ifndef SPHERESTKMOBMAT_HPP_
 #define SPHERESTKMOBMAT_HPP_
 
+#include "SphereSTKSHOperator.hpp"
+
+#include "Sphere/Sphere.hpp"
+
+#include "STKFMM/STKFMM.h"
+
+#include "SimToolbox/Trilinos/TpetraUtil.hpp"
+#include "SimToolbox/Util/EigenDef.hpp"
+#include "SimToolbox/Util/EquatnHelper.hpp"
+#include "SimToolbox/Util/Gauss_Legendre_Nodes_and_Weights.hpp"
+
 #include <cassert>
 #include <cmath>
 #include <cstdio>
@@ -9,15 +20,6 @@
 
 #include <mpi.h>
 #include <omp.h>
-
-#include "SphereSTKSHOperator.hpp"
-
-#include "STKFMM/STKFMM.h"
-#include "Sphere/Sphere.hpp"
-#include "Trilinos/TpetraUtil.hpp"
-#include "Util/EigenDef.hpp"
-#include "Util/EquatnHelper.hpp"
-#include "Util/Gauss_Legendre_Nodes_and_Weights.hpp"
 
 using namespace stkfmm;
 

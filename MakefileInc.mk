@@ -6,30 +6,22 @@ include $(PVFMM_DIR)/MakeVariables
 
 # internal includes
 SCTL := ${CURDIR}/SCTL/include
-SIMTOOLBOX := ${CURDIR}/SimToolbox/
+SIMTOOLBOX := ${CURDIR}/SimToolbox
+STKFMM := ${CURDIR}/STKFMM
 
 # external libraries
-TRNG = $(SFTPATH)/include/trng
-EIGEN= $(SFTPATH)/include/eigen3
-PVFMM= $(SFTPATH)/include/pvfmm
-
-USERINCLUDE = -I$(TRNG)/include -I$(EIGEN) -I$(SCTL) -I$(SIMTOOLBOX)  $(PVFMM_INCLUDES) $(FFTW_INCLUDES_PVFMM)
-USERLIB_DIRS = -L$(SFTPATH)/lib
-USERLIBS = -ltrng4
-
-INCLUDE_DIRS = $(Trilinos_INCLUDE_DIRS) $(Trilinos_TPL_INCLUDE_DIRS) $(USERINCLUDE)
-LIBRARY_DIRS = $(Trilinos_LIBRARY_DIRS) $(Trilinos_TPL_LIBRARY_DIRS) $(USERLIB_DIRS)
-LIBRARIES = $(Trilinos_LIBRARIES) $(Trilinos_TPL_LIBRARIES) $(USERLIBS)
+TRNG  := $(SFTPATH)/include/trng
+EIGEN := $(SFTPATH)/include/eigen3
+PVFMM := $(SFTPATH)/include/pvfmm
 
 CXX= mpicxx
 LINK= $(CXX)
 
 # optimized
-CXXFLAGS= $(CXXFLAGS_PVFMM) -xHost
-LINKFLAGS= $(CXXFLAGS) $(LDLIBS_PVFMM) $(Trilinos_EXTRA_LD_FLAGS)
+CXXFLAGS= $(CXXFLAGS_PVFMM) -ipo -xHost
+LINKFLAGS= $(CXXFLAGS) $(Trilinos_EXTRA_LD_FLAGS)
 
 # remove some flags for debugging
-# if Trilinos and pvfmm are compiled with ipo, removing this may cause linking failures
 
 # debug
 DEBUGMODE:= no

@@ -1,21 +1,22 @@
 #ifndef SPHERESYSTEM_H_
 #define SPHERESYSTEM_H_
 
+#include "Config.h"
+#include "MPI/InteractionManager.hpp"
+#include "Sphere/CollisionSphere.hpp"
+#include "Sphere/Sphere.hpp"
+
+#include "STKFMM/STKFMM.h"
+
+#include "SimToolbox/Collision/CollisionSolver.hpp"
+#include "SimToolbox/Trilinos/TpetraUtil.hpp"
+#include "SimToolbox/Util/IOHelper.hpp"
+#include "SimToolbox/Util/TRngPool.hpp"
+
 #include <algorithm>
 #include <deque>
 #include <memory>
 #include <set>
-
-#include "Config.h"
-
-#include "Collision/CollisionSolver.hpp"
-#include "Collision/CollisionSphere.hpp"
-#include "MPI/InteractionManager.hpp"
-#include "STKFMM/STKFMM.h"
-#include "Sphere/Sphere.hpp"
-#include "Trilinos/TpetraUtil.hpp"
-#include "Util/IOHelper.hpp"
-#include "Util/TRngPool.hpp"
 
 #define COLBUF 0.3 // possible collision within (1+0.3)*(radiusI+radiusJ)
 

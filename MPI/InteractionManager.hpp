@@ -1,13 +1,13 @@
 #ifndef INTERACTIONMANAGER_HPP
 #define INTERACTIONMANAGER_HPP
 
+#include "NearInteraction.hpp"
+
 #include <array>
 #include <cstdio>
 #include <iostream>
 #include <memory>
 #include <vector>
-
-#include "NearInteraction.hpp"
 
 #include <mpi.h>
 #include <omp.h>

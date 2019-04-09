@@ -7,7 +7,7 @@
 #ifndef _NEAR_INTERAC_HPP_
 #define _NEAR_INTERAC_HPP_
 
-#include "sctl/sctl.hpp"
+#include "sctl.hpp"
 
 // Interface of OBJ:
 // const double * Coord() const;
@@ -94,7 +94,7 @@ class NearInteraction {
     /***********************************
      * These are set in SetupPartition()
      ***********************************/
-    sctl::Integer depth;  // the depth is set such that a src-trg pair must appear within two neighboring leaf octants
+    sctl::Integer depth; // the depth is set such that a src-trg pair must appear within two neighboring leaf octants
 
     sctl::Vector<Long> TRglb, SRglb;      // globally ordered, locally sorted sequential internal ID
     sctl::Vector<ObjData> SData_, TData_; // Globally sorted ObjData

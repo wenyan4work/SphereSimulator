@@ -1,6 +1,8 @@
 #ifndef SYNCMANAGER_HPP
 #define SYNCMANAGER_HPP
 
+#include "Buffer.hpp"
+
 #include <algorithm>
 #include <cstdio>
 #include <iostream>
@@ -8,8 +10,6 @@
 #include <vector>
 
 #include <mpi.h>
-
-#include "Util/Buffer.hpp"
 
 // helper class to broadcast and reduce replicated objects through all process
 // required interface of T:

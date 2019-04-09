@@ -1,10 +1,13 @@
-include ./MakefileInc.mk
+include MakefileInc.mk
 
 # set of libraries to correctly link to the target
+USERINC_DIRS = -I$(TRNG) -I$(EIGEN) -I$(SCTL) -I$(SIMTOOLBOX) $(PVFMM_INCLUDES) $(FFTW_INCLUDES_PVFMM)
+USERLIB_DIRS = -L$(SFTPATH)/lib
+USERLIBS = -ltrng4
 
-INCLUDE_DIRS = $(Trilinos_INCLUDE_DIRS) $(Trilinos_TPL_INCLUDE_DIRS) $(USERINCLUDE) -I$(CURDIR) 
+INCLUDE_DIRS = $(Trilinos_INCLUDE_DIRS) $(Trilinos_TPL_INCLUDE_DIRS) $(USERINC_DIRS) -I$(CURDIR) 
 LIBRARY_DIRS = $(Trilinos_LIBRARY_DIRS) $(Trilinos_TPL_LIBRARY_DIRS) $(USERLIB_DIRS)
-LIBRARIES = $(Trilinos_LIBRARIES) $(Trilinos_TPL_LIBRARIES) $(USERLIBS)
+LIBRARIES = $(LDLIBS_PVFMM) $(Trilinos_LIBRARIES) $(Trilinos_TPL_LIBRARIES) $(USERLIBS)
 
 # System-specific settings
 SHELL = /bin/sh
@@ -13,16 +16,19 @@ SIZE =	size
 
 
 # Files
-SRC = Config.cpp main.cpp SphereSystem.cpp \
-	./SimToolbox/Collision/CollisionSolver.cpp \
-	./SimToolbox/Collision/CPSolver.cpp \
-	./SimToolbox/Sphere/Sphere.cpp \
-	./SimToolbox/Sphere/Shexp.cpp \
-	./SimToolbox/Trilinos/TpetraUtil.cpp \
-	./SimToolbox/Util/Base64.cpp \
-	./BIE/SphereSTKMobMat.cpp \
-	./BIE/SphereSTKSHOperator.cpp \
-	./STKFMM/STKFMM.cpp \
+SRC =  \
+SRC/Config.cpp \
+SRC/main.cpp \
+SRC/SphereSystem.cpp \
+Sphere/Sphere.cpp \
+Sphere/Shexp.cpp \
+BIE/SphereSTKMobMat.cpp \
+BIE/SphereSTKSHOperator.cpp \
+$(SIMTOOLBOX)/Collision/CollisionSolver.cpp \
+$(SIMTOOLBOX)/Collision/CPSolver.cpp \
+$(SIMTOOLBOX)/Trilinos/TpetraUtil.cpp \
+$(SIMTOOLBOX)/Util/Base64.cpp \
+$(STKFMM)/STKFMM.cpp 
 
 # Definitions
 EXE :=   SphereSimulator.X
@@ -37,8 +43,7 @@ LFLAG = $(LINKFLAGS) $(SYSLIB) $(LIBRARY_DIRS) $(LIBRARIES)
 
 # Link rule
 $(EXE):	$(OBJ)
-	$(LINK) $(OBJ)  -o $(EXE) $(subst -ipo, ,$(LFLAG))
-	# $(LINK) $(OBJ)  -o $(EXE) $(LINKFLAGS) $(SYSLIB) $(LIBRARY_DIRS) $(LIBRARIES)
+	$(LINK) $(OBJ)  -o $(EXE) $(LFLAG)
 	$(SIZE) $(EXE)
 
 
@@ -64,7 +69,7 @@ $(EXE):	$(OBJ)
 
 # remove compilation products
 clean: 
-	rm -f ./$(OBJ)
-	rm -f ./$(EXE)
-	rm -f ./*.d
-	rm -f ./*~
+	rm -vf ./$(OBJ)
+	rm -vf ./$(EXE)
+	rm -vf ./*.d
+	rm -vf ./*~

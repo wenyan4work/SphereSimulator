@@ -6,7 +6,6 @@
 #include <mpi.h>
 
 #include "SphereSystem.hpp"
-#include "Util/EigenDef.hpp"
 
 int main(int argc, char **argv) {
 

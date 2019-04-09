@@ -1,10 +1,11 @@
+#include "Sphere.hpp"
+
+#include "SimToolbox/Util/Base64.hpp"
+#include "SimToolbox/Util/EquatnHelper.hpp"
+#include "SimToolbox/Util/IOHelper.hpp"
+
 #include <cstdio>
 #include <vector>
-
-#include "Sphere.hpp"
-#include "Util/Base64.hpp"
-#include "Util/EquatnHelper.hpp"
-#include "Util/IOHelper.hpp"
 
 /*****************************************************
  *  Sphere

@@ -1,15 +1,16 @@
 #include "SphereSystem.hpp"
 
+#include "BIE/SphereSTKMobMat.hpp"
+
+#include "SimToolbox/Util/EquatnHelper.hpp"
+#include "SimToolbox/Util/IOHelper.hpp"
+
 #include <cassert>
 #include <cmath>
 #include <vector>
 
 #include <mpi.h>
 #include <omp.h>
-
-#include "BIE/SphereSTKMobMat.hpp"
-#include "Util/EquatnHelper.hpp"
-#include "Util/IOHelper.hpp"
 
 SphereSystem::SphereSystem(const std::string &configFile, const std::string &posFile, int argc, char **argv)
     : runConfig(configFile) {

@@ -3,14 +3,15 @@
 
 // the class for spherical harmonics expansions
 // should be guaranteed to be thread-safe
+
+#include "SimToolbox/Util/EigenDef.hpp"
+
 #include <array>
 #include <cstdint>
 #include <cstdio>
 #include <iostream>
 #include <string>
 #include <vector>
-
-#include "Util/EigenDef.hpp"
 
 // naming convention:
 // Spectral Coeff
