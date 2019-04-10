@@ -5,7 +5,6 @@ project(SphereSimulator)
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/")
-set(SFTPATH $ENV{HOME}/local)
 
 find_package(OpenMP REQUIRED)
 find_package(MPI REQUIRED)  
@@ -15,10 +14,23 @@ find_package(MPI REQUIRED)
 # target_link_libraries(exe PRIVATE OpenMP::OpenMP_CXX)
 # target_link_libraries(exe PRIVATE MPI::MPI_CXX)
 
+# compiler flags
+if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
+  # using Clang
+elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
+  # using GCC
+elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Intel")
+    set(CMAKE_CXX_FLAGS  ${CMAKE_CXX_FLAGS} "-qno-offload")
+    set(CMAKE_C_FLAGS  ${CMAKE_C_FLAGS} "-qno-offload")
+elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC")
+  # using Visual Studio C++
+endif()
+
+# external libraries and headers
+set(SFTPATH $ENV{HOME}/local)
 # external libraries, static link
 find_package(TRNG REQUIRED)
 find_package(PVFMM REQUIRED)
-
 # external libraries, header only
 find_package(Eigen3 REQUIRED)
 find_package(MSGPACK REQUIRED)
