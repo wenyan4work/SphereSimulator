@@ -184,14 +184,13 @@ void SphereSystem::writeVTK(const std::string &baseFolder) {
         Sphere::writePVTP(baseFolder, std::to_string(snapID), commRcp->getSize());
         // dataFields on all ranks should have been setup during initialization
         Sphere::writePVTU(dataFieldVTU, baseFolder, std::to_string(snapID), commRcp->getSize());
-        CollisionCollector::writePVTP(baseFolder, std::to_string(snapID), commRcp->getSize());
+        collisionCollectorPtr->writePVTP(baseFolder, std::to_string(snapID), commRcp->getSize());
     }
 
     // write files from each rank
     Sphere::writeVTP(sphere, baseFolder, std::to_string(snapID), commRcp->getRank());
     Sphere::writeVTU(sphere, dataFieldVTU, baseFolder, std::to_string(snapID), commRcp->getRank());
-    CollisionCollector::writeVTP(*(collisionCollectorPtr->collisionPoolPtr), baseFolder, std::to_string(snapID),
-                                 commRcp->getRank());
+    collisionCollectorPtr->writeVTP(baseFolder, std::to_string(snapID), commRcp->getRank());
 }
 
 void SphereSystem::output() {
@@ -485,46 +484,46 @@ void SphereSystem::step() {
 }
 
 void SphereSystem::calcBoundaryCollision() {
-    // a demo of how to calculate boundary collisions
-    auto collisionPoolPtr = collisionCollectorPtr->collisionPoolPtr; // shared_ptr
-    const int nThreads = collisionPoolPtr->size();
-    const int nLocal = sphere.size();
+//     // a demo of how to calculate boundary collisions
+//     auto collisionPoolPtr = collisionCollectorPtr->collisionPoolPtr; // shared_ptr
+//     const int nThreads = collisionPoolPtr->size();
+//     const int nLocal = sphere.size();
 
-    const int maxGlobalIndexOnLocal = sphereMapRcp->getMaxGlobalIndex();
-    const int minGlobalIndexOnLocal = sphereMapRcp->getMinGlobalIndex();
+//     const int maxGlobalIndexOnLocal = sphereMapRcp->getMaxGlobalIndex();
+//     const int minGlobalIndexOnLocal = sphereMapRcp->getMinGlobalIndex();
 
-    // a spherical shell boundary
-    const Evec3 shellCenter(runConfig.simBoxHigh[0] * 0.5, runConfig.simBoxHigh[1] * 0.5,
-                            runConfig.simBoxHigh[2] * 0.5);
-    const double shellRadius = runConfig.simBoxHigh[2];
+//     // a spherical shell boundary
+//     const Evec3 shellCenter(runConfig.simBoxHigh[0] * 0.5, runConfig.simBoxHigh[1] * 0.5,
+//                             runConfig.simBoxHigh[2] * 0.5);
+//     const double shellRadius = runConfig.simBoxHigh[2];
 
-#pragma omp parallel num_threads(nThreads)
-    {
-        const int threadId = omp_get_thread_num();
+// #pragma omp parallel num_threads(nThreads)
+//     {
+//         const int threadId = omp_get_thread_num();
 
-#pragma omp for
-        for (int i = 0; i < nLocal; i++) {
-            const auto &s = sphere[i];
+// #pragma omp for
+//         for (int i = 0; i < nLocal; i++) {
+//             const auto &s = sphere[i];
 
-            // do this for each boundary. add as many boundaries as you want
-            {
-                // calculate collision location
-                Evec3 rvec = s.pos - shellCenter;
-                double rnorm = rvec.norm();
-                if (rnorm > shellRadius - s.radiusCollision) {
-                    Evec3 normI = (-rvec).normalized();
-                    double phi0 = -(rnorm - shellRadius); // negative
-                    double gammaGuess = -phi0;            // positive
-                    // add a new collision block. this block has only 6 non zero entries.
-                    // passing sy.gid+1/globalIndex+1 as a 'fake' colliding body j, which is actually not used in the
-                    // solver when oneside=true, out of range index is ignored
-                    (*collisionPoolPtr)[threadId].emplace_back(phi0, -phi0, s.gid, s.gid + 1, s.globalIndex,
-                                                               s.globalIndex + 1, normI, Evec3(0, 0, 0),
-                                                               normI * s.radiusCollision, Evec3(0, 0, 0), true);
-                }
-            }
-        }
-    }
+//             // do this for each boundary. add as many boundaries as you want
+//             {
+//                 // calculate collision location
+//                 Evec3 rvec = s.pos - shellCenter;
+//                 double rnorm = rvec.norm();
+//                 if (rnorm > shellRadius - s.radiusCollision) {
+//                     Evec3 normI = (-rvec).normalized();
+//                     double phi0 = -(rnorm - shellRadius); // negative
+//                     double gammaGuess = -phi0;            // positive
+//                     // add a new collision block. this block has only 6 non zero entries.
+//                     // passing sy.gid+1/globalIndex+1 as a 'fake' colliding body j, which is actually not used in the
+//                     // solver when oneside=true, out of range index is ignored
+//                     (*collisionPoolPtr)[threadId].emplace_back(phi0, -phi0, s.gid, s.gid + 1, s.globalIndex,
+//                                                                s.globalIndex + 1, normI, Evec3(0, 0, 0),
+//                                                                normI * s.radiusCollision, Evec3(0, 0, 0), true);
+//                 }
+//             }
+//         }
+//     }
 }
 
 void SphereSystem::fitFMMBox() {

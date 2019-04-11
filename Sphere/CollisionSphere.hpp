@@ -68,18 +68,20 @@ class CollisionSphere {
         // save only block gidI < gidJ
         if (sep < GEO_DEFAULT_COLBUF * radiusCollision) {
             // collision
-            block.normI = rIJ * (-1.0 / rIJNorm);
-            block.normJ = -block.normI;
+            Emap3(block.normI) = rIJ * (-1.0 / rIJNorm);
+            Emap3(block.normJ) = -Emap3(block.normI);
             block.phi0 = sep;
             block.gidI = gid;
             block.gidJ = sphereJ.gid;
             block.globalIndexI = globalIndex;
             block.globalIndexJ = sphereJ.globalIndex;
-            block.posI.setZero();
-            block.posJ.setZero();
-            block.endI = posI;
-            block.endJ = posJ;
+            Emap3(block.posI).setZero();
+            Emap3(block.posJ).setZero();
+            Emap3(block.endI) = posI;
+            Emap3(block.endJ) = posJ;
             block.gamma = sep < 0 ? -sep : 0; // a crude initial guess
+            Emat3 stress = rIJ * (rIJ.transpose() / rIJNorm); // spheres, stress = x F
+            block.setStress(stress);
             return true;
         } else {
             // no collision
