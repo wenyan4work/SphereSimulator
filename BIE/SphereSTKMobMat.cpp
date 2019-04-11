@@ -1,5 +1,6 @@
 #include "SphereSTKMobMat.hpp"
-#include "Teuchos_XMLParameterListCoreHelpers.hpp"
+#include "Teuchos_XMLParameterListHelpers.hpp"
+#include "Teuchos_YamlParameterListHelpers.hpp"
 
 constexpr double pi = 3.141592653589793238462643383279;
 
@@ -54,13 +55,15 @@ SphereSTKMobMat::SphereSTKMobMat(std::vector<Sphere> *const spherePtr, const std
     // setup the problem
     problemRcp = Teuchos::rcp(new Belos::LinearProblem<TOP::scalar_type, TMV, TOP>(AOpRcp, xRcp, bRcp));
 
-    Teuchos::RCP<Teuchos::ParameterList> solverParams = Teuchos::getParametersFromXmlFile("mobilitySolver.xml");
+    // Teuchos::RCP<Teuchos::ParameterList> solverParams = Teuchos::getParametersFromXmlFile("mobilitySolver.xml");
+    Teuchos::RCP<Teuchos::ParameterList> solverParams = Teuchos::getParametersFromYamlFile("mobilitySolver.yaml");
     // solverParams->set("Maximum Iterations", 80);
     // solverParams->set("Convergence Tolerance", 1e-5);
     solverParams->set("Verbosity", Belos::Errors + Belos::Warnings + Belos::TimingDetails + Belos::FinalSummary);
     Belos::SolverFactory<TOP::scalar_type, TMV, TOP> factory;
     solverRcp = factory.create("GMRES", solverParams); // recycle Krylov space for collision
     Teuchos::writeParameterListToXmlFile(*(solverRcp->getCurrentParameters()), "mobilitySolver_used.xml");
+    Teuchos::writeParameterListToYamlFile(*(solverRcp->getCurrentParameters()), "mobilitySolver_used.yaml");
     // testOperator();
 
     // fill initial guess with current value in sh

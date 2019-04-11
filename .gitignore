@@ -28,3 +28,4 @@ Test/FMM/randomPoints
 **.log
 build/**
 mobilitySolver_used.xml
+mobilitySolver_used.yaml
