@@ -1,4 +1,5 @@
 #include "SphereSTKMobMat.hpp"
+#include "Teuchos_XMLParameterListCoreHelpers.hpp"
 
 constexpr double pi = 3.141592653589793238462643383279;
 
@@ -53,27 +54,13 @@ SphereSTKMobMat::SphereSTKMobMat(std::vector<Sphere> *const spherePtr, const std
     // setup the problem
     problemRcp = Teuchos::rcp(new Belos::LinearProblem<TOP::scalar_type, TMV, TOP>(AOpRcp, xRcp, bRcp));
 
-    // testOperator();
-    Teuchos::RCP<Teuchos::ParameterList> solverParams = Teuchos::parameterList();
-    solverParams->set("Maximum Iterations", 200);
-    solverParams->set("Convergence Tolerance", 1e-7);
-    // solverParams->set("Maximum Restarts", 100);
-    // solverParams->set("Num Blocks", 100); // larger values might trigger a std::bad_alloc inside Kokkos.
-    solverParams->set("Num Recycled Blocks", 15); // for GCRODR
-    // solverParams->set("Orthogonalization", "ICGS");
-    // solverParams->set("Output Style", Belos::OutputType::General);
-    // solverParams->set("Implicit Residual Scaling", "Norm of Initial Residual");
-    // solverParams->set("Explicit Residual Scaling", "Norm of Initial Residual");
-    // solverParams->set("Implicit Residual Scaling", "Norm of RHS");
-    // solverParams->set("Explicit Residual Scaling", "Norm of RHS");
-    // solverParams->set("Implicit Residual Scaling", "None"); // default is preconditioned initial residual
-    // solverParams->set("Explicit Residual Scaling", "None");
-    // solverParams->set("Output Frequency", 1);
-    solverParams->set("Timer Label", "Iterative Mobility Solution");
+    Teuchos::RCP<Teuchos::ParameterList> solverParams = Teuchos::getParametersFromXmlFile("mobilitySolver.xml");
+    // solverParams->set("Maximum Iterations", 80);
+    // solverParams->set("Convergence Tolerance", 1e-5);
     solverParams->set("Verbosity", Belos::Errors + Belos::Warnings + Belos::TimingDetails + Belos::FinalSummary);
     Belos::SolverFactory<TOP::scalar_type, TMV, TOP> factory;
     solverRcp = factory.create("GMRES", solverParams); // recycle Krylov space for collision
-
+    Teuchos::writeParameterListToXmlFile(*(solverRcp->getCurrentParameters()), "mobilitySolver_used.xml");
     // testOperator();
 
     // fill initial guess with current value in sh
