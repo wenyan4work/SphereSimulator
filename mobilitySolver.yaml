@@ -1,6 +1,6 @@
 %YAML 1.1
 ---
-GCRODR:
+GMRES:
   Convergence Tolerance: 1.00000000000000008e-05
   Maximum Restarts: 20
   Maximum Iterations: 40
