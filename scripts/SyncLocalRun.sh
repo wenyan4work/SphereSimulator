@@ -7,4 +7,4 @@ rsync -avz --delete-after --exclude='*.d' --exclude='*.o' \
            --exclude='*.log' --exclude='*.vtr' --exclude='*.pvtr' \
            --exclude='*.vtk' --exclude='*.vtp' --exclude='*.vtu' \
            --exclude='*.pvtk' --exclude='*.pvtp' --exclude='*.pvtu' \
-           --exclude=".*" ./ $RUNPATH
+           --exclude=".*" --exclude='build/*' ./ $RUNPATH

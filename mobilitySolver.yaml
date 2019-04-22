@@ -1,16 +1,17 @@
 %YAML 1.1
 ---
-GMRES:
+GCRODR:
   Convergence Tolerance: 1.00000000000000008e-05
   Maximum Restarts: 20
-  Maximum Iterations: 80
-  Num Blocks: 300
+  Maximum Iterations: 40
   Block Size: 1
-  Verbosity: 25
-  Deflation Quorum: 1
-  Show Maximum Residual Norm Only: false
-  Implicit Residual Scaling: Norm of Preconditioned Initial Residual
-  Explicit Residual Scaling: Norm of Initial Residual
+  Num Blocks: 30
+  Num Recycled Blocks: 5 # useful only for GCRODR
+  Verbosity: 25 
+  Output Style: 0
+  Output Frequency: -1
+  Implicit Residual Scaling: Norm of RHS
+  Explicit Residual Scaling: Norm of RHS
   Timer Label: Iterative Mobility Solution
-  Orthogonalization: DGKS
+  Orthogonalization: IMGS
 ...

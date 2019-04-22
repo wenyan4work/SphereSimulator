@@ -57,11 +57,10 @@ SphereSTKMobMat::SphereSTKMobMat(std::vector<Sphere> *const spherePtr, const std
 
     // Teuchos::RCP<Teuchos::ParameterList> solverParams = Teuchos::getParametersFromXmlFile("mobilitySolver.xml");
     Teuchos::RCP<Teuchos::ParameterList> solverParams = Teuchos::getParametersFromYamlFile("mobilitySolver.yaml");
-    // solverParams->set("Maximum Iterations", 80);
-    // solverParams->set("Convergence Tolerance", 1e-5);
+    std::cout << "Iterative Solver: " << solverParams->name() << std::endl;
     solverParams->set("Verbosity", Belos::Errors + Belos::Warnings + Belos::TimingDetails + Belos::FinalSummary);
     Belos::SolverFactory<TOP::scalar_type, TMV, TOP> factory;
-    solverRcp = factory.create("GMRES", solverParams); // recycle Krylov space for collision
+    solverRcp = factory.create(solverParams->name(), solverParams);
     Teuchos::writeParameterListToXmlFile(*(solverRcp->getCurrentParameters()), "mobilitySolver_used.xml");
     Teuchos::writeParameterListToYamlFile(*(solverRcp->getCurrentParameters()), "mobilitySolver_used.yaml");
     // testOperator();
