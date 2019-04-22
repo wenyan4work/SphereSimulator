@@ -6,10 +6,12 @@
 
 #get grandparent folder name
 
-GRD1="$(cd ../../; pwd)"
-GRD=$(basename $GRD1)
+GRD="$(cd ../../; pwd)"
+NAME1=$(basename $GRD)
+GRD="$(pwd)"
+NAME2=$(basename $GRD)
 
-MOVIENAME=$GRD
+MOVIENAME=${NAME1}_${NAME2}
 echo $MOVIENAME
 
-ffmpeg -framerate 60 -pattern_type glob -i '*.png' -c:v libx264 -pix_fmt yuv420p -profile:v high -level 4.2 -crf 17 -vf scale=1920:-2 $MOVIENAME.mp4
+ffmpeg -framerate 30 -pattern_type glob -i '*.png' -c:v libx264 -pix_fmt yuv420p -profile:v high -level 4.2 -crf 17 -vf scale=1920:-2 $MOVIENAME.mp4
