@@ -1,5 +1,4 @@
 #include "SphereSTKMobMat.hpp"
-#include "Teuchos_XMLParameterListHelpers.hpp"
 #include "Teuchos_YamlParameterListHelpers.hpp"
 
 constexpr double pi = 3.141592653589793238462643383279;
@@ -55,40 +54,38 @@ SphereSTKMobMat::SphereSTKMobMat(std::vector<Sphere> *const spherePtr, const std
     // setup the problem
     problemRcp = Teuchos::rcp(new Belos::LinearProblem<TOP::scalar_type, TMV, TOP>(AOpRcp, xRcp, bRcp));
 
-    // Teuchos::RCP<Teuchos::ParameterList> solverParams = Teuchos::getParametersFromXmlFile("mobilitySolver.xml");
-    Teuchos::RCP<Teuchos::ParameterList> solverParams = Teuchos::getParametersFromYamlFile("mobilitySolver.yaml");
-    std::cout << "Iterative Solver: " << solverParams->name() << std::endl;
-    solverParams->set("Verbosity", Belos::Errors + Belos::Warnings + Belos::TimingDetails + Belos::FinalSummary);
     Belos::SolverFactory<TOP::scalar_type, TMV, TOP> factory;
+
+    Teuchos::RCP<Teuchos::ParameterList> solverParams = Teuchos::getParametersFromYamlFile("mobilitySolver.yaml");
     solverRcp = factory.create(solverParams->name(), solverParams);
-    Teuchos::writeParameterListToXmlFile(*(solverRcp->getCurrentParameters()), "mobilitySolver_used.xml");
     Teuchos::writeParameterListToYamlFile(*(solverRcp->getCurrentParameters()), "mobilitySolver_used.yaml");
+    std::cout << "Iterative Solver: " << solverParams->name() << std::endl;
     // testOperator();
 
     // fill initial guess with current value in sh
     // use b as temporary space
-//     const int nRowLocal = xRcp->getLocalLength();
-// #pragma omp parallel for
-//     for (int i = 0; i < nLocal; i++) {
-//         const int indexBase = gridNumberIndex[i];
-//         const int npts = gridNumberLength[i];
-//         auto &density = sh[i].gridValue;
-//         TEUCHOS_ASSERT(npts * 3 == density.size());
-//         for (int j = 0; j < npts; j++) {
-//             const int index = indexBase + j;
-//             b[3 * (index) + 0] = density[3 * j + 0] - rho[3 * (index) + 0];
-//             b[3 * (index) + 1] = density[3 * j + 1] - rho[3 * (index) + 1];
-//             b[3 * (index) + 2] = density[3 * j + 2] - rho[3 * (index) + 2];
-//         }
-//     }
+    const int nRowLocal = xRcp->getLocalLength();
+#pragma omp parallel for
+    for (int i = 0; i < nLocal; i++) {
+        const int indexBase = gridNumberIndex[i];
+        const int npts = gridNumberLength[i];
+        auto &density = sh[i].gridValue;
+        TEUCHOS_ASSERT(npts * 3 == density.size());
+        for (int j = 0; j < npts; j++) {
+            const int index = indexBase + j;
+            b[3 * (index) + 0] = density[3 * j + 0] - rho[3 * (index) + 0];
+            b[3 * (index) + 1] = density[3 * j + 1] - rho[3 * (index) + 1];
+            b[3 * (index) + 2] = density[3 * j + 2] - rho[3 * (index) + 2];
+        }
+    }
 
-//     AOpRcp->projectNullSpace(b.data());
-//     auto xLastPtr = xLastRcp->getLocalView<Kokkos::HostSpace>();
-//     xLastRcp->modify<Kokkos::HostSpace>();
-// #pragma omp parallel for
-//     for (int i = 0; i < nRowLocal; i++) {
-//         xLastPtr(i, 0) = b[i];
-//     }
+    AOpRcp->projectNullSpace(b.data());
+    auto xLastPtr = xLastRcp->getLocalView<Kokkos::HostSpace>();
+    xLastRcp->modify<Kokkos::HostSpace>();
+#pragma omp parallel for
+    for (int i = 0; i < nRowLocal; i++) {
+        xLastPtr(i, 0) = b[i];
+    }
     if (commRcp->getRank() == 0)
         printf("MobMat constructed\n");
 
@@ -206,32 +203,40 @@ void SphereSTKMobMat::solveMob(const double *forcePtr, double *velPtr) const {
         printf("right side b set\n");
     }
 
-    // step 2 solve linear system
-    // set initial guess from last solution result
-    xRcp->update(1.0, *xLastRcp, 0);
+    Teuchos::RCP<Teuchos::ParameterList> solverParams = Teuchos::getParametersFromYamlFile("mobilitySolver.yaml");
+    Teuchos::writeParameterListToYamlFile(*(solverRcp->getCurrentParameters()), "mobilitySolver_used.yaml");
+    std::cout << "Iterative Solver: " << solverParams->name() << std::endl;
 
-    if (commRcp->getRank() == 0) {
-        printf("initial guess x set\n");
+    const double bNorm = bRcp->getVector(0)->norm2();
+    if (bNorm < 1e-5) { // case 1, forcing is zero, xsol is zero force density
+        xRcp->putScalar(0);
+    } else { // case 2, forcing non zero, Belos step necessary
+        // step 2 solve linear system
+        // set initial guess from last solution result
+        xRcp->update(1.0, *xLastRcp, 0);
+        // dumpTMV(xRcp, "Xguess");
+
+        if (commRcp->getRank() == 0) {
+            printf("initial guess x set\n");
+        }
+
+        bool set = problemRcp->setProblem(); // iterative solve
+        TEUCHOS_TEST_FOR_EXCEPTION(!set, std::runtime_error,
+                                   "*** Belos::LinearProblem failed to set up correctly! ***");
+        // do not reset the Krylov space, using GCRODR
+        // solverRcp->reset(Belos::Problem);
+        solverRcp->setProblem(problemRcp);
+
+        Belos::ReturnType result = solverRcp->solve();
+        int numIters = solverRcp->getNumIters();
+        if (commRcp->getRank() == 0) {
+            std::cout << "RECORD: Num of Iterations in Mobility Matrix: " << numIters << std::endl;
+        }
     }
 
-    // dumpTMV(xRcp, "Xguess");
-    // iterative solve
-
-    bool set = problemRcp->setProblem();
-    TEUCHOS_TEST_FOR_EXCEPTION(!set, std::runtime_error, "*** Belos::LinearProblem failed to set up correctly! ***");
-    // do not reset the Krylov space, using GCRODR
-    // solverRcp->reset(Belos::Problem);
-    solverRcp->setProblem(problemRcp);
-
-    Belos::ReturnType result = solverRcp->solve();
-    int numIters = solverRcp->getNumIters();
-    if (commRcp->getRank() == 0) {
-        std::cout << "RECORD: Num of Iterations in Mobility Matrix: " << numIters << std::endl;
-    }
     // save result
-    xLastRcp->update(1.0, *xRcp, 0);
-
     // dumpTMV(xRcp, "Xsol");
+    xLastRcp->update(1.0, *xRcp, 0);
 
     // step 3 compute velocity with solved density
     // rho+mu is saved in rho, the density generating the fluid velocity

@@ -1,5 +1,5 @@
 omp threads
--1
+8
 simBox xlow ylow zlow  xhigh yhigh zhigh
 0.0 0.0 0.0 30.0 30.0 30.0
 xyz periodic (not implemented yet)
@@ -13,7 +13,7 @@ viscosity (pN/(um^2) s)
 kBT (pN * um)
 0.00411
 External Force and Torque (pN)
-0.0 0.0 -0.1 0.0 0.0 0.0
+0.0 0.0 -1.0 0.0 0.0 1.0
 sphereNumber
 1000
 dt (s)
