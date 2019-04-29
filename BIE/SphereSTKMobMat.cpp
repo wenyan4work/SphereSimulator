@@ -67,28 +67,28 @@ SphereSTKMobMat::SphereSTKMobMat(std::vector<Sphere> *const spherePtr, const std
 
     // fill initial guess with current value in sh
     // use b as temporary space
-    const int nRowLocal = xRcp->getLocalLength();
-#pragma omp parallel for
-    for (int i = 0; i < nLocal; i++) {
-        const int indexBase = gridNumberIndex[i];
-        const int npts = gridNumberLength[i];
-        auto &density = sh[i].gridValue;
-        TEUCHOS_ASSERT(npts * 3 == density.size());
-        for (int j = 0; j < npts; j++) {
-            const int index = indexBase + j;
-            b[3 * (index) + 0] = density[3 * j + 0] - rho[3 * (index) + 0];
-            b[3 * (index) + 1] = density[3 * j + 1] - rho[3 * (index) + 1];
-            b[3 * (index) + 2] = density[3 * j + 2] - rho[3 * (index) + 2];
-        }
-    }
+//     const int nRowLocal = xRcp->getLocalLength();
+// #pragma omp parallel for
+//     for (int i = 0; i < nLocal; i++) {
+//         const int indexBase = gridNumberIndex[i];
+//         const int npts = gridNumberLength[i];
+//         auto &density = sh[i].gridValue;
+//         TEUCHOS_ASSERT(npts * 3 == density.size());
+//         for (int j = 0; j < npts; j++) {
+//             const int index = indexBase + j;
+//             b[3 * (index) + 0] = density[3 * j + 0] - rho[3 * (index) + 0];
+//             b[3 * (index) + 1] = density[3 * j + 1] - rho[3 * (index) + 1];
+//             b[3 * (index) + 2] = density[3 * j + 2] - rho[3 * (index) + 2];
+//         }
+//     }
 
-    AOpRcp->projectNullSpace(b.data());
-    auto xLastPtr = xLastRcp->getLocalView<Kokkos::HostSpace>();
-    xLastRcp->modify<Kokkos::HostSpace>();
-#pragma omp parallel for
-    for (int i = 0; i < nRowLocal; i++) {
-        xLastPtr(i, 0) = b[i];
-    }
+//     AOpRcp->projectNullSpace(b.data());
+//     auto xLastPtr = xLastRcp->getLocalView<Kokkos::HostSpace>();
+//     xLastRcp->modify<Kokkos::HostSpace>();
+// #pragma omp parallel for
+//     for (int i = 0; i < nRowLocal; i++) {
+//         xLastPtr(i, 0) = b[i];
+//     }
     if (commRcp->getRank() == 0)
         printf("MobMat constructed\n");
 
