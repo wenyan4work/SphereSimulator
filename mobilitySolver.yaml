@@ -1,12 +1,12 @@
 %YAML 1.1
 ---
 GMRES:
-  Convergence Tolerance: 1.00000000000000008e-05
+  Convergence Tolerance: 1.00000000000000008e-07
   Maximum Restarts: 20
   Maximum Iterations: 40
   Block Size: 1
   Num Blocks: 30
-  Num Recycled Blocks: 5 # useful only for GCRODR
+  # Num Recycled Blocks: 5 # useful only for GCRODR
   Verbosity: 25 
   Output Style: 0
   Output Frequency: -1

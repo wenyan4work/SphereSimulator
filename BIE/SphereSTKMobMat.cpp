@@ -206,6 +206,7 @@ void SphereSTKMobMat::solveMob(const double *forcePtr, double *velPtr) const {
     Teuchos::RCP<Teuchos::ParameterList> solverParams = Teuchos::getParametersFromYamlFile("mobilitySolver.yaml");
     Teuchos::writeParameterListToYamlFile(*(solverRcp->getCurrentParameters()), "mobilitySolver_used.yaml");
     std::cout << "Iterative Solver: " << solverParams->name() << std::endl;
+    solverRcp->setParameters(solverParams);
 
     const double bNorm = bRcp->getVector(0)->norm2();
     if (bNorm < 1e-5) { // case 1, forcing is zero, xsol is zero force density
