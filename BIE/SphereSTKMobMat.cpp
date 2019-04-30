@@ -58,8 +58,10 @@ SphereSTKMobMat::SphereSTKMobMat(std::vector<Sphere> *const spherePtr, const std
 
     Teuchos::RCP<Teuchos::ParameterList> solverParams = Teuchos::getParametersFromYamlFile("mobilitySolver.yaml");
     solverRcp = factory.create(solverParams->name(), solverParams);
-    Teuchos::writeParameterListToYamlFile(*(solverRcp->getCurrentParameters()), "mobilitySolver_used.yaml");
-    std::cout << "Iterative Solver: " << solverParams->name() << std::endl;
+    Teuchos::writeParameterListToYamlFile(*(solverRcp->getCurrentParameters()), "mobilitySolverInUse.yaml");
+    if (commRcp->getRank() == 0) {
+        std::cout << "Iterative Solver: " << solverParams->name() << std::endl;
+    }
     // testOperator();
 
     // fill initial guess with current value in sh
@@ -204,8 +206,10 @@ void SphereSTKMobMat::solveMob(const double *forcePtr, double *velPtr) const {
     }
 
     Teuchos::RCP<Teuchos::ParameterList> solverParams = Teuchos::getParametersFromYamlFile("mobilitySolver.yaml");
-    Teuchos::writeParameterListToYamlFile(*(solverRcp->getCurrentParameters()), "mobilitySolver_used.yaml");
-    std::cout << "Iterative Solver: " << solverParams->name() << std::endl;
+    Teuchos::writeParameterListToYamlFile(*(solverRcp->getCurrentParameters()), "mobilitySolverInUse.yaml");
+    if (commRcp->getRank() == 0) {
+        std::cout << "Iterative Solver: " << solverParams->name() << std::endl;
+    }
     solverRcp->setParameters(solverParams);
 
     const double bNorm = bRcp->getVector(0)->norm2();

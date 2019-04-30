@@ -1,7 +1,7 @@
 %YAML 1.1
 ---
 GMRES:
-  Convergence Tolerance: 1.00000000000000008e-07
+  Convergence Tolerance: 1.00000000000000008e-06
   Maximum Restarts: 20
   Maximum Iterations: 40
   Block Size: 1
