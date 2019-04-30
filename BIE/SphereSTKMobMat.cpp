@@ -56,9 +56,9 @@ SphereSTKMobMat::SphereSTKMobMat(std::vector<Sphere> *const spherePtr, const std
 
     Belos::SolverFactory<TOP::scalar_type, TMV, TOP> factory;
 
+    // choose solver in constructor
     Teuchos::RCP<Teuchos::ParameterList> solverParams = Teuchos::getParametersFromYamlFile("mobilitySolver.yaml");
     solverRcp = factory.create(solverParams->name(), solverParams);
-    Teuchos::writeParameterListToYamlFile(*(solverRcp->getCurrentParameters()), "mobilitySolverInUse.yaml");
     if (commRcp->getRank() == 0) {
         std::cout << "Iterative Solver: " << solverParams->name() << std::endl;
     }
@@ -205,11 +205,12 @@ void SphereSTKMobMat::solveMob(const double *forcePtr, double *velPtr) const {
         printf("right side b set\n");
     }
 
+    // set solver parameters when solving
     Teuchos::RCP<Teuchos::ParameterList> solverParams = Teuchos::getParametersFromYamlFile("mobilitySolver.yaml");
+    solverParams->validateParametersAndSetDefaults(*(solverRcp->getValidParameters()));
+    // solverParams->set("Verbosity", Belos::Errors + Belos::Warnings + Belos::TimingDetails + Belos::StatusTestDetails
+    // + Belos::OrthoDetails + Belos::IterationDetails + Belos::FinalSummary);
     Teuchos::writeParameterListToYamlFile(*(solverRcp->getCurrentParameters()), "mobilitySolverInUse.yaml");
-    if (commRcp->getRank() == 0) {
-        std::cout << "Iterative Solver: " << solverParams->name() << std::endl;
-    }
     solverRcp->setParameters(solverParams);
 
     const double bNorm = bRcp->getVector(0)->norm2();

@@ -1,17 +1,17 @@
 %YAML 1.1
 ---
 GMRES:
-  Convergence Tolerance: 1.00000000000000008e-06
+  Convergence Tolerance: 1.00000000000000017e-05
   Maximum Restarts: 20
   Maximum Iterations: 40
-  Block Size: 1
   Num Blocks: 30
-  # Num Recycled Blocks: 5 # useful only for GCRODR
-  Verbosity: 25 
-  Output Style: 0
-  Output Frequency: -1
+  Block Size: 1
+  Verbosity: 63       # default 25, 63 for residual convergence
+  Output Frequency: -1 # -1 default, 1 for every iteration
+  Show Maximum Residual Norm Only: false
   Implicit Residual Scaling: Norm of RHS
   Explicit Residual Scaling: Norm of RHS
   Timer Label: Iterative Mobility Solution
   Orthogonalization: IMGS
+  Orthogonalization Constant: -1.00000000000000000e+00
 ...
