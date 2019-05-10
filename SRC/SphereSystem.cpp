@@ -386,7 +386,7 @@ void SphereSystem::moveEuler(Teuchos::RCP<TV> &velocityRcp) {
         auto &s = sphere[i];
         s.vel = Evec3(vx, vy, vz);
         s.omega = Evec3(wx, wy, wz);
-        // printf("%d vel: %.14g,%.14g,%.14g, omega: %.14g, %.14g, %.14g\n", i, vx, vy, vz, wx, wy, wz);
+        printf("%d vel: %.14g,%.14g,%.14g, omega: %.14g, %.14g, %.14g\n", i, vx, vy, vz, wx, wy, wz);
         s.stepEuler(dt);
     }
 
@@ -394,82 +394,26 @@ void SphereSystem::moveEuler(Teuchos::RCP<TV> &velocityRcp) {
 }
 
 void SphereSystem::resolveCollision(bool manybody, double buffer) {
-    // positive buffer value means sphere collision radius is effectively smaller
-    // i.e., less likely to collide
-    if (fmmPtr) {
-        fitFMMBox();
-    }
 
-    // generate known velocity
-    Teuchos::RCP<TV> forceKnownRcp = getForceKnown();
-    Teuchos::RCP<TOP> mobOpRcp = getMobOperator(manybody && runConfig.hydro, std::string("stkmob"));
-    Teuchos::RCP<TV> velocityKnownRcp = getVelocityKnown(mobOpRcp, forceKnownRcp);
-    if (runConfig.hydro && manybody) {
-        Teuchos::RCP<SphereSTKMobMat> stkmobopRcp = Teuchos::rcp_dynamic_cast<SphereSTKMobMat>(mobOpRcp, true);
-        stkmobopRcp->writeBackDensitySolution();
-    }
-
-    // Collect collision pair blocks
-    auto &collector = *collisionCollectorPtr;
-    collector.clear();
-
-    // no collision for only 1 object
-    // temporary workaround for a bug in interact manager
-    std::vector<CollisionSphere> collisionSphereSrc;
-    std::vector<CollisionSphere> collisionSphereTrg;
-
-    interactManagerPtr->setupEssVec(collisionSphereSrc, collisionSphereTrg);
-    if (commRcp->getRank() == 0)
-        printf("ESS vec created\n");
-
-    auto nearInteractorPtr = interactManagerPtr->getNewNearInteraction();
-    if (commRcp->getRank() == 0)
-        printf("nearInteractorPtr created\n");
-
-    interactManagerPtr->setupNearInteractor(nearInteractorPtr, collisionSphereSrc, collisionSphereTrg);
-    if (commRcp->getRank() == 0)
-        printf("setupNear\n");
-
-    interactManagerPtr->calcNearInteraction(nearInteractorPtr, collisionSphereSrc, collisionSphereTrg, collector);
-    if (commRcp->getRank() == 0)
-        printf("calcNear\n");
-
-    // construct collision stepper
-    collisionSolverPtr->setup(*(collector.collisionPoolPtr), sphereMobilityMapRcp, runConfig.dt, buffer);
-    collisionSolverPtr->setControlLCP(1e-4, 2000, false); // res, maxIte, NWTN refine
-
-    mobOpRcp = getMobOperator(manybody && runConfig.hydro, std::string("stkcol"));
-    collisionSolverPtr->solveCollision(mobOpRcp, velocityKnownRcp);
-    collisionSolverPtr->writebackGamma(*(collisionCollectorPtr->collisionPoolPtr));
-    if (runConfig.hydro && manybody) {
-        Teuchos::RCP<SphereSTKMobMat> stkmobopRcp = Teuchos::rcp_dynamic_cast<SphereSTKMobMat>(mobOpRcp, true);
-        stkmobopRcp->writeBackDensitySolution();
-    }
-
-    // writeBack force torque solution
-    const int nLocal = sphere.size();
-    auto forceColRcp = collisionSolverPtr->getForceCol();
-
-    auto forceColPtr = forceColRcp->getLocalView<Kokkos::HostSpace>();
-    forceColRcp->modify<Kokkos::HostSpace>();
-#pragma omp parallel for
-    for (int i = 0; i < nLocal; i++) {
-        sphere[i].forceCol[0] = forceColPtr(6 * i + 0, 0);
-        sphere[i].forceCol[1] = forceColPtr(6 * i + 1, 0);
-        sphere[i].forceCol[2] = forceColPtr(6 * i + 2, 0);
-        sphere[i].torqueCol[0] = forceColPtr(6 * i + 3, 0);
-        sphere[i].torqueCol[1] = forceColPtr(6 * i + 4, 0);
-        sphere[i].torqueCol[2] = forceColPtr(6 * i + 5, 0);
-    }
-
-    return;
 }
 
 void SphereSystem::step() {
     if (commRcp->getRank() == 0)
         std::cout << "RECORD: TIMESTEP " << stepCount << " TIME " << stepCount * runConfig.dt << std::endl;
 
-    resolveCollision(true, 0);
+    if (fmmPtr) {
+        fitFMMBox();
+    }
+
+    // generate known velocity
+    Teuchos::RCP<TV> forceKnownRcp = getForceKnown();
+    Teuchos::RCP<TOP> mobOpRcp = getMobOperator(runConfig.hydro, std::string("stkmob"));
+    Teuchos::RCP<TV> velocityKnownRcp = getVelocityKnown(mobOpRcp, forceKnownRcp);
+    if (runConfig.hydro) {
+        Teuchos::RCP<SphereSTKMobMat> stkmobopRcp = Teuchos::rcp_dynamic_cast<SphereSTKMobMat>(mobOpRcp, true);
+        stkmobopRcp->writeBackDensitySolution();
+    }
+
 
     stepCount++;
     if (stepCount % runConfig.snapFreq == 0) {
@@ -477,10 +421,10 @@ void SphereSystem::step() {
     }
 
     // move forward
-    Teuchos::RCP<TV> velocityRcp = Teuchos::rcp(new TV(*(collisionSolverPtr->getVelocityCol()), Teuchos::Copy));
-    Teuchos::RCP<TV> velocityKnownRcp = collisionSolverPtr->getVelocityKnown();
-    velocityRcp->update(1.0, *velocityKnownRcp, 1.0);
-    moveEuler(velocityRcp);
+    // Teuchos::RCP<TV> velocityRcp = Teuchos::rcp(new TV(*(collisionSolverPtr->getVelocityCol()), Teuchos::Copy));
+    // Teuchos::RCP<TV> velocityKnownRcp = collisionSolverPtr->getVelocityKnown();
+    // velocityRcp->update(1.0, *velocityKnownRcp, 1.0);
+    moveEuler(velocityKnownRcp);
 }
 
 void SphereSystem::calcBoundaryCollision() {

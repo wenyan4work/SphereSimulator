@@ -19,14 +19,14 @@ int main(int argc, char **argv) {
         // main time loop
         double t = 0;
         int iStep = 0;
-        while (t < mySystem.runConfig.timeTotal + mySystem.runConfig.dt / 2) {
+        // while (t < mySystem.runConfig.timeTotal + mySystem.runConfig.dt / 2) {
             mySystem.step();
             t += mySystem.runConfig.dt;
             iStep++;
             if (iStep % 10 == 0) {
                 mySystem.partition();
             }
-        }
+        // }
     }
     // mpi finalize
     // let the root rank wait for other

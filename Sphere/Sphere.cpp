@@ -106,9 +106,9 @@ void Sphere::addLayer(const std::string &name_, const Shexp::KIND &kind_, const 
 }
 
 void Sphere::dumpSphere() const {
-    printf("gid %8d, r %8f, rCol %8f, pos %8f, %8f, %8f\n", gid, radius, radiusCollision, pos[0], pos[1], pos[2]);
-    printf("vel %8f, %8f, %8f; omega %8f, %8f, %8f\n", vel[0], vel[1], vel[2], omega[0], omega[1], omega[2]);
-    printf("orient %8f, %8f, %8f, %8f\n", orientation.w(), orientation.x(), orientation.y(), orientation.z());
+    printf("gid %8d, r %8f, rCol %8f, pos %8g, %8g, %8g\n", gid, radius, radiusCollision, pos[0], pos[1], pos[2]);
+    printf("vel %16g, %16g, %16g; omega %16g, %16g, %16g\n", vel[0], vel[1], vel[2], omega[0], omega[1], omega[2]);
+    printf("orient %16g, %16g, %16g, %16g\n", orientation.w(), orientation.x(), orientation.y(), orientation.z());
 }
 
 // void Sphere::dumpNeighbor() const {
