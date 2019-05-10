@@ -99,12 +99,11 @@ Config::Config(std::string fileName) {
 
     getline(myfile, line);
     pSH = 3;
-    std::cout << line;
     myfile >> pSH >> line;
+    printf("using pSH %d\n", pSH);
 
     getline(myfile, line);
     pFMM = 6;
-    std::cout << line;
     myfile >> pFMM >> line;
     if (pFMM % 2 != 0) {
         printf("P for FMM must be an even number: p=%d\n", pFMM);
