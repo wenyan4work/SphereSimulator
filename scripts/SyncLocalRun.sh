@@ -1,5 +1,5 @@
 #! /bin/bash
-RUNPATH=/local1/RunLocal/SphereSimulator
+RUNPATH=/Data/RunLocal/SphereSimulator
 
 # copy to cluster run path
 rsync -avz --delete-after --exclude='*.d' --exclude='*.o' \
