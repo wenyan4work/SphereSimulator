@@ -42,6 +42,9 @@ class Config {
     double timeTotal;
     int snapFreq;
 
+    // LCP solver;
+    double tol;
+
     explicit Config(std::string);
     ~Config() = default;
 };

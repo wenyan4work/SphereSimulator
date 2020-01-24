@@ -27,5 +27,5 @@ Test/FMM/randomPoints
 **.pvtp
 **.log
 build/**
-mobilitySolver_used.xml
-mobilitySolver_used.yaml
+mobilitySolverInUse.xml
+mobilitySolverInUse.yaml

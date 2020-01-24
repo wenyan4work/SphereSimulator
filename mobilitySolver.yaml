@@ -1,9 +1,9 @@
 %YAML 1.1
 ---
 GMRES:
-  Convergence Tolerance: 1.00000000000000017e-05
+  Convergence Tolerance: 1.0e-6
   Maximum Restarts: 20
-  Maximum Iterations: 40
+  Maximum Iterations: 60
   Num Blocks: 30
   Block Size: 1
   Verbosity: 63       # default 25, 63 for residual convergence

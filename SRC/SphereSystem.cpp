@@ -436,7 +436,7 @@ void SphereSystem::resolveCollision(bool manybody, double buffer) {
 
     // construct collision stepper
     collisionSolverPtr->setup(*(collector.collisionPoolPtr), sphereMobilityMapRcp, runConfig.dt, buffer);
-    collisionSolverPtr->setControlLCP(1e-4, 2000, false); // res, maxIte, NWTN refine
+    collisionSolverPtr->setControlLCP(runConfig.tol, 2000, false); // res, maxIte, NWTN refine
 
     mobOpRcp = getMobOperator(manybody && runConfig.hydro, std::string("stkcol"));
     collisionSolverPtr->solveCollision(mobOpRcp, velocityKnownRcp);

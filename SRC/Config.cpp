@@ -157,6 +157,9 @@ Config::Config(std::string fileName) {
         shell = true;
     }
 
+    getline(myfile, line);
+    myfile >> tol >> line;
+
     myfile.close();
 
     // input correctness check
@@ -186,6 +189,7 @@ Config::Config(std::string fileName) {
         printf("Total Time: %lf\n", timeTotal);
         printf("Snap Freq: %d\n", snapFreq);
     }
+    { printf("LCP residual: %lf\n", tol); }
 
     return;
 }

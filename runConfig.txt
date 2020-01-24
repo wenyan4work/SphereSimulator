@@ -1,11 +1,11 @@
 omp threads
-8
+-1
 simBox xlow ylow zlow  xhigh yhigh zhigh
-0.0 0.0 0.0 30.0 30.0 30.0
+-50.0 -50.0 -50.0 100.0 100.0 100.0
 xyz periodic (not implemented yet)
 0 0 0
 sphereRadius LogNormal distribution (average, sigma < 0 for same radius)
-1.0 0.2
+1.0 0.3
 sphere collision Radius ratio (radius*ratio=collision radius)
 1.05
 viscosity (pN/(um^2) s)
@@ -13,13 +13,13 @@ viscosity (pN/(um^2) s)
 kBT (pN * um)
 0.00411
 External Force and Torque (pN)
-0.0 0.0 -1.0 0.0 0.0 1.0
+0.0 0.0 0.0 0.0 0.0 1.0
 sphereNumber
 1000
 dt (s)
 0.001
 timeTotal (s)
-10.0
+1.0
 snapFreq (int)
 1
 RngSeed
@@ -29,9 +29,9 @@ Monolayer (>0 for true, <=0 for false, default to be true)
 Hydrodynamics (>0 for true, <=0 for false, default to be true)
 1
 Spherical Harmonics order p (larger than 3, recommend 6~14)
-4
+10
 FMM multipole order p (even number between 6 and 16, recommend 10)
-8
+12
 Brownian Scale (scale by this float number. 0=no Brown. default = 1, non-negative)
 0.0
 Stokes Regularization Parameter (fraction of half fiber length, no effect)
@@ -42,4 +42,7 @@ Dump Flow Mesh size (suggest boxsize / 100)
 4.0
 Spherical Shell (>0 for true. With free boundary only, no effect on hydro)
 0
+LCP tol
+0.00001
+
 
