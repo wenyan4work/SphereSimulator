@@ -6,4 +6,4 @@
 	url = https://github.com/wenyan4work/STKFMM.git
 [submodule "SCTL"]
 	path = SCTL
-	url = https://github.com/wenyan4work/SCTL.git
+	url = https://github.com/dmalhotra/SCTL.git
