@@ -5,14 +5,15 @@
 #SBATCH -o outrunLog.%j.%A.%a.%N.out 
 #SBATCH -e errrunLog.%j.%A.%a.%N.err
 
-#SBATCH --nodes=1
+#//SBATCH --constraint=broadwell
+#SBATCH --constraint=skylake
+
+#SBATCH --nodes=2
+#SBATCH --ntasks-per-socket=4
+#SBATCH --cpus-per-task=5
+
 #SBATCH --exclusive
 #SBATCH --export=ALL
-#SBATCH --constraint=broadwell
-
-# for one mpi rank per socket
-#SBATCH --ntasks-per-socket=1
-#SBATCH --cpus-per-task=14
 
 find ./ -type f -name 'outrunLog*' -a ! -name "outrunLog.$SLURM_JOBID.*" -delete 
 find ./ -type f -name 'errrunLog*' -a ! -name "errrunLog.$SLURM_JOBID.*" -delete 
@@ -24,12 +25,13 @@ env | grep -i slurm
 
 echo "---------OMP SETTINGS---------"
 export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
+export OMP_DISPLAY_ENV=true
 echo $OMP_NUM_THREADS
-env | grep -i OMP
+env | grep -i OMP_
 echo "------------------------------"
 
 echo "---------KMP SETTINGS---------"
-env | grep -i KMP
+env | grep -i KMP_
 echo "------------------------------"
 
 echo "---------MKL SETTINGS---------"
@@ -46,12 +48,13 @@ which mpiexec
 which srun
 date
 
-# manually assign running nodes
-# by default each rank binds to one socket, do not specify extra -bind-to or -map-to parameters
-# if -bind-to or -map-to parameters exist, job is suspended every 30 seconds for unknown reasons
 echo "hosts:"
 echo $SLURM_JOB_NODELIST
-#mpiexec -host $(scontrol show hostname $SLURM_NODELIST | tr '\n' ',') -perhost $SLURM_TASKS_PER_NODE ./SphereSimulator.X
-mpirun ./SphereSimulator.X
+
+export OMP_PROC_BIND=spread
+export OMP_PLACES=cores
+
+mpirun --map-by ppr:$SLURM_NTASKS_PER_SOCKET:socket:PE=$SLURM_CPUS_PER_TASK \
+       --bind-to hwthread --display-map ./SphereSimulator.X
 
 date

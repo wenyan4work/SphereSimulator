@@ -19,6 +19,7 @@ collisionXF/
 **.ipynb
 Test/FMM/randomPoints
 
+**.pvd
 **.vtu
 **.pvtu
 **.vtk
@@ -26,6 +27,9 @@ Test/FMM/randomPoints
 **.vtp
 **.pvtp
 **.log
+**.out
+**.err
+
 build/**
 mobilitySolverInUse.xml
 mobilitySolverInUse.yaml
