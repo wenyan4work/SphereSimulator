@@ -33,7 +33,7 @@ class SphereSystem {
     SphereSystem(const SphereSystem &) = delete;
     SphereSystem &operator=(const SphereSystem &) = delete;
 
-    void moveEuler(Teuchos::RCP<TV> &velocityRcp); // Euler step update position and orientation, with given velocity
+    void moveEuler(); // Euler step update position and orientation, with given velocity
     void resolveCollision(bool manybody, double buffer = 0); // resolve collision
     void step();
     void output();    // output
@@ -78,6 +78,8 @@ class SphereSystem {
 
     void calcBoundaryCollision();
     void fitFMMBox();
+
+    void writeBackVelocity(Teuchos::RCP<TV> &velocityRcp);
 
     void applyMonoLayer();
 };

@@ -29,6 +29,7 @@ Test/FMM/randomPoints
 **.log
 **.out
 **.err
+**.csv
 
 build/**
 mobilitySolverInUse.xml
