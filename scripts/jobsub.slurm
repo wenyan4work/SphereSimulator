@@ -1,32 +1,40 @@
 #!/bin/bash
 
+###############################################################################
+########################## SLURM Settings #####################################
 #NOTE: if you request email, you will get one for each task!
-# The stdout (-o) and stderr (-e) files will be written to the submission directory with names that follow the given templates.
-#SBATCH -o outrunLog.%j.%A.%a.%N.out 
+# The stdout (-o) and stderr (-e) files will be written to
+# THE SUBMISSION DIRECTORY with names that follow the given templates.
+#SBATCH -o outrunLog.%j.%A.%a.%N.out
 #SBATCH -e errrunLog.%j.%A.%a.%N.err
 
-#//SBATCH --constraint=broadwell
-#SBATCH --constraint=skylake
-
-#SBATCH --nodes=2
-#SBATCH --ntasks-per-socket=4
-#SBATCH --cpus-per-task=5
-
+#SBATCH --nodes=1
 #SBATCH --exclusive
 #SBATCH --export=ALL
 
-find ./ -type f -name 'outrunLog*' -a ! -name "outrunLog.$SLURM_JOBID.*" -delete 
-find ./ -type f -name 'errrunLog*' -a ! -name "errrunLog.$SLURM_JOBID.*" -delete 
+# type of node
+#SBATCH --constraint=broadwell
+# for one mpi rank per socket
+#SBATCH --ntasks-per-socket=1
+#SBATCH --cpus-per-task=14
+###############################################################################
 
-date
-hostname
+# remove old err and out files
+find ./ -type f -name 'outrunLog*' -a ! -name "outrunLog.$SLURM_JOBID.*" -delete
+find ./ -type f -name 'errrunLog*' -a ! -name "errrunLog.$SLURM_JOBID.*" -delete
+
+echo "---------SLURM SETTINGS---------"
 echo "Greetings from $SLURM_JOB_NUM_NODES!"
 env | grep -i slurm
+echo "------------------------------"
 
 echo "---------OMP SETTINGS---------"
 export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
+export OMP_PROC_BIND=spread
+export OMP_PLACES=cores
 export OMP_DISPLAY_ENV=true
-echo $OMP_NUM_THREADS
+export OMP_NESTED=false
+export OMP_MAX_ACTIVE_LEVELS=1
 env | grep -i OMP_
 echo "------------------------------"
 
@@ -35,26 +43,27 @@ env | grep -i KMP_
 echo "------------------------------"
 
 echo "---------MKL SETTINGS---------"
-env | grep -i MKL
+env | grep -i MKL_
 echo "------------------------------"
 
-rm -rf ./result/result*-*
-rm -rf ./result/ResultAll
-find . -type f -name '*.o' -delete
-find . -type f -name '*.d' -delete
-
+echo "---------MPI SETTINGS---------"
 which mpirun
 which mpiexec
 which srun
-date
+env | grep -i MPI_
+echo "------------------------------"
 
-echo "hosts:"
+# remove old history and compilation intermediate files
+rm -rf ./result/result*-*
+rm -rf ./result/ResultAll
+rm -rf ./result/DataLink*
+find . -type f -name '*.o' -delete
+find . -type f -name '*.d' -delete
+
+# let mpirun auto detect mpi settings arranged by slurm
+echo "running on hosts:"
 echo $SLURM_JOB_NODELIST
-
-export OMP_PROC_BIND=spread
-export OMP_PLACES=cores
-
 mpirun --map-by ppr:$SLURM_NTASKS_PER_SOCKET:socket:PE=$SLURM_CPUS_PER_TASK \
-       --bind-to hwthread --display-map ./SphereSimulator.X
+       --bind-to core --display-map ./SphereSimulator.X
 
 date
